@@ -115,7 +115,9 @@
        Play it door first, the rest listed); calm-day note +
        room + receipts → My Encouragement; his people + his
        professional (988 / Crisis Text Line included) → My
-       People. An empty playlist renders no Playlist bar.
+       People. An empty playlist renders no Playlist bar
+       (narrowed in v1.28 — the bar now always stands; see
+       the v1.28 entry below).
      - "Center the help button and Bigger so the separation
        is evident." The pill moves to TOP-CENTER and grows
        (18px/700, min-height 56px, a deeper crimson shadow);
@@ -135,7 +137,32 @@
        (cornflower #6495ED superseded), washes shift pale
        with the family, and at night sign-deep lightens to
        #7DD3FC (10.99:1 on the indigo). Crimson, plum, the
-       grays and the indigo are untouched. */
+       grays and the indigo are untouched.
+     v1.28 — TWO FIELD-REPORT FIXES (2026-10-25):
+     - "Keep the hotline bars. You only have two bars instead
+       of three on the help front page." The v1.15 song-rung
+       law (an empty playlist renders no rung), carried into
+       the bars in v1.27, hid My Playlist whenever the
+       playlist was empty — narrowing it here, on the
+       founder's word: inside the three-bar Help, ALL THREE
+       bars stand on every open, stocked or not. An unstocked
+       My Playlist opens onto the invitation and the same
+       "Start my playlist" door the seed card carries —
+       never a dead end, the pattern My People already used.
+     - "And the last message can be tighter to the bottom
+       bar." The v1.26/v1.27 stance math measured from the
+       viewport's bottom edge — the wrong datum. The composer
+       is a fixed overlay 82px tall (+ the bottom safe-area
+       inset), its bar's top edge 72px above the viewport
+       bottom; the stance under the last message (flex gap
+       16 + spacer + wrap bottom 20) had shrunk to 60px, so
+       the last message's bottom 12px rested INSIDE the
+       composer's gradient fade — no clean gap at all, and
+       every "tightening" pushed it deeper in. The stance is
+       now anchored to the bar itself: 16 + spacer + 20 =
+       72 + inset + 7, i.e. the spacer is calc(43px + the
+       inset) and the last message rests a clean ~7px above
+       the bar, fully visible, at rest and scrolled alike. */
   :root{
     color-scheme:light;
     --paper:#ffffff; --paper-glow:#f2f9fd;
@@ -626,16 +653,30 @@
   .jprompt{font-family:var(--sans); font-size:1.08rem; font-weight:500}
   .msg .bubble .chiprow{margin-top:8px}
   .msg .bubble p{margin:0}
-  /* the clearance under the last message: v1.26 set spacer
-     56px + wrap bottom 30px for ~14px above the bar by
-     structure — the founder's phone read it bigger: "The
-     last message and bottom bar is not small enough."
-     v1.27 tightens the stance by 42px — spacer 56 → 24 and
-     the wrap's bottom padding 30 → 20 — landing the resting
-     gap at one tight rhythm step (~8px), at rest and
-     scrolled to the bottom alike. The composer's own
-     safe-area inset is untouched. */
-  .thread-spacer{height:24px}
+  /* the clearance under the last message. v1.26 set spacer
+     56px + wrap bottom 30px (~14px above the bar by its
+     structure) and v1.27 tightened to 24px + 20px chasing
+     the founder's "not small enough" — but both passes
+     measured the stance from the VIEWPORT's bottom edge,
+     the wrong datum (v1.28 diagnosis): the composer is a
+     fixed overlay 82px tall (10 top pad + a 62px row + 10
+     bottom pad, plus the bottom safe-area inset), so its
+     bar's top edge stands 72px + inset above the viewport
+     bottom. The stance under the last message — the flex
+     gap (16) + this spacer + the wrap's bottom padding
+     (20) — had shrunk to 60px: LESS than 72, so the last
+     message's bottom 12px rested inside the composer's
+     transparent-to-paper gradient fade, and every cut
+     pushed it deeper in instead of closer to the bar.
+     The stance is now anchored to the bar: gap 16 +
+     spacer (43 + inset) + wrap bottom 20 = 79 + inset =
+     the bar's 72 + inset, plus a clean ~7px. At rest
+     (short thread, document exactly one viewport tall)
+     and scrolled to the bottom (long thread) alike, the
+     last message rests ~7px above the bar, fully visible;
+     the thread's min-height constant (108 = top pad 88 +
+     bottom pad 20) and the top clearance are untouched. */
+  .thread-spacer{height:calc(43px + env(safe-area-inset-bottom))}
 
   /* ---- the composer: one rounded bar on an elevated surface ---- */
   .composer{
@@ -7028,15 +7069,21 @@ function viewHelp(){
   h += '<button class="btn quiet small" id="helpBack" type="button">\u2190 Back</button>';
 
   /* bar 1 — My Playlist: his song, from the playlist he is
-     co-building. An empty playlist renders no bar (v1.15 law:
-     the song rung never renders empty). Open, the moment-
-     matched song leads with its Play it door; the rest of
-     the playlist is listed under it. */
+     co-building. The bar ALWAYS stands (v1.28, the founder:
+     "You only have two bars instead of three on the help
+     front page") — the v1.15 law that an empty playlist
+     renders no song rung is narrowed to the old rung
+     presentation; inside the bars, an unstocked bar invites,
+     the pattern My People already used. Stocked, the
+     moment-matched song leads with its Play it door and
+     the rest of the playlist is listed under it; unstocked,
+     the panel carries the invitation and the same "Start
+     my playlist" door the seed card offers in the talk. */
   var hs = helpSongForMoment();
-  if(hs){
-    h += helpBarHTML("playlist", "My Playlist");
-    if(helpBar === "playlist"){
-      h += '<div class="helpbar-panel">';
+  h += helpBarHTML("playlist", "My Playlist");
+  if(helpBar === "playlist"){
+    h += '<div class="helpbar-panel">';
+    if(hs){
       h += '<p style="margin:4px 0"><strong>\u201c'+esc(hs.title)+'\u201d</strong>'+(hs.artist ? ' \u2014 '+esc(hs.artist) : '')+'</p>';
       if(hs.note) h += '<p class="muted small">'+esc(hs.note)+(/\.$/.test(hs.note) ? '' : '.')+'</p>';
       h += '<p><a class="call-link" href="'+esc(helpPlayURL(hs))+'" target="_blank" rel="noopener">Play it</a></p>';
@@ -7045,8 +7092,11 @@ function viewHelp(){
         h += '<p class="small" style="margin:8px 0 2px"><strong>'+esc(s.title)+'</strong>'+(s.artist ? ' \u2014 '+esc(s.artist) : '')+'</p>';
         if(s.note) h += '<p class="muted small" style="margin:2px 0">'+esc(s.note)+'</p>';
       });
-      h += '</div>';
+    } else {
+      h += '<p>Your playlist starts whenever you want \u2014 with one song that\u2019s yours.</p>';
+      h += '<div class="btnrow"><button class="btn secondary small" id="helpPlaylistStart" type="button">Start my playlist</button></div>';
     }
+    h += '</div>';
   }
 
   /* bar 2 — My Encouragement: the reassurance stock in one
@@ -7119,6 +7169,19 @@ function bindHelp(){
       helpBar = (helpBar === k) ? "" : k;
       render();
     });
+  });
+  var ps = el("helpPlaylistStart");
+  if(ps) ps.addEventListener("click", function(){
+    /* the unstocked Playlist bar's door is the seed card's
+       own start (v1.28): the seed is answered, any resting
+       seed card in the talk is dismissed, and the first-song
+       start opens at home, where the flow lives */
+    playlist.seed = "done"; savePlaylist();
+    thread.messages.forEach(function(m){ if(m.type === "playlistseed") m.dismissed = true; });
+    saveThread();
+    go("home");
+    pushMsg({type:"songstart", done:false});
+    render();
   });
   var rm = el("helpRoom"); if(rm) rm.addEventListener("click", function(){ nextRoomLine(); render(); });
   var r = el("helpReceipts"); if(r) r.addEventListener("click", function(){ go("home"); postReceiptsCard(); render(); });
