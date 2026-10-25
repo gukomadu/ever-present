@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Ever Present">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Ever Present</title>
 <style>
   /* ================= Ever Present v1 — styles =================
@@ -325,28 +328,37 @@ var journalReadId = null;
 var journalPrompt = "";
 
 /* ================= render root + nav ================= */
-var NAV = [
-  ["home","⌂","Home"],
-  ["capture","◉","Pour"],
-  ["map","✦","Map"],
-  ["receipts","✓","Receipts"],
-  ["journal","✎","Journal"]
-];
+function navItems(){
+  return [
+    ["home","⌂", companion ? companion.name : "Companion"],
+    ["pour","◉","Pour"],
+    ["map","✦","Map"],
+    ["receipts","✓","Receipts"],
+    ["journal","✎","Journal"]
+  ];
+}
 function renderNav(){
   var nav = el("bottomNav");
   if(!companion){ nav.style.display = "none"; nav.innerHTML = ""; return; }
   nav.style.display = "flex";
   var base = view;
-  if(view === "piece") base = "map";
+  if(view === "piece" || view === "capture") base = "map";
+  if(view === "quick") base = "home";
+  if(view === "proposals") base = "pour";
+  if(view === "confirm") base = (cap && cap.mode === "pour") ? "pour" : "map";
   if(view === "journalWrite" || view === "journalRead") base = "journal";
   if(view === "create") base = "home";
   if(view === "settings" || view === "help" || view === "ladder") base = "home";
-  nav.innerHTML = NAV.map(function(n){
+  nav.innerHTML = navItems().map(function(n){
     return '<button type="button" data-nav="'+n[0]+'" class="'+(base===n[0] ? "active" : "")+'">'
-      + '<span class="gly">'+n[1]+'</span>'+n[2]+'</button>';
+      + '<span class="gly">'+n[1]+'</span>'+esc(n[2])+'</button>';
   }).join("");
   nav.querySelectorAll("[data-nav]").forEach(function(b){
-    b.addEventListener("click", function(){ go(b.getAttribute("data-nav")); });
+    b.addEventListener("click", function(){
+      var target = b.getAttribute("data-nav");
+      if(target === "pour"){ startPour(); }
+      else go(target);
+    });
   });
 }
 function go(v){
@@ -370,6 +382,8 @@ function render(){
   else if(view === "home"){ v.innerHTML = headerHTML() + h + viewHome(); bindHome(); }
   else if(view === "capture"){ v.innerHTML = headerHTML() + h + viewCapture(); bindCapture(); }
   else if(view === "pour"){ v.innerHTML = headerHTML() + h + viewPour(); bindPour(); }
+  else if(view === "proposals"){ v.innerHTML = headerHTML() + h + viewProposals(); bindProposals(); }
+  else if(view === "quick"){ v.innerHTML = headerHTML() + h + viewQuick(); bindQuick(); }
   else if(view === "confirm"){ v.innerHTML = headerHTML() + h + viewConfirm(); bindConfirm(); }
   else if(view === "map"){ v.innerHTML = headerHTML() + h + viewMap(); bindMap(); }
   else if(view === "piece"){ v.innerHTML = headerHTML() + h + viewPiece(); bindPiece(); }
@@ -561,54 +575,112 @@ function greetingWord(){
   if(hr < 18) return "Afternoon";
   return "Evening";
 }
-function memoryLine(){
-  if(!atlas.events.length) return "When you\u2019re ready, one tap starts your map.";
+function daysSince(ts){
+  var now = new Date(); var d = new Date(ts);
+  var startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var startD = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((startNow - startD) / 86400000);
+}
+/* The companion speaks first, from the person's own record. Candidates are
+   gathered from what is actually in the record; one is picked per day so
+   the greeting is stable within a day and varies across days. */
+function companionOpener(){
+  var cands = [];
   var evs = atlas.events.slice().sort(function(a,b){ return b.ts - a.ts; });
+  /* the most recent piece in the record */
   for(var i=0;i<evs.length;i++){
     var ids = evs[i].whoIds || [];
-    for(var j=0;j<ids.length;j++){
-      var p = pieceById(ids[j]);
-      if(p){
-        var count = atlas.events.filter(function(e){ return (e.whoIds||[]).indexOf(p.id) !== -1; }).length;
-        if(count > 1 && relDay(evs[i].ts) !== "today") return p.name + " was around " + relDay(evs[i].ts) + " too. It\u2019s in the record.";
-        return "Your map has " + atlas.pieces.length + (atlas.pieces.length === 1 ? " piece" : " pieces") + " in it so far.";
-      }
+    if(ids.length){
+      var p0 = pieceById(ids[0]);
+      if(p0){ cands.push(p0.name + " was around " + relDay(evs[i].ts) + ". It\u2019s in the record \u2014 I keep it so you don\u2019t have to carry it."); break; }
     }
   }
-  return "Your record is here when you need it.";
+  /* an open claim, waiting on its outcome */
+  var open = openClaims();
+  if(open.length === 1){
+    var ct = open[0].claim.length > 60 ? open[0].claim.slice(0,60) + "\u2026" : open[0].claim;
+    cands.push("One claim is still open \u2014 \u201c" + ct + "\u201d It keeps until you know how it went.");
+  } else if(open.length > 1){
+    cands.push(open.length + " claims are still open in the ledger. They keep until you know how they went.");
+  }
+  /* days since the last pour */
+  var lastPour = null;
+  for(var j=0;j<evs.length;j++){ if(evs[j].mode === "pour" && evs[j].pourText){ lastPour = evs[j]; break; } }
+  if(lastPour){
+    var dp = daysSince(lastPour.ts);
+    if(dp >= 2) cands.push("It\u2019s been " + dp + " days since your last pour. The door\u2019s open whenever \u2014 there\u2019s no schedule here.");
+  }
+  /* a piece that hasn't been visited in a while */
+  if(atlas.pieces.length > 1){
+    var seen = {};
+    atlas.events.forEach(function(ev){
+      (ev.whoIds||[]).forEach(function(id){ if(!seen[id] || ev.ts > seen[id]) seen[id] = ev.ts; });
+    });
+    var quietP = null, quietTs = Infinity;
+    atlas.pieces.forEach(function(p){
+      var t = seen[p.id] || p.created || 0;
+      if(t < quietTs){ quietTs = t; quietP = p; }
+    });
+    if(quietP && Date.now() - quietTs > 4 * 86400000)
+      cands.push(quietP.name + " hasn\u2019t been in the record since " + relDay(quietTs) + ". Quiet is part of the record too.");
+  }
+  if(!cands.length){
+    if(atlas.pieces.length)
+      return "Your map holds " + atlas.pieces.length + (atlas.pieces.length === 1 ? " piece" : " pieces") + " so far, in your words. I\u2019m keeping them.";
+    return "I\u2019m here, and your record is a blank page \u2014 a fine place to start. When something happens, or when you just need to get it out, pour it here and I\u2019ll keep it.";
+  }
+  var dayIdx = Math.floor(Date.now() / 86400000);
+  return cands[dayIdx % cands.length];
+}
+/* One calm-time door at a time, rotating by day. Offers obey the creation
+   setting; passing on one writes nothing about the person. */
+function homeOfferHTML(){
+  if(companion.offerFreq === "asked") return "";
+  var offers = [];
+  if(!ladder.noteForHardDay && !sessionDismissed.noteOffer) offers.push("note");
+  if(!sessionDismissed.promptOffer) offers.push("prompt");
+  var unseen = null;
+  for(var i=0;i<atlas.pieces.length;i++){ if(!atlas.pieces[i].seeing){ unseen = atlas.pieces[i]; break; } }
+  if(unseen && !sessionDismissed.seeingOffer) offers.push("seeing");
+  if(!offers.length) return "";
+  var dayIdx = Math.floor(Date.now() / 86400000);
+  var pick = offers[dayIdx % offers.length];
+  if(pick === "note"){
+    return '<div class="card offer-card"><h3>A door, if you want it</h3>'
+      + '<p>'+esc(companion.name)+' can keep a note you write on a calm day, saved for a hard one. It lives on your help ladder, on the reassurance rung.</p>'
+      + '<div class="btnrow"><button class="btn small" id="offerNote" type="button">Write the note</button>'
+      + '<button class="btn quiet small" id="offerNoteNo" type="button">Not now</button></div></div>';
+  }
+  if(pick === "prompt"){
+    var pr = journalPrompts()[0];
+    return '<div class="card offer-card"><h3>A door, if you want it</h3>'
+      + '<p>A prompt for a calm moment: '+esc(pr)+'</p>'
+      + '<div class="btnrow"><button class="btn small" id="offerPrompt" data-prompt-text="'+esc(pr)+'" type="button">Write with it</button>'
+      + '<button class="btn quiet small" id="offerPromptNo" type="button">Not now</button></div></div>';
+  }
+  if(pick === "seeing" && unseen){
+    return '<div class="card offer-card"><h3>A door, if you want it</h3>'
+      + '<p>You haven\u2019t said how you see '+esc(unseen.name)+' yet. How you see them is the top layer of your map \u2014 the door\u2019s open whenever.</p>'
+      + '<div class="btnrow"><button class="btn small" id="offerSeeing" data-piece="'+unseen.id+'" type="button">Open '+esc(unseen.name)+'</button>'
+      + '<button class="btn quiet small" id="offerSeeingNo" type="button">Not now</button></div></div>';
+  }
+  return "";
 }
 function viewHome(){
   var addr = addressOf();
   var h = '<div class="card">';
   h += '<h2>'+esc(greetingWord())+(addr ? ", " + esc(addr) : "")+'.</h2>';
-  h += '<p class="lede">'+esc(companion.name)+' is here. '+esc(memoryLine())+'</p>';
+  h += '<p class="lede">'+esc(companionOpener())+'</p>';
+  h += '<div class="btnrow"><button class="btn" id="hPourMain" type="button">Pour</button></div>';
   h += '<div class="btnrow">'
-    + '<button class="btn" id="hQuick" type="button">Pour \u2014 quick capture</button>'
-    + '<button class="btn secondary" id="hPour" type="button">Pour it out</button></div>';
-  h += '<div class="btnrow">'
-    + '<button class="btn secondary" id="hMap" type="button">Your map</button>'
-    + '<button class="btn secondary" id="hJournal" type="button">Journal</button>'
+    + '<button class="btn secondary" id="hQuickNote" type="button">Quick note</button>'
+    + '<button class="btn secondary" id="hAddMap" type="button">Add to the map</button>'
+    + '<button class="btn secondary" id="hWrite" type="button">Write</button>'
     + '<button class="btn quiet" id="hSettings" type="button">Settings</button></div>';
   h += '</div>';
 
-  /* one offered door at a time; offers obey the creation setting; passing leaves no mark */
-  if(companion.offerFreq !== "asked"){
-    if(!ladder.noteForHardDay && !sessionDismissed.noteOffer){
-      h += '<div class="card offer-card"><h3>A door, if you want it</h3>'
-        + '<p>'+esc(companion.name)+' can keep a note you write on a calm day, saved for a hard one. It lives on your help ladder, on the reassurance rung.</p>'
-        + '<div class="btnrow"><button class="btn small" id="offerNote" type="button">Write the note</button>'
-        + '<button class="btn quiet small" id="offerNoteNo" type="button">Not now</button></div></div>';
-    } else {
-      var unseeen = null;
-      for(var i=0;i<atlas.pieces.length;i++){ if(!atlas.pieces[i].seeing){ unseeen = atlas.pieces[i]; break; } }
-      if(unseeen && !sessionDismissed.seeingOffer){
-        h += '<div class="card offer-card"><h3>A door, if you want it</h3>'
-          + '<p>You haven\u2019t said how you see '+esc(unseeen.name)+' yet. How you see them is the top layer of your map \u2014 the door\u2019s open whenever.</p>'
-          + '<div class="btnrow"><button class="btn small" id="offerSeeing" data-piece="'+unseeen.id+'" type="button">Open '+esc(unseeen.name)+'</button>'
-          + '<button class="btn quiet small" id="offerSeeingNo" type="button">Not now</button></div></div>';
-      }
-    }
-  }
+  /* one rotating calm-time door; passing leaves no mark */
+  h += homeOfferHTML();
 
   /* receipts on Home: open claims as tappable outcomes (offered, never homework) */
   var open = openClaims();
@@ -635,14 +707,16 @@ function viewHome(){
   return h;
 }
 function bindHome(){
-  el("hQuick").addEventListener("click", function(){ startCapture("quick"); });
-  el("hPour").addEventListener("click", function(){ startPour(); });
-  el("hMap").addEventListener("click", function(){ go("map"); });
-  el("hJournal").addEventListener("click", function(){ go("journal"); });
+  el("hPourMain").addEventListener("click", function(){ startPour(); });
+  el("hQuickNote").addEventListener("click", function(){ startQuickNote(); });
+  el("hAddMap").addEventListener("click", function(){ startCapture("quick"); });
+  el("hWrite").addEventListener("click", function(){ go("journal"); });
   el("hSettings").addEventListener("click", function(){ go("settings"); });
-  el("hReceipts").addEventListener("click", function(){ go("receipts"); });
+  var hr = el("hReceipts"); if(hr) hr.addEventListener("click", function(){ go("receipts"); });
   var on = el("offerNote"); if(on) on.addEventListener("click", function(){ go("ladder"); });
   var onn = el("offerNoteNo"); if(onn) onn.addEventListener("click", function(){ sessionDismissed.noteOffer = true; render(); });
+  var op = el("offerPrompt"); if(op) op.addEventListener("click", function(){ journalPrompt = op.getAttribute("data-prompt-text") || ""; go("journalWrite"); });
+  var opn = el("offerPromptNo"); if(opn) opn.addEventListener("click", function(){ sessionDismissed.promptOffer = true; render(); });
   var os = el("offerSeeing"); if(os) os.addEventListener("click", function(){ pieceDetailId = os.getAttribute("data-piece"); go("piece"); });
   var osn = el("offerSeeingNo"); if(osn) osn.addEventListener("click", function(){ sessionDismissed.seeingOffer = true; render(); });
   document.querySelectorAll("[data-hout]").forEach(function(b){
@@ -666,11 +740,11 @@ function setOutcome(id, chip, text){
   saveLedger();
 }
 
-/* ================= Screen 4 — Capture (quick) + the pour ================= */
+/* ================= Screen 4 — the pour, quick note, Add to the map (detail trees) ================= */
 var cap = null;
 function blankCap(){
   return {
-    mode:"quick", pourText:"",
+    mode:"quick", pourText:"", editEventId:"", pourWhoIds:[],
     whoIds:[], whoFlags:[], whoOwn:"",
     newPiece:{name:"", noName:false, likeness:"", status:"", standing:false},
     channels:[], mannerWhere:[], mannerHow:[], bodySpots:[], bodySpotOwn:"",
@@ -761,13 +835,17 @@ function viewCapture(){
   var amongShown = (whoCount() >= 2 || d.whoFlags.indexOf("group") !== -1);
   var claimsNo = 3 + (hasPresence() ? 1 : 0) + (amongShown ? 1 : 0);
   var h = "";
-  if(d.mode === "pour"){
+  if(d.mode === "pour" && !d.editEventId){
     h += '<div class="card"><h2>Filing the pour</h2>'
       + '<p class="muted">Your pour is kept whole, exactly as it came out. Anything below is optional filing \u2014 pieces for your map, a claim for the ledger. Skip any of it, or all of it.</p>'
       + '<div class="btnrow"><button class="btn" id="capJustPour" type="button">File just the pour</button></div></div>';
+  } else if(d.editEventId){
+    h += '<div class="card"><h2>Add detail</h2>'
+      + '<p class="muted">Adding to an entry that\u2019s already filed. Change anything below \u2014 saving updates the record, and the entry keeps its place in it.</p>'
+      + '<div class="btnrow"><button class="btn" id="capDoneTop" type="button">Done</button></div></div>';
   } else {
-    h += '<div class="card"><h2>Quick capture</h2>'
-      + '<p class="muted">Tap what fits. Skip what doesn\u2019t. Done is available from the first tap \u2014 a capture with only \u201cwho\u201d filled is a valid record.</p>'
+    h += '<div class="card"><h2>Add to the map</h2>'
+      + '<p class="muted">The full filing, at your pace. Tap what fits, skip what doesn\u2019t. Done is available from the first tap \u2014 a capture with only \u201cwho\u201d filled is a valid record.</p>'
       + '<div class="btnrow"><button class="btn" id="capDoneTop" type="button">Done</button></div></div>';
   }
 
@@ -874,7 +952,7 @@ function viewCapture(){
   h += '<p class="field-label">Anything else, in my own words <span class="muted" style="font-weight:400">(optional)</span></p>';
   h += '<textarea class="big short" id="capEventOwn" placeholder="Whatever else belongs in the record" aria-label="Anything else">'+esc(d.eventOwn)+'</textarea>';
   h += '<div class="btnrow"><button class="btn" id="capDone" type="button">Done \u2014 show me what will be filed</button>'
-    + '<button class="btn quiet" id="capDiscard" type="button">Don\u2019t file this</button></div>';
+    + '<button class="btn quiet" id="capDiscard" type="button">'+(d.editEventId ? "Cancel \u2014 keep it as it was" : "Don\u2019t file this")+'</button></div>';
   h += '</div>';
   return h;
 }
@@ -926,23 +1004,288 @@ function bindCapture(){
   var dt = el("capDoneTop");
   if(dt) dt.addEventListener("click", function(){ harvestCap(); go("confirm"); });
   el("capDone").addEventListener("click", function(){ harvestCap(); go("confirm"); });
-  el("capDiscard").addEventListener("click", function(){ cap = null; toast = "Not filed. Nothing was written down."; go("home"); });
+  el("capDiscard").addEventListener("click", function(){
+    if(cap && cap.editEventId){ cap = null; toast = "Left as it was."; go("map"); }
+    else { cap = null; toast = "Not filed. Nothing was written down."; go("home"); }
+  });
 }
 function viewPour(){
   var h = '<div class="card quiet-screen"><h2>Pour it out</h2>'
     + '<p class="lede">'+esc(companion.name)+' is listening. Take your time.</p>'
-    + '<p class="muted">Nothing here is summarized, fixed, or filed while you pour. Type it out \u2014 or use your keyboard\u2019s microphone and speak it. When you say you\u2019re done, and only then, you\u2019ll see what can be filed from it. All of it is your call.</p>'
-    + '<textarea class="big" id="pourText" style="min-height:34vh" placeholder="It all goes here\u2026" aria-label="Pour it out">'+esc(cap.pourText)+'</textarea>'
-    + '<div class="btnrow"><button class="btn" id="pourDone" type="button">I\u2019m done</button>'
+    + '<p class="muted">Nothing here is summarized, fixed, or filed while you pour. Type it out \u2014 or use your keyboard\u2019s microphone and speak it. When you say you\u2019re done, and only then, '+esc(companion.name)+' will show you what it can file from it. All of it is your call.</p>';
+  if(atlas.pieces.length){
+    h += '<p class="field-label">Who\u2019s in it \u2014 tap if you like, or just write</p>';
+    h += '<div class="chiprow">' + atlas.pieces.map(function(p){
+      var on = cap.pourWhoIds.indexOf(p.id) !== -1;
+      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-pourwho="'+p.id+'">'+esc(p.name)+'</button>';
+    }).join("") + '</div>';
+  }
+  h += '<textarea class="big" id="pourText" style="min-height:34vh" placeholder="It all goes here\u2026" aria-label="Pour it out">'+esc(cap.pourText)+'</textarea>'
+    + '<div class="btnrow"><button class="btn" id="pourDone" type="button">Done pouring</button>'
+    + '<button class="btn secondary" id="pourQuick" type="button">Just a quick note instead</button>'
     + '<button class="btn quiet" id="pourNever" type="button">Never mind</button></div></div>';
   return h;
 }
 function bindPour(){
+  document.querySelectorAll("[data-pourwho]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var pt = el("pourText"); if(pt) cap.pourText = pt.value;
+      toggleIn(cap.pourWhoIds, b.getAttribute("data-pourwho"));
+      render();
+    });
+  });
   el("pourDone").addEventListener("click", function(){
     cap.pourText = el("pourText").value;
-    go("capture"); /* organize: the same filing trees, all optional */
+    startProposals();
   });
+  el("pourQuick").addEventListener("click", function(){ cap = null; startQuickNote(); });
   el("pourNever").addEventListener("click", function(){ cap = null; go("home"); });
+}
+
+/* ================= After the pour — the companion proposes the filing =================
+   The person poured; now the companion shows what it can file and the
+   person confirms, trims, or files the pour bare. Nothing here is
+   required: every section can be skipped, and "Just file the pour"
+   files the words alone, with zero organization. */
+var prop = null;
+function startProposals(){
+  var text = (cap.pourText || "").toLowerCase();
+  var pre = {};
+  cap.pourWhoIds.forEach(function(id){ pre[id] = true; });
+  atlas.pieces.forEach(function(p){
+    var names = [p.name].concat((p.nameHistory || []).map(function(n){ return n.name; }));
+    names.forEach(function(nm){
+      if(nm && text.indexOf(nm.toLowerCase()) !== -1) pre[p.id] = true;
+    });
+  });
+  prop = {
+    whoIds: Object.keys(pre), isNew:false, newName:"",
+    claimOn:false, claimKind:"", claimOwn:"",
+    register:[], seeingOwn:"", seeingChip:""
+  };
+  view = "proposals";
+  render(); window.scrollTo(0,0);
+}
+function viewProposals(){
+  var h = '<div class="card"><h2>Before it files</h2>'
+    + '<p class="muted">'+esc(companion.name)+' kept your pour whole. Here\u2019s what it can file from it \u2014 every part optional, every part yours to change or skip.</p>'
+    + '<div class="btnrow"><button class="btn" id="propJustTop" type="button">Just file the pour</button></div></div>';
+
+  h += '<div class="card"><h3>Who this seems to be about</h3>';
+  if(atlas.pieces.length){
+    h += '<div class="chiprow">' + atlas.pieces.map(function(p){
+      var on = prop.whoIds.indexOf(p.id) !== -1;
+      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-propwho="'+p.id+'">'+esc(p.name)+'</button>';
+    }).join("") + '</div>';
+  } else {
+    h += '<p class="muted small">No pieces in your map yet.</p>';
+  }
+  h += '<div class="chiprow"><button type="button" class="chip'+(prop.isNew ? " on" : "")+'" id="propNew">Someone new</button></div>';
+  if(prop.isNew){
+    h += '<input type="text" class="txt" id="propNewName" value="'+esc(prop.newName)+'" placeholder="Their name \u2014 or a name you\u2019re giving them" aria-label="The new one\u2019s name">';
+  }
+  h += '</div>';
+
+  h += '<div class="card"><h3>A claim</h3>';
+  h += '<div class="chiprow"><button type="button" class="chip'+(prop.claimOn ? " on" : "")+'" id="propClaimToggle">A claim was made in this pour</button></div>';
+  if(prop.claimOn){
+    h += '<p class="field-label">The kind</p>';
+    h += '<div class="chiprow">' + [["prediction","A prediction"],["now","A claim about right now"],["commentary","Running commentary"],["instruction","An instruction"]].map(function(o){
+      return '<button type="button" class="chip'+(prop.claimKind === o[0] ? " on" : "")+'" data-propkind="'+o[0]+'">'+o[1]+'</button>';
+    }).join("") + '</div>';
+    h += '<p class="field-label">The claim, in your words <span class="muted" style="font-weight:400">(optional)</span></p>';
+    h += '<textarea class="big short" id="propClaimOwn" placeholder="What was claimed" aria-label="The claim, in your words">'+esc(prop.claimOwn)+'</textarea>';
+    h += '<p class="muted small">It goes in Check the receipts, where its outcome can be checked later.</p>';
+  }
+  h += '</div>';
+
+  h += '<div class="card"><h3>How they presented</h3>';
+  h += '<div class="chiprow">' + REGISTER_OPTS_CAP.map(function(o){
+    var on = prop.register.indexOf(o[0]) !== -1;
+    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-propreg="'+esc(o[0])+'">'+esc(o[0])+(o[1] ? '<small>'+esc(o[1])+'</small>' : '')+'</button>';
+  }).join("") + '</div>';
+  h += '</div>';
+
+  h += '<div class="card"><h3>How you see them</h3>';
+  h += '<p class="muted small">No matter how they presented, your seeing is the top layer.</p>';
+  h += '<textarea class="big short" id="propSeeingOwn" placeholder="In my own words (optional)" aria-label="How I see them, in my own words">'+esc(prop.seeingOwn)+'</textarea>';
+  h += '<div class="chiprow">' + SEEING_OPTS.map(function(o){
+    return '<button type="button" class="chip'+(prop.seeingChip === o ? " on" : "")+'" data-propseeing="'+esc(o)+'">'+esc(o)+'</button>';
+  }).join("") + '</div>';
+  h += '</div>';
+
+  h += '<div class="card"><div class="btnrow">'
+    + '<button class="btn" id="propFile" type="button">File it with these</button>'
+    + '<button class="btn secondary" id="propJust" type="button">Just file the pour</button>'
+    + '<button class="btn quiet" id="propDrop" type="button">Don\u2019t file this</button></div></div>';
+  return h;
+}
+function harvestProp(){
+  if(!prop) return;
+  var nn = el("propNewName"); if(nn) prop.newName = nn.value;
+  var co = el("propClaimOwn"); if(co) prop.claimOwn = co.value;
+  var so = el("propSeeingOwn"); if(so) prop.seeingOwn = so.value;
+}
+function bindProposals(){
+  document.querySelectorAll("[data-propwho]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestProp(); toggleIn(prop.whoIds, b.getAttribute("data-propwho")); render(); });
+  });
+  var pn = el("propNew");
+  if(pn) pn.addEventListener("click", function(){ harvestProp(); prop.isNew = !prop.isNew; render(); });
+  var pct = el("propClaimToggle");
+  if(pct) pct.addEventListener("click", function(){ harvestProp(); prop.claimOn = !prop.claimOn; render(); });
+  document.querySelectorAll("[data-propkind]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestProp(); prop.claimKind = (prop.claimKind === b.getAttribute("data-propkind")) ? "" : b.getAttribute("data-propkind"); render(); });
+  });
+  document.querySelectorAll("[data-propreg]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestProp(); toggleIn(prop.register, b.getAttribute("data-propreg")); render(); });
+  });
+  document.querySelectorAll("[data-propseeing]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestProp(); prop.seeingChip = (prop.seeingChip === b.getAttribute("data-propseeing")) ? "" : b.getAttribute("data-propseeing"); render(); });
+  });
+  var jf = function(){ fileFromProposals(false); };
+  var jt = el("propJustTop"); if(jt) jt.addEventListener("click", jf);
+  var jb = el("propJust"); if(jb) jb.addEventListener("click", jf);
+  el("propFile").addEventListener("click", function(){ fileFromProposals(true); });
+  el("propDrop").addEventListener("click", function(){ cap = null; prop = null; toast = "Not filed. Nothing was written down."; go("home"); });
+}
+function fileFromProposals(withOrg){
+  harvestProp();
+  /* reset the filing fields; the pour itself is always kept whole */
+  cap.whoIds = []; cap.whoFlags = [];
+  cap.newPiece = {name:"", noName:false, likeness:"", status:"", standing:false};
+  cap.channels = []; cap.mannerWhere = []; cap.mannerHow = []; cap.bodySpots = []; cap.bodySpotOwn = "";
+  cap.among = []; cap.response = [];
+  cap.claimKind = ""; cap.claimChips = []; cap.claimOwn = ""; cap.claimWhoId = "";
+  cap.register = []; cap.seeingChip = ""; cap.seeingOwn = "";
+  cap.glossTerm = ""; cap.glossDoes = ""; cap.glossDoesOwn = ""; cap.eventOwn = "";
+  if(withOrg){
+    cap.whoIds = prop.whoIds.slice();
+    if(prop.isNew){
+      cap.whoFlags = ["new"];
+      cap.newPiece.name = prop.newName.trim();
+    }
+    if(prop.claimOn && prop.claimKind){
+      cap.claimKind = prop.claimKind;
+      cap.claimOwn = prop.claimOwn;
+      if(!prop.claimOwn.trim()) cap.claimChips = [KIND_LABELS[prop.claimKind]];
+      cap.claimWhoId = prop.whoIds.length ? prop.whoIds[0] : (prop.isNew ? "__new" : "");
+    }
+    cap.register = prop.register.slice();
+    cap.seeingOwn = prop.seeingOwn;
+    cap.seeingChip = prop.seeingChip;
+  }
+  prop = null;
+  fileCapture();
+}
+
+/* ================= Quick note — the in-the-moment path, one screen ================= */
+var qn = null;
+function startQuickNote(){
+  qn = {whoIds:[], isNew:false, newName:"", feeling:false,
+        register:[], claimOn:false, claimKind:"prediction", claimText:""};
+  view = "quick";
+  render(); window.scrollTo(0,0);
+}
+function viewQuick(){
+  var h = '<div class="card"><h2>Quick note</h2>'
+    + '<p class="muted">'+esc(companion.name)+' is listening. One screen, in the moment \u2014 Done files it. Detail can be added later, from your map.</p></div>';
+  h += '<div class="card"><h3>Who\u2019s around</h3>';
+  if(atlas.pieces.length){
+    h += '<div class="chiprow">' + atlas.pieces.map(function(p){
+      var on = qn.whoIds.indexOf(p.id) !== -1;
+      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-qnwho="'+p.id+'" style="font-size:1.05rem;padding:14px 18px">'+esc(p.name)+'</button>';
+    }).join("") + '</div>';
+  }
+  h += '<div class="chiprow">'
+    + '<button type="button" class="chip'+(qn.isNew ? " on" : "")+'" id="qnNew" style="font-size:1.05rem;padding:14px 18px">Someone new</button>'
+    + '<button type="button" class="chip'+(qn.feeling ? " on" : "")+'" id="qnFeeling" style="font-size:1.05rem;padding:14px 18px">No one specific \u2014 just a feeling</button></div>';
+  if(qn.isNew){
+    h += '<input type="text" class="txt" id="qnNewName" value="'+esc(qn.newName)+'" placeholder="Their name \u2014 or a name you\u2019re giving them" aria-label="The new one\u2019s name" style="margin-top:8px">';
+  }
+  h += '</div>';
+  h += '<div class="card"><h3>How it\u2019s landing</h3>';
+  h += '<div class="chiprow">' + REGISTER_OPTS_CAP.map(function(o){
+    var on = qn.register.indexOf(o[0]) !== -1;
+    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-qnreg="'+esc(o[0])+'">'+esc(o[0])+(o[1] ? '<small>'+esc(o[1])+'</small>' : '')+'</button>';
+  }).join("") + '</div>';
+  h += '<div class="chiprow"><button type="button" class="chip'+(qn.claimOn ? " on" : "")+'" id="qnClaimToggle">They claimed something</button></div>';
+  if(qn.claimOn){
+    h += '<p class="field-label">The claim, in one line</p>';
+    h += '<textarea class="big short" id="qnClaimText" placeholder="What was claimed" aria-label="The claim, in one line">'+esc(qn.claimText)+'</textarea>';
+    h += '<div class="chiprow">' + [["prediction","A prediction"],["now","About right now"],["commentary","Running commentary"],["instruction","An instruction"]].map(function(o){
+      return '<button type="button" class="chip'+(qn.claimKind === o[0] ? " on" : "")+'" data-qnkind="'+o[0]+'">'+o[1]+'</button>';
+    }).join("") + '</div>';
+  }
+  h += '<div class="btnrow"><button class="btn" id="qnDone" type="button">Done</button>'
+    + '<button class="btn quiet" id="qnDrop" type="button">Don\u2019t file this</button></div>';
+  h += '</div>';
+  return h;
+}
+function harvestQuick(){
+  if(!qn) return;
+  var nn = el("qnNewName"); if(nn) qn.newName = nn.value;
+  var ct = el("qnClaimText"); if(ct) qn.claimText = ct.value;
+}
+function bindQuick(){
+  document.querySelectorAll("[data-qnwho]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestQuick(); toggleIn(qn.whoIds, b.getAttribute("data-qnwho")); render(); });
+  });
+  var nw = el("qnNew");
+  if(nw) nw.addEventListener("click", function(){ harvestQuick(); qn.isNew = !qn.isNew; render(); });
+  var fl = el("qnFeeling");
+  if(fl) fl.addEventListener("click", function(){ harvestQuick(); qn.feeling = !qn.feeling; render(); });
+  document.querySelectorAll("[data-qnreg]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestQuick(); toggleIn(qn.register, b.getAttribute("data-qnreg")); render(); });
+  });
+  var ct2 = el("qnClaimToggle");
+  if(ct2) ct2.addEventListener("click", function(){ harvestQuick(); qn.claimOn = !qn.claimOn; render(); });
+  document.querySelectorAll("[data-qnkind]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestQuick(); qn.claimKind = b.getAttribute("data-qnkind"); render(); });
+  });
+  el("qnDone").addEventListener("click", function(){ fileQuickNote(); });
+  el("qnDrop").addEventListener("click", function(){ qn = null; toast = "Not filed. Nothing was written down."; go("home"); });
+}
+function fileQuickNote(){
+  harvestQuick();
+  if(qn.isNew && !qn.newName.trim()){ var inp = el("qnNewName"); if(inp) inp.focus(); return; }
+  var ts = Date.now();
+  var involved = qn.whoIds.slice();
+  if(qn.isNew){
+    var newId = uid();
+    var nm = qn.newName.trim();
+    atlas.pieces.push({
+      id:newId, name:nm, nameHistory:[{name:nm, ts:ts}], type:"voice",
+      likeness:"", status:"", standing:false, seeing:"", seeingTs:0,
+      registers:{}, channels:{}, bodySpots:[], created:ts
+    });
+    involved.push(newId);
+  }
+  involved.forEach(function(id){
+    var pc = pieceById(id); if(!pc) return;
+    qn.register.forEach(function(r){ pc.registers[r] = (pc.registers[r]||0) + 1; });
+  });
+  var ledgerId = "";
+  if(qn.claimOn && qn.claimText.trim()){
+    ledgerId = uid();
+    ledger.entries.push({
+      id:ledgerId, claim: qn.claimText.trim(), kind: qn.claimKind || "prediction",
+      who: involved.length ? pieceName(involved[0]) : "", whoId: involved.length ? involved[0] : "",
+      ts:ts, outcome:"", outcomeChip:"", tsOutcome:0, encoded:false
+    });
+    saveLedger();
+  }
+  atlas.events.push({
+    id:uid(), ts:ts, mode:"quick", pourText:"",
+    whoIds: involved, whoFlags: qn.feeling ? ["feeling"] : [], whoOwn:"",
+    channels:[], mannerWhere:[], mannerHow:[], bodySpots:[], among:[],
+    claimLedgerId: ledgerId, register: qn.register.slice(),
+    seeing:"", response:[], glossaryId:"", eventOwn:""
+  });
+  saveAtlas();
+  qn = null;
+  toast = "Filed. It\u2019s in your map \u2014 detail can be added any time.";
+  go("map");
 }
 
 /* ================= Confirm / file the capture ================= */
@@ -970,8 +1313,10 @@ function summaryList(items){
 }
 function viewConfirm(){
   var d = cap;
-  var h = '<div class="card"><h2>Here\u2019s what will be filed</h2>';
-  h += '<p class="muted">Nothing is in the record yet. Check it, fix it, or don\u2019t file it at all.</p>';
+  var h = '<div class="card"><h2>'+(d.editEventId ? "Here\u2019s what will change" : "Here\u2019s what will be filed")+'</h2>';
+  h += '<p class="muted">'+(d.editEventId
+    ? "The entry isn\u2019t changed yet. Check it, fix it, or leave it exactly as it was."
+    : "Nothing is in the record yet. Check it, fix it, or don\u2019t file it at all.")+'</p>';
   if(d.mode === "pour" && d.pourText){
     h += '<h3>Your pour, kept whole</h3><p>'+esc(d.pourText.length > 280 ? d.pourText.slice(0,280) + "\u2026" : d.pourText)+'</p>';
   }
@@ -1010,6 +1355,59 @@ function viewConfirm(){
   h += '</div>';
   return h;
 }
+/* ---- Add detail: reopen a filed entry in the full trees, edit in place ---- */
+function startEditCapture(ev){
+  cap = blankCap();
+  cap.editEventId = ev.id;
+  cap.mode = ev.mode === "pour" ? "pour" : "quick";
+  cap.pourText = ev.pourText || "";
+  cap.whoIds = (ev.whoIds || []).slice();
+  /* piece-creating flags are stripped: those pieces already exist in whoIds */
+  cap.whoFlags = (ev.whoFlags || []).filter(function(f){
+    return ["new","knownnew","group","presence","notperson"].indexOf(f) === -1;
+  });
+  cap.whoOwn = ev.whoOwn || "";
+  cap.channels = (ev.channels || []).slice();
+  cap.mannerWhere = (ev.mannerWhere || []).slice();
+  cap.mannerHow = (ev.mannerHow || []).slice();
+  cap.bodySpots = (ev.bodySpots || []).slice();
+  cap.among = (ev.among || []).slice();
+  cap.register = (ev.register || []).slice();
+  cap.response = (ev.response || []).slice();
+  cap.seeingOwn = ev.seeing || "";
+  cap.eventOwn = ev.eventOwn || "";
+  if(ev.claimLedgerId){
+    for(var i=0;i<ledger.entries.length;i++){
+      if(ledger.entries[i].id === ev.claimLedgerId){
+        var le = ledger.entries[i];
+        cap.claimKind = le.kind || "";
+        cap.claimOwn = le.claim || "";
+        cap.claimWhoId = le.whoId || "";
+        if(le.encoded) cap.claimChips = ["It charged me with something it won\u2019t say plainly"];
+        break;
+      }
+    }
+  }
+  go("capture");
+}
+/* Piece tallies (channels, registers) are counts built from events. When an
+   entry is edited, its old contribution is lifted out before the new one is
+   laid in. Body spots and seeing are left as-is on removal: both are unions
+   across the whole record, and unlearning them from one edit could erase
+   what other entries taught. */
+function adjustPiecesForEvent(ev, dir){
+  (ev.whoIds || []).forEach(function(id){
+    var pc = pieceById(id); if(!pc) return;
+    (ev.channels || []).forEach(function(c){
+      pc.channels[c] = (pc.channels[c] || 0) + dir;
+      if(pc.channels[c] <= 0) delete pc.channels[c];
+    });
+    (ev.register || []).forEach(function(r){
+      pc.registers[r] = (pc.registers[r] || 0) + dir;
+      if(pc.registers[r] <= 0) delete pc.registers[r];
+    });
+  });
+}
 function bindConfirm(){
   el("cfFile").addEventListener("click", function(){ fileCapture(); });
   el("cfFix").addEventListener("click", function(){ go("capture"); });
@@ -1018,6 +1416,13 @@ function bindConfirm(){
 function fileCapture(){
   var d = cap;
   var ts = Date.now();
+  var editingEv = null;
+  if(d.editEventId){
+    for(var ei=0;ei<atlas.events.length;ei++){
+      if(atlas.events[ei].id === d.editEventId){ editingEv = atlas.events[ei]; break; }
+    }
+    if(editingEv){ adjustPiecesForEvent(editingEv, -1); ts = editingEv.ts; }
+  }
   var involved = d.whoIds.slice();
   var newId = "";
   if(newPieceWanted()){
@@ -1042,16 +1447,38 @@ function fileCapture(){
     if(seeing){ pc.seeing = seeing; pc.seeingTs = ts; }
   });
   var ledgerId = "";
+  var editingOldLedgerId = editingEv ? (editingEv.claimLedgerId || "") : "";
   if(d.claimKind){
     var cw = claimWhoOf(d);
     var whoId = cw.id === "__new" ? newId : cw.id;
-    ledgerId = uid();
-    ledger.entries.push({
-      id:ledgerId, claim: claimTextOf(d), kind: d.claimKind,
+    var claimFields = {
+      claim: claimTextOf(d), kind: d.claimKind,
       who: cw.id === "__new" ? defaultPieceName() : cw.name, whoId: whoId || "",
-      ts:ts, outcome:"", outcomeChip:"", tsOutcome:0,
       encoded: d.claimChips.indexOf("It charged me with something it won\u2019t say plainly") !== -1
-    });
+    };
+    var updatedOld = false;
+    if(editingOldLedgerId){
+      ledger.entries.forEach(function(e){
+        if(e.id === editingOldLedgerId){
+          e.claim = claimFields.claim; e.kind = claimFields.kind;
+          e.who = claimFields.who; e.whoId = claimFields.whoId; e.encoded = claimFields.encoded;
+          ledgerId = e.id; updatedOld = true;
+        }
+      });
+    }
+    if(!updatedOld){
+      ledgerId = uid();
+      ledger.entries.push({
+        id:ledgerId, claim: claimFields.claim, kind: claimFields.kind,
+        who: claimFields.who, whoId: claimFields.whoId,
+        ts:ts, outcome:"", outcomeChip:"", tsOutcome:0,
+        encoded: claimFields.encoded
+      });
+    }
+    saveLedger();
+  } else if(editingOldLedgerId){
+    /* the claim was removed in Add detail — its ledger entry goes with it */
+    ledger.entries = ledger.entries.filter(function(e){ return e.id !== editingOldLedgerId; });
     saveLedger();
   }
   var glossId = "";
@@ -1064,18 +1491,26 @@ function fileCapture(){
       ts:ts
     });
   }
-  atlas.events.push({
-    id:uid(), ts:ts, mode:d.mode, pourText:d.pourText || "",
+  var evFields = {
+    mode:d.mode, pourText:d.pourText || "",
     whoIds: involved, whoFlags: d.whoFlags.slice(), whoOwn: d.whoOwn,
     channels: d.channels.slice(), mannerWhere: d.mannerWhere.slice(), mannerHow: d.mannerHow.slice(),
     bodySpots: spots, among: d.among.slice(),
     claimLedgerId: ledgerId, register: d.register.slice(),
     seeing: seeing, response: d.response.slice(),
-    glossaryId: glossId, eventOwn: d.eventOwn
-  });
+    glossaryId: glossId || (editingEv ? (editingEv.glossaryId || "") : ""), eventOwn: d.eventOwn
+  };
+  if(editingEv){
+    Object.keys(evFields).forEach(function(k){ editingEv[k] = evFields[k]; });
+  } else {
+    evFields.id = uid(); evFields.ts = ts;
+    atlas.events.push(evFields);
+  }
   saveAtlas();
   cap = null;
-  toast = "Filed. It\u2019s in your map \u2014 and anything in it can be fixed or erased, any time.";
+  toast = editingEv
+    ? "Updated. The record reflects the change."
+    : "Filed. It\u2019s in your map \u2014 and anything in it can be fixed or erased, any time.";
   go("map");
 }
 
@@ -1100,7 +1535,7 @@ function viewMap(){
     + '<p class="lede muted">Built from what you\u2019ve captured, in your words. They present; you see; the map holds your seeing on top. Rebrands are first-class here \u2014 a new name is the name.</p></div>';
   if(!atlas.pieces.length){
     h += '<div class="card"><p class="empty">No pieces yet. The first capture \u2014 even just who was present \u2014 lays the first piece.</p>'
-      + '<div class="btnrow"><button class="btn" id="mStart" type="button">Start a capture</button></div></div>';
+      + '<div class="btnrow"><button class="btn" id="mStart" type="button">Add to the map</button></div></div>';
   }
   atlas.pieces.forEach(function(p){
     h += '<div class="card piece-card" data-piece="'+p.id+'">';
@@ -1134,6 +1569,7 @@ function viewMap(){
         + (names ? ' \u2014 ' + esc(names) : '') + (ev.mode === "pour" ? ' \u2014 a pour' : '') + '</div>'
         + (ev.pourText ? '<div class="small muted">'+esc(ev.pourText.length > 140 ? ev.pourText.slice(0,140)+"\u2026" : ev.pourText)+'</div>' : "")
         + (ev.channels && ev.channels.length ? '<div class="small muted">'+esc(ev.channels.join(" \u00b7 "))+'</div>' : "")
+        + '<div style="margin-top:4px"><button type="button" class="btn quiet small" data-detail="'+ev.id+'">Add detail</button></div>'
         + '</div>';
     });
     h += '</div>';
@@ -1142,6 +1578,14 @@ function viewMap(){
 }
 function bindMap(){
   var ms = el("mStart"); if(ms) ms.addEventListener("click", function(){ startCapture("quick"); });
+  document.querySelectorAll("[data-detail]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var id = b.getAttribute("data-detail");
+      for(var i=0;i<atlas.events.length;i++){
+        if(atlas.events[i].id === id){ startEditCapture(atlas.events[i]); break; }
+      }
+    });
+  });
   document.querySelectorAll("[data-piece]").forEach(function(c){
     c.addEventListener("click", function(){ pieceDetailId = c.getAttribute("data-piece"); go("piece"); });
   });
@@ -1709,6 +2153,14 @@ el("helpBtn").addEventListener("click", function(){
   render(); window.scrollTo(0,0);
 });
 render();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
 </script>
 </body>
 </html>
