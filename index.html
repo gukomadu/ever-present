@@ -165,7 +165,33 @@
        the bar, fully visible, at rest and scrolled alike. */
   :root{
     color-scheme:light;
-    --paper:#ffffff; --paper-glow:#f2f9fd;
+    --paper:#ffffff; --paper-glow:#e8f6ff;
+    /* the WATERMARK ATMOSPHERE (v1.29, the founder: "Maybe
+       this type of watermark type feel for the background?
+       Maybe the pictures I sent you can be a guide") —
+       guided by his own pictures: the Day flower-field
+       photo, the Night blossoms/indigo photo, and his
+       home-screen aurora wallpaper (soft sky-blue beams
+       melting into seafoam, luminous and airy). DAY: pale
+       sky at the top melting into a faint seafoam, one soft
+       diagonal beam of aqua light low in the room — all at
+       WATERMARK strength: high luminance everywhere text
+       could rest, colours felt rather than seen. CSS
+       gradients only, no images, no animation — atmosphere,
+       never wallpaper: it lives in the room's empty space
+       only; bubbles, cards
+       and the composer stay solid. Worst point measured
+       (beam over seafoam glow over the deepest stop,
+       #d4f2e9): muted text 4.55:1, ink-soft 5.90:1 — the
+       floors hold; the beam was softened from .08 to .05
+       to keep them. --paper-glow is the gradient's top
+       stop (the veil samples it); --paper-low is its local
+       value at the floor (the composer fades into it). */
+    --room-grad:
+      linear-gradient(118deg, transparent 56%, rgba(56,160,214,.05) 74%, transparent 96%),
+      radial-gradient(130% 55% at 78% 100%, rgba(94,234,212,.08), transparent 62%),
+      linear-gradient(180deg, #e8f6ff 0%, #f3fbff 30%, #effaf2 58%, #e9f8ee 100%);
+    --paper-low:#e9f8ee;
     --card:#ffffff; --card-line:#e7e7e7;
     /* text on a baby-blue sign fill: dark in BOTH schemes (the
        fill never changes, so its text must not flip with --ink) */
@@ -194,9 +220,12 @@
        reddish purple, not blue-violet, not lavender: white text
        8.31:1 on the light stop, 12.41:1 on the deep stop. The
        v1.20–v1.23 room-green gradient is superseded; no green
-       remains as a UI colour anywhere. */
-    --me:#55204a;
-    --me-grad:linear-gradient(160deg, #7d3268 0%, #55204a 100%);
+       remains as a UI colour anywhere.
+       v1.29 (the founder: "bolder and more dynamic"): the
+       saturation deepens a step — white text re-measured at
+       7.45:1 on the light stop, 11.84:1 on the deep stop. */
+    --me:#63184f;
+    --me-grad:linear-gradient(160deg, #932a73 0%, #63184f 100%);
     --me-ink:#ffffff;
     /* THE COMPOSER GLOW (v1.24's home; v1.27's colour):
        there is no send button (founder: "yours doesn't have
@@ -231,14 +260,21 @@
     /* legacy alias (older rules lean on this name) */
     --line:var(--card-line);
     --radius:20px;
-    --shadow-card:0 1px 2px rgba(20,20,20,.05), 0 10px 28px rgba(20,20,20,.07);
-    --shadow-bubble:0 1px 2px rgba(20,20,20,.05), 0 6px 20px rgba(20,20,20,.07);
-    --shadow-me:0 2px 4px rgba(85,32,74,.25), 0 8px 20px rgba(85,32,74,.22);
+    /* v1.29: shadows one step stronger — soft, ink-tinted,
+       never gray-flat (the founder: "bolder") */
+    --shadow-card:0 2px 3px rgba(20,20,20,.06), 0 14px 36px rgba(20,20,20,.11);
+    --shadow-bubble:0 1px 3px rgba(20,20,20,.06), 0 8px 26px rgba(20,20,20,.10);
+    --shadow-me:0 2px 4px rgba(99,24,79,.25), 0 8px 20px rgba(99,24,79,.22);
     --shadow-bar:0 12px 32px rgba(20,20,20,.14), 0 2px 8px rgba(20,20,20,.08);
-    /* motion tokens (research §8): press / new turn / card / exit */
-    --dur-press:120ms; --dur-msg:180ms; --dur-card:280ms; --dur-exit:210ms;
+    /* motion tokens (research §8): press / new turn / card / exit.
+       v1.29: the new-turn settle takes 240ms on the spring
+       (below) — life in the arrival, within the 400ms ceiling */
+    --dur-press:120ms; --dur-msg:240ms; --dur-card:280ms; --dur-exit:210ms;
     --ease-std:cubic-bezier(0.2,0,0,1);
     --ease-out:cubic-bezier(0.05,0.7,0.1,1);
+    /* the spring (v1.29): a small overshoot for arrivals and
+       touches — transform/opacity only, never ambience */
+    --ease-spring:cubic-bezier(0.34,1.3,0.64,1);
     --ease-exit:cubic-bezier(0.3,0,0.8,0.15);
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
@@ -250,7 +286,18 @@
          blue, not black" supersedes v1.22's plain-black reading).
          Paper is deep indigo #0D1230 and every surface steps up
          in blue; off-white text mitigates halation */
-      --paper:#0d1230; --paper-glow:#0d1230;
+      --paper:#0d1230; --paper-glow:#131a3d;
+      /* the watermark at night: the blossom photo's light
+         on the indigo — a soft pink-lavender bloom high in
+         the room, a brighter blue wash low, deep indigo
+         overall. Worst points measured: muted #98A1C6 at
+         4.89:1 in the bloom, 5.95:1 in the wash — floors
+         hold at full strength, nothing softened */
+      --room-grad:
+        radial-gradient(90% 42% at 72% 0%, rgba(244,183,211,.14), transparent 62%),
+        radial-gradient(120% 55% at 50% 108%, rgba(59,110,246,.20), transparent 65%),
+        linear-gradient(180deg, #131a3d 0%, #0d1230 45%, #0a0f2c 100%);
+      --paper-low:#142254;
       --card:#171e42; --card-line:#303a75;
       --field:#20295c; --surface2:#20295c;
       --bubble-in:#252e5e;
@@ -266,9 +313,11 @@
       --sign:#38bdf8; --sign-deep:#7dd3fc; --sign-soft:#0e2a47;
       /* outgoing at night: a LUMINOUS plum against the indigo
          (v1.24 supersedes the deep green) — white text 5.73:1
-         on the light stop, 8.58:1 on the deep stop */
-      --me:#753468;
-      --me-grad:linear-gradient(160deg, #9c4787 0%, #753468 100%);
+         on the light stop, 8.58:1 on the deep stop.
+         v1.29: saturation deepens a step at night too —
+         re-measured 5.14:1 / 7.42:1 */
+      --me:#843a72;
+      --me-grad:linear-gradient(160deg, #ac4795 0%, #843a72 100%);
       --me-ink:#ffffff;
       /* cornflower keeps the same home at night — the
          composer's focus light, Record's pressed tint */
@@ -283,8 +332,8 @@
       --help:#dc143c; --help-deep:#a80e30; --help-hi:#ef4e6f; --help-soft:#360a1b;
       --danger:#ea8a7f;
       --amber-bg:#0e2a47; --amber-line:#24507a; --amber-ink:#7dd3fc;
-      --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.35);
-      --shadow-bubble:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.3);
+      --shadow-card:0 2px 3px rgba(0,0,0,.45), 0 14px 36px rgba(0,0,0,.45);
+      --shadow-bubble:0 1px 3px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.4);
       --shadow-me:0 2px 4px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.35);
       --shadow-bar:0 12px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.35);
     }
@@ -293,7 +342,11 @@
   html{-webkit-text-size-adjust:100%}
   body{
     margin:0; color:var(--ink);
-    background:linear-gradient(180deg, var(--paper-glow), var(--paper) 240px) var(--paper);
+    /* the room itself is the watermark gradient, fixed to
+       the viewport so the atmosphere stays put while the
+       talk scrolls through it (v1.29; the v1.23 flat paper
+       + 240px sky band is superseded) */
+    background:var(--room-grad); background-attachment:fixed; background-color:var(--paper);
     font-family:var(--sans);
     line-height:26px; font-size:17px;
     padding-bottom:calc(104px + env(safe-area-inset-bottom));
@@ -316,8 +369,13 @@
   body::before{
     content:""; position:fixed; top:0; left:0; right:0; z-index:70;
     height:calc(100px + env(safe-area-inset-top));
+    /* v1.29: the veil now carries the room gradient itself
+       (fixed-attached, so it samples the gradient's local
+       value exactly) under its paper-glow fade — it melts
+       into the watermark instead of sitting on it */
     background:linear-gradient(180deg, var(--paper-glow) 0, var(--paper-glow) 78px,
-      color-mix(in srgb, var(--paper-glow) 0%, transparent) 100px);
+      color-mix(in srgb, var(--paper-glow) 0%, transparent) 100px), var(--room-grad);
+    background-attachment:fixed;
     pointer-events:none;
   }
   .wrap{
@@ -330,7 +388,7 @@
   }
   .companion-line{color:var(--muted); margin:2px 0 14px; font-size:.98rem}
   .card{
-    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:24px;
     padding:20px; margin:0 0 14px; box-shadow:var(--shadow-card);
     font-size:16px; line-height:25px;
   }
@@ -347,7 +405,7 @@
   .btn{
     display:inline-block; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent);
     padding:12px 24px; border-radius:999px; font-size:15px; font-weight:500; cursor:pointer; min-height:48px;
-    font-family:inherit; transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std);
+    font-family:inherit; transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std), transform var(--dur-press) var(--ease-std);
   }
   .btn.secondary{background:var(--card); color:var(--ink); border-color:var(--card-line)}
   .btn.quiet{background:transparent; color:var(--muted); border-color:transparent}
@@ -363,7 +421,7 @@
     border:1px solid var(--sage-line); background:transparent; color:var(--ink);
     padding:10px 16px; border-radius:999px; font-size:15px; font-weight:500; cursor:pointer;
     min-height:44px; font-family:var(--sans); text-align:left;
-    transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std), color var(--dur-press) var(--ease-std);
+    transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std), color var(--dur-press) var(--ease-std), transform var(--dur-press) var(--ease-std);
   }
   /* a selected chip is a sign: baby-blue fill, on-sign text
      (10.74:1 in both schemes — the fill never flips, so the
@@ -411,6 +469,32 @@
   }
   #helpBtn:active{transform:translate(-50%, 2px); box-shadow:0 4px 12px rgba(220,20,60,.4)}
 
+  /* ---- the top band's side doors (v1.29, the founder: "The
+     group and playlist button can go on the top where the
+     button is to give that area a more fuller feel") ----
+     [Circles] [Help] [Playlist]: Help stays the center
+     anchor — biggest (56px), the only crimson up top. The
+     side doors are matched solid pills (44px) vertically
+     centered on Help's row, so the band's height, the
+     veil and the wrap's 88px clearance are all unchanged:
+     the veil already melts behind the whole row. A door is
+     not a screen — tapping one brings its card INTO the
+     thread (the interface law). Aligned to the wrap's
+     content edge (680px column, 16px padding → 50%-324px),
+     clamped on phones. Press: the bold pass's scale .98. */
+  .top-door{
+    position:fixed; top:calc(18px + env(safe-area-inset-top)); z-index:80;
+    min-height:44px; padding:10px 14px; border-radius:999px;
+    background:var(--card); border:1px solid var(--card-line);
+    color:var(--sign-deep); font-size:15px; font-weight:600; font-family:var(--sans);
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+    box-shadow:var(--shadow-card);
+  }
+  .top-door svg{flex:none}
+  .top-door:active{transform:scale(.98)}
+  #circlesBtn{left:max(16px, calc(50% - 324px))}
+  #playlistBtn{right:max(16px, calc(50% - 324px))}
+
   .chip.big{font-size:1.05rem; padding:14px 18px}
 
   /* ---- the Hub (Home) ---- */
@@ -426,7 +510,7 @@
     padding:6px 13px; font-size:.84rem; font-weight:600;
   }
   .hero-card{
-    border-radius:20px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
+    border-radius:24px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
     /* the deep card: its own ground (--hero — near-black by
        day, deepest indigo by night), white text (18.42:1 day /
        19.51:1 night), label and main action signed in baby blue */
@@ -455,7 +539,7 @@
     min-height:48px;
   }
   .hub-card{
-    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:24px;
     padding:20px; margin:0 0 16px;
     box-shadow:var(--shadow-card);
     font-size:16px; line-height:25px;
@@ -533,29 +617,38 @@
   .call-link.far{background:var(--help)}
   /* ---- help: three bars (v1.27) ----
      "instead of other words just have bar options" — the
-     bars ARE the words: full-width, calm card surfaces with
-     the baby-blue sign line across the top (the room cards'
-     mark) and the label in the family's readable azure.
+     bars ARE the words: full-width, calm card surfaces
+     (v1.29 makes them bold blocks with family-colour left
+     edges — see the rule below; the v1.27 sign line and
+     azure labels are superseded there).
      Crimson stays on the Help button itself and on the true
      -emergency call links (.far) inside My People; the bars
      and their panels are calm. One bar opens at a time; its
      panel sits directly beneath it. */
+  /* v1.29: the bars are BOLD BLOCKS — 60px tall, labels at
+     17px/700 in ink, and each bar carries a thick 6px left
+     block in its family colour: sky for My Playlist, plum
+     for My Encouragement, graphite for My People (crimson
+     would alarm inside Help; it stays on the button). The
+     3px top sign line is retired, like the room cards'.
+     Bold, not loud — the inside of Help stays calm */
   .helpbar{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
-    width:100%; min-height:56px; margin:12px 0 0; padding:10px 18px;
+    width:100%; min-height:60px; margin:12px 0 0; padding:10px 18px;
     background-color:var(--card); color:var(--ink);
-    background-image:linear-gradient(var(--sign), var(--sign));
-    background-size:100% 3px; background-position:top left; background-repeat:no-repeat;
-    border:1px solid var(--card-line); border-radius:16px;
-    font-family:inherit; font-size:1.06rem; font-weight:600; text-align:left; cursor:pointer;
+    border:1px solid var(--card-line); border-left:6px solid var(--sign-deep); border-radius:16px;
+    font-family:inherit; font-size:1.06rem; font-weight:700; text-align:left; cursor:pointer;
     box-shadow:var(--shadow-bubble);
-    transition:border-color var(--dur-press) var(--ease-std), background-color var(--dur-press) var(--ease-std);
+    transition:border-color var(--dur-press) var(--ease-std), background-color var(--dur-press) var(--ease-std), transform var(--dur-press) var(--ease-std);
   }
+  .helpbar[data-helpbar="playlist"]{border-left-color:var(--sign)}
+  .helpbar[data-helpbar="encouragement"]{border-left-color:var(--me)}
+  .helpbar[data-helpbar="people"]{border-left-color:var(--ink)}
   .helpbar:active{border-color:var(--sign-deep)}
   .helpbar.open{background-color:var(--room-bg); border-color:var(--sign-deep)}
-  .helpbar-label{color:var(--sign-deep)}
+  .helpbar-label{color:var(--ink)}
   .helpbar-mark{
-    color:var(--sign-deep); font-size:1.35rem; line-height:1; flex:none;
+    color:var(--ink-soft); font-size:1.35rem; line-height:1; flex:none;
     transition:transform var(--dur-msg) var(--ease-std);
   }
   .helpbar.open .helpbar-mark{transform:rotate(90deg)}
@@ -600,13 +693,23 @@
      bigger centered Help, bottom 20px for the tighter
      stance), so the constant follows: 88 + 20 = 108px. */
   .thread{
-    display:flex; flex-direction:column; gap:16px; padding-top:4px;
+    /* v1.29: the turn gap is 8px, not the research spec's
+       16px feed rhythm — the founder, looking at a short
+       thread: "It still looks empty. I don't know if it's
+       the distance between the messages." The conversation
+       gathers; cards keep their air via the rule below. */
+    display:flex; flex-direction:column; gap:8px; padding-top:4px;
     justify-content:flex-end;
     min-height:calc(100vh - 108px - env(safe-area-inset-top));
     min-height:calc(100dvh - 108px - env(safe-area-inset-top));
   }
   .msg{display:flex}
   .msg.me{justify-content:flex-end}
+  /* companion CARDS (the wide card bubbles and the room
+     bubbles) keep a little more air above them when they
+     follow a message: 8px of flex gap + 6px here = ~14px,
+     so a card still lands as an event in the talk */
+  .thread .msg + .msg:has(> .bubble.wide), .thread .msg + .msg:has(> .bubble.room){margin-top:6px}
   /* incoming: the gray he likes (#F0F0F0) in the light scheme,
      indigo-gray #252E5E on the indigo in the dark (v1.23);
      one radius (20px) for every bubble —
@@ -637,17 +740,27 @@
     border-radius:20px; box-shadow:var(--shadow-me);
   }
   /* the room and the playlist sit on neutral gray — a different
-     surface, so a glance tells them apart from ordinary talk —
-     and carry a 3px BABY-BLUE sign line across the top (the
-     welcome card's accent line, the playlist card's accent bar).
-     A sign mark, never a surface under text. */
+     surface, so a glance tells them apart from ordinary talk.
+     v1.29 retires the 3px baby-blue sign line these cards
+     carried: in its place, a BOLD HEADER BAND — a block of
+     plum (the gradient; luminous on indigo) across the
+     card's top, carrying the card's title in white. A block
+     of colour, not a hairline. */
   .msg .bubble.room{
     background-color:var(--room-bg); border-color:var(--room-line);
-    background-image:linear-gradient(90deg, var(--sign), var(--sign));
-    background-size:100% 3px; background-position:top left;
-    background-repeat:no-repeat;
+    background-image:none;
+    padding-top:0;
     font-family:var(--sans); font-weight:500;
   }
+  .msg .bubble.room .hub-label{
+    display:block; background:var(--me-grad); color:#ffffff;
+    margin:0 -14px 10px; padding:9px 14px 8px;
+    border-top-left-radius:19px; border-top-right-radius:19px;
+  }
+  /* display moments (v1.29): the welcome headline and the
+     room's own lines speak with the chest out — 21px, weight
+     700, tight leading. Ordinary bubbles keep the 17px body */
+  .display-line{font-size:21px; line-height:1.3; font-weight:700; letter-spacing:-.01em}
   /* a journal prompt, quoted in the talk: sans, set apart by
      weight and the room's gray */
   .jprompt{font-family:var(--sans); font-size:1.08rem; font-weight:500}
@@ -675,8 +788,13 @@
      and scrolled to the bottom (long thread) alike, the
      last message rests ~7px above the bar, fully visible;
      the thread's min-height constant (108 = top pad 88 +
-     bottom pad 20) and the top clearance are untouched. */
-  .thread-spacer{height:calc(43px + env(safe-area-inset-bottom))}
+     bottom pad 20) and the top clearance are untouched.
+     v1.29: the turn gap tightened 16 → 8 (density, above),
+     so the spacer grows by the same 8 to hold this stance
+     exactly: gap 8 + spacer (51 + inset) + wrap bottom 20
+     = 79 + inset — the last message still rests ~7px
+     above the bar. */
+  .thread-spacer{height:calc(51px + env(safe-area-inset-bottom))}
 
   /* ---- the composer: one rounded bar on an elevated surface ---- */
   .composer{
@@ -684,8 +802,11 @@
     width:min(680px, 100%);
     bottom:0;
     padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    /* v1.29: the bar fades into --paper-low, the watermark
+       gradient's local value at the floor of the room, not
+       flat paper (both schemes) */
     background:linear-gradient(180deg,
-      color-mix(in srgb, var(--paper) 0%, transparent), var(--paper) 42%);
+      color-mix(in srgb, var(--paper-low) 0%, transparent), var(--paper-low) 42%);
   }
   /* v1.27: the row centers its contents — the founder: "I
      don't want pour hanging like that. Align it well." The
@@ -837,25 +958,41 @@
   .cardblock{border-top:1px solid var(--card-line); padding-top:10px; margin-top:10px}
   .cardblock:first-child{border-top:none; padding-top:0; margin-top:0}
 
-  /* ---- motion: tokenised and calm — no bounce, no shimmer, no
-     loops anywhere in the product. A new turn settles in 180ms on
-     the emphasized decelerate; cards take 280ms (inside the spec's
-     240–300 band); exits run at 75% of their enter (--dur-exit —
-     defined for the token system; the app has no exit animations).
-     Nothing exceeds the 400ms ceiling. ---- */
-  @keyframes msg-in{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+  /* ---- motion: tokenised — dynamic in arrivals and touches,
+     never in ambience (v1.29, the founder: "bolder and more
+     dynamic"). A new turn settles in 240ms on the spring
+     (--ease-spring, a small overshoot; transform/opacity
+     only, travel ≤8px); cards take 280ms on the same spring;
+     the attach sheet pops (scale .96 → 1 + fade, 220ms);
+     buttons, bars and chips press to scale .98. Exits stay
+     instant/calm (--dur-exit remains a token only; the app
+     has no exit animations). NO loops, NO infinite
+     animations, NO idle or pulsing elements, nothing moves
+     while a person is reading. Nothing exceeds the 400ms
+     ceiling. ---- */
+  @keyframes msg-in{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
   @keyframes msg-fade{from{opacity:0} to{opacity:1}}
-  .msg{animation:msg-in var(--dur-msg) var(--ease-out)}
-  .card, .hero-card, .hub-card{animation:msg-in var(--dur-card) var(--ease-out)}
+  @keyframes sheet-pop{from{opacity:0; transform:scale(.96)} to{opacity:1; transform:scale(1)}}
+  .msg{animation:msg-in var(--dur-msg) var(--ease-spring)}
+  .card, .hero-card, .hub-card{animation:msg-in var(--dur-card) var(--ease-spring)}
+  .attach-menu{animation:sheet-pop 220ms var(--ease-spring); transform-origin:bottom left}
+  .btn:active, .chip:active, .helpbar:active, .attach-option:active,
+  .composer .attach-btn:active, .composer .record-btn:active{transform:scale(.98)}
   @media (prefers-reduced-motion: reduce){
-    /* crossfade only, ≤100ms, no travel */
-    .msg, .card, .hero-card, .hub-card{animation:msg-fade .1s ease-out}
+    /* EVERYTHING collapses to ≤100ms crossfades — no spring,
+       no scale, no travel */
+    .msg, .card, .hero-card, .hub-card, .attach-menu{animation:msg-fade .1s ease-out}
+    .btn:active, .chip:active, .helpbar:active, .attach-option:active,
+    .top-door:active,
+    .composer .attach-btn:active, .composer .record-btn:active{transform:none}
     *{transition-duration:.1s !important}
   }
 </style>
 </head>
 <body>
+<button id="circlesBtn" class="top-door" type="button" aria-label="Circles"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.7c2.3.2 4.2 1.6 4.9 4.3"/></svg><span>Circles</span></button>
 <button id="helpBtn" type="button" aria-label="Help">Help</button>
+<button id="playlistBtn" class="top-door" type="button" aria-label="Playlist"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18.5V6l10-2v12.5"/><circle cx="6.8" cy="18.5" r="2.4"/><circle cx="16.8" cy="16.5" r="2.4"/></svg><span>Playlist</span></button>
 <main class="wrap" id="app" aria-live="polite"></main>
 
 <script>
@@ -2362,6 +2499,36 @@ function postSongFiledLine(song){
   pushMsg({type:"companion", text:line});
 }
 function postPlaylistCard(){ pushMsg({type:"playlistcard"}); }
+/* ---- the top band's side doors (v1.29) ----
+   A door is not a screen: tapping brings the surface INTO
+   the thread. If that door's card is already the latest
+   message, the tap does nothing — no stacked duplicates. */
+function lastThreadMsg(){
+  return thread.messages.length ? thread.messages[thread.messages.length - 1] : null;
+}
+function postPlaylistDoor(){
+  var last = lastThreadMsg();
+  if(last && (last.type === "playlistcard" || last.type === "playlistseed")) return;
+  if(!playlist.songs.length && postPlaylistSeed()) return; /* unstarted: the seed/start card */
+  postPlaylistCard();
+}
+function postCirclesCard(){ pushMsg({type:"circlescard"}); }
+function postCirclesDoor(){
+  var last = lastThreadMsg();
+  if(last && last.type === "circlescard") return;
+  postCirclesCard();
+}
+/* circles themselves are phase 2 — the card is a door, not
+   a screen, and it states the standing truth in his terms:
+   circles are offered, the person chooses, the companion
+   is finding your first. Nothing fake: no counts, no
+   names, no matches that don't exist. */
+function circlesCardHTML(m){
+  var body = '<p style="margin:4px 0">Circles are offered here — small rooms of people who hear voices, two to ten, led by a peer specialist. You choose which to sit in. Nothing is assigned.</p>'
+    + '<p style="margin:4px 0">I’m finding your first. When one fits, I’ll bring it here.</p>'
+    + '<p class="small muted" style="margin:4px 0">Sharing is always your choice, every time. Nothing travels behind your back.</p>';
+  return cardBubble("Circles", body, "room");
+}
 /* ---- listening mentions in talk ----
    Only listening-framing signals count: "listening to", "listened
    to", "song by", "my song", "played", "playlist". The ops singing
@@ -3286,7 +3453,7 @@ function threadMsgHTML(m){
   if(m.type === "roomproof"){
     /* the room, shown: the bank's interview-grounded lines, plainly
        attributed — proof of belonging, not an assertion of it */
-    var rl = (m.lines || []).map(function(l){ return '<p style="margin:6px 0">&ldquo;'+esc(l)+'&rdquo;</p>'; }).join("");
+    var rl = (m.lines || []).map(function(l){ return '<p class="display-line" style="margin:6px 0">&ldquo;'+esc(l)+'&rdquo;</p>'; }).join("");
     return '<div class="msg them"><div class="bubble room"><p class="hub-label">From the room</p>'
       + '<p class="small muted" style="margin:4px 0">People who hear voices, describing it in their own words:</p>'
       + rl + '</div></div>';
@@ -3513,6 +3680,7 @@ function threadMsgHTML(m){
   }
   if(m.type === "journalcard"){ return journalCardHTML(m); }
   if(m.type === "playlistcard"){ return playlistCardHTML(m); }
+  if(m.type === "circlescard"){ return circlesCardHTML(m); }
   if(m.type === "recordcard"){ return recordCardHTML(m); }
   if(m.type === "recordlabel"){ return recordLabelHTML(m); }
   if(m.type === "welcome"){ return welcomeHTML(m); }
@@ -3542,8 +3710,8 @@ function threadMsgHTML(m){
    message; once a door is answered the words stay, the chips rest */
 function welcomeHTML(m){
   var h = '<div class="msg them"><div class="bubble room"><p class="hub-label">Welcome</p>'
-    + '<p style="margin:4px 0">'+esc(m.text)+'</p>';
-  if(m.roomLine) h += '<p style="margin:4px 0"><span class="muted small">From the room:</span> '+esc(m.roomLine)+'</p>';
+    + '<p class="display-line" style="margin:4px 0">'+esc(m.text)+'</p>';
+  if(m.roomLine) h += '<p class="display-line" style="margin:4px 0"><span class="muted small">From the room:</span> '+esc(m.roomLine)+'</p>';
   if(m.playlistLine) h += '<p style="margin:4px 0">'+esc(m.playlistLine)+'</p>';
   if(!m.dismissed && m.plState === "seed"){
     h += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seedstart">Start my playlist</button>'
@@ -7250,6 +7418,16 @@ el("helpBtn").addEventListener("click", function(){
   view = "help";
   render(); window.scrollTo(0,0);
 });
+/* the side doors: back to the talk, the card comes into the
+   thread, and the talk rests at its end (v1.29) */
+function doorIntoThread(postFn){
+  view = "home";
+  postFn();
+  render();
+  window.scrollTo(0, document.body && document.body.scrollHeight ? document.body.scrollHeight : 0);
+}
+el("circlesBtn").addEventListener("click", function(){ doorIntoThread(postCirclesDoor); });
+el("playlistBtn").addEventListener("click", function(){ doorIntoThread(postPlaylistDoor); });
 render();
 </script>
 
