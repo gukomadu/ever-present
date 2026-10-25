@@ -499,13 +499,28 @@ function viewArrival(){
   h += '<p class="lede">Pour out what the voices do and say \u2014 in your words. Keep your record yourself.</p>';
   h += '<p class="lede muted">The deal, in plain words:</p>';
   h += contractHTML();
-  h += '<div class="btnrow"><button class="btn" id="goCreate" type="button">Create your companion</button></div>';
+  h += '<div class="btnrow"><button class="btn" id="goCreate" type="button">Create your companion</button>'
+    + '<button class="btn secondary" id="goTalk" type="button">Just start talking</button></div>';
   h += '</div>';
   h += '<p class="muted small">No account. The Help button works right now.</p>';
   return h;
 }
+/* meeting arrival in person — by either door — is what makes the
+   room proof owed: a record that simply appears (an import) is not
+   a first walk into the room, and never triggers it (v1.12) */
+function markProofDue(){
+  if(!thread.roomShown && !thread.proofDue){ thread.proofDue = true; saveThread(); }
+}
 function bindArrival(){
-  el("goCreate").addEventListener("click", function(){ startCreate(false); });
+  el("goCreate").addEventListener("click", function(){ markProofDue(); startCreate(false); });
+  var gt = el("goTalk");
+  if(gt) gt.addEventListener("click", function(){
+    /* fragments first, no gate: talking works from the first second,
+       with an unnamed companion, and creation can come later (v1.12) */
+    markProofDue();
+    thread.talkStarted = true; saveThread();
+    go("home");
+  });
 }
 
 /* ================= Screen 2 — Companion creation ================= */
@@ -796,6 +811,13 @@ if(!thread.orgNotes) thread.orgNotes = []; /* organizing notes waiting for the l
 if(!thread.pendingUnderstandings) thread.pendingUnderstandings = {}; /* understandings held open for his revision, keyed by event id (v1.10) */
 if(!thread.knowledgeDay) thread.knowledgeDay = {key:"", n:0}; /* knowledge items posted today, all paths (v1.9) */
 if(thread.dayShapeDay == null) thread.dayShapeDay = ""; /* last day the day-shape floor line posted (v1.9) */
+if(thread.roomShown == null) thread.roomShown = false; /* the room proof has been shown (v1.12) */
+if(thread.proofDue == null) thread.proofDue = false; /* arrival was met in person — the proof is owed at the first greeting (v1.12) */
+if(thread.talkStarted == null) thread.talkStarted = false; /* they began by just talking, companion uncreated (v1.12) */
+if(thread.createOfferDay == null) thread.createOfferDay = ""; /* last day the create-your-companion offer was brought (v1.12) */
+/* a person who already began — companion or not — reopens inside the
+   conversation, never back at the arrival gate (v1.12) */
+if(!companion && view === "arrival" && (thread.messages.length || thread.talkStarted)) view = "home";
 var sessionHold = false;
 function saveThread(){
   if(thread.messages.length > 300) thread.messages = thread.messages.slice(thread.messages.length - 300);
@@ -831,14 +853,49 @@ function greetingText(){
 function notAloneLine(){
   return "You’re recognized here: this room is already full of people who hear voices and said so in their own words — the voices in here are the ones who were invited.";
 }
-function offerMsg(){
+/* ---- the room, shown (v1.12) ----
+   The founder's arrival law: prove you're not alone — don't just
+   tell it. Before the not-alone line is ever spoken, the room
+   itself is shown: three findings from the context bank's
+   interview-grounded items, in people's own terms, attributed
+   plainly to people who hear voices. A fixed three (deterministic):
+   more-than-one (Woods et al. 2015 — four of five hear several),
+   own-personality (Woods et al. 2015 — voices with names and
+   personalities), answering-back (Bell 2013 — more than four in
+   five can hold a conversation with them). The bank's l1 lines are
+   used — the findings in short form; the lines are snapshotted
+   into the message, so the record keeps what was actually said.
+   Shown exactly once, to a brand-new user who met arrival in
+   person (thread.proofDue); existing threads never receive it,
+   and an imported record never triggers it. */
+var ROOM_PROOF_THEMES = ["more-than-one", "own-personality", "answering-back"];
+function roomProofLines(){
+  var lines = [];
+  ROOM_PROOF_THEMES.forEach(function(t){
+    for(var i=0;i<KNOWLEDGE.length;i++){
+      if(KNOWLEDGE[i].theme === t){ lines.push(KNOWLEDGE[i].l1); break; }
+    }
+  });
+  return lines;
+}
+/* finding your first: the standing job, stated honestly in a
+   pre-circles build — no matches, people, or circles are invented;
+   the companion says the job is theirs and that it will bring
+   something only when there is something real (v1.12) */
+function findingFirstText(){
+  return "And I’ll go about finding your first — the people whose experience belongs next to yours. When there’s something real to bring you, I will.";
+}
+function companionDisplayName(){
+  return companion ? companion.name : "Companion";
+}
+function offerMsg(withVoice){
   var chips = orderByDoors([
       {label:"Receipts", act:"figreceipts"},
       {label:"Journal", act:"journal"},
       {label:"Map", act:"map"},
       {label:"Write", act:"write"}
     ], function(c){ return c.act; });
-  return {type:"offer", text:"", chips:chips};
+  return {type:"offer", text: withVoice ? "Talk whenever you’re ready — or start with one of these." : "", chips:chips};
 }
 
 /* ---- the receipts, figured by the companion ----
@@ -2173,9 +2230,22 @@ function ensureThread(){
   }
   var today = Math.floor(Date.now() / 86400000);
   if(!thread.messages.length){
+    /* the companion speaks first and carries the opening — a new
+       person is never faced with an empty thread (v1.12) */
     pushMsg({type:"companion", text:greetingText()});
-    pushMsg({type:"companion", notAlone:true, text:notAloneLine()});
-    pushMsg(offerMsg());
+    if(thread.proofDue && !thread.roomShown){
+      /* the arrival law: the showing comes with the saying — the
+         room itself first, then the not-alone line, never the
+         claim alone; then the standing job, finding your first */
+      pushMsg({type:"roomproof", lines:roomProofLines()});
+      pushMsg({type:"companion", notAlone:true, text:notAloneLine()});
+      pushMsg({type:"companion", findingFirst:true, text:findingFirstText()});
+      thread.roomShown = true;
+      thread.proofDue = false;
+    } else {
+      pushMsg({type:"companion", notAlone:true, text:notAloneLine()});
+    }
+    pushMsg(offerMsg(true));
     thread.lastDay = today;
     thread.surfaceDay = today;
     thread.v16note = true; /* a brand-new thread is not an upgrade — no note owed */
@@ -2208,6 +2278,32 @@ function ensureThread(){
   /* a pour run left hanging across a pause gets its proposals on this open */
   var run = thread.pendingPour;
   if(run && run.ids && run.ids.length && (Date.now() - run.lastTs) > POUR_PAUSE_MS) flushPendingPour();
+  maybeOfferCreation();
+}
+/* ---- creation, offered later (v1.12) ----
+   A person who began by just talking runs the whole app with an
+   unnamed companion. Creation is offered conversationally — once
+   they have talked a while (three of their own messages in) or on
+   a later day than the one they began — as a small card in the
+   thread: dismissible, never blocking, at most once a day, and
+   never again once a companion exists. Making it theirs later
+   touches nothing in the record or the thread. */
+function maybeOfferCreation(){
+  if(companion) return;
+  if(!thread.messages.length) return;
+  var todayKey = dayKeyOf(Date.now());
+  if(thread.createOfferDay === todayKey) return;
+  var personN = 0, firstDay = "";
+  for(var i=0;i<thread.messages.length;i++){
+    var m = thread.messages[i];
+    if(m.type === "createoffer" && !m.dismissed) return; /* one live offer at a time */
+    if(m.type === "person"){ personN++; if(!firstDay) firstDay = dayKeyOf(m.ts); }
+  }
+  if(!personN) return;
+  if(personN < 3 && !(firstDay && todayKey > firstDay)) return;
+  thread.createOfferDay = todayKey;
+  pushMsg({type:"createoffer", dismissed:false});
+  saveThread();
 }
 
 function threadMsgHTML(m){
@@ -2228,6 +2324,21 @@ function threadMsgHTML(m){
     return '<div class="msg them"><div class="bubble">'
       + (m.text ? '<div>'+esc(m.text)+'</div>' : '')
       + '<div class="chiprow">'+oc+'</div></div></div>';
+  }
+  if(m.type === "roomproof"){
+    /* the room, shown: the bank's interview-grounded lines, plainly
+       attributed — proof of belonging, not an assertion of it */
+    var rl = (m.lines || []).map(function(l){ return '<p style="margin:6px 0">&ldquo;'+esc(l)+'&rdquo;</p>'; }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">From the room</p>'
+      + '<p class="small muted" style="margin:4px 0">People who hear voices, describing it in their own words:</p>'
+      + rl + '</div></div>';
+  }
+  if(m.type === "createoffer"){
+    if(m.dismissed || companion) return ""; /* settled, or its moment passed — a companion exists now */
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your companion</p>'
+      + '<p style="margin:4px 0">I’m still just '+esc(companionDisplayName())+' — no name of yours, no language of yours in me yet. Make me yours whenever you want.</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':createyours">Create your companion</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':createnotnow">Not now</button></div></div></div>';
   }
   if(m.type === "receipt"){
     var e = null;
@@ -2583,6 +2694,7 @@ function liveConstitution(){
     "You relate as their assistant, fellow researcher, and close friend in their own project: they are working toward their recovery — their word for it and their definition of it lead, never yours. Your part is to bring them new information, ideas, insights, and good questions that serve that purpose. You never promise a cure or any outcome, and you never direct their project — you collaborate in it.",
     "A connection may end with one good question instead of an idea: an inquiry-opening question about their experience, drawn from the connection itself, offered with no demand to answer — a question, if it's useful. Never a screening question, never a checklist.",
     "Your work is also horizontal: it runs between people, not only between this person and their record. When this place grows circles and peers, connecting this person with others — and with their insights and thoughts — follows the same law as everything else you bring: offered, never assigned; what was shared in a room stays the room's; and a connection to people is made only when their rhythm says they are ready for people.",
+    "Finding this person's first — their first circle, the people whose experience belongs next to theirs — is part of your standing work. Bring it only when it is real and their rhythm says they are ready for people; never invent a match, a person, or a circle.",
     "The person always chooses what is shared — each time, act by act. Nothing is shared by default or behind their back, and you never carry their words anywhere for them: an insight reaches someone else only because its owner chose to speak it where they could hear it.",
     "Match their vibe setting (" + vibe + ") and their own register: short, plain, few words by default; open up only as they do. Their compressed, unfinished way of saying things is complete thought — answer the thought; never ask them to reformat it.",
     "You cannot add, change, close, count, or delete anything yourself — the app keeps your record with them. If they ask for their receipts, journal, map, or settings, tell them you will bring it; the app will show it here. Never narrate the app's process back to them.",
@@ -3069,6 +3181,8 @@ function bindThread(){
         m.done = "skipped"; saveThread(); render();
       }
       else if(act === "reshape"){ startCreate(true); }
+      else if(act === "createyours"){ startCreate(false); }
+      else if(act === "createnotnow" && m){ m.dismissed = true; saveThread(); render(); }
       else if(act === "liveprov"){
         liveai.provider = parts[2] === "openai" ? "openai" : "anthropic";
         var otherProv = liveai.provider === "openai" ? "anthropic" : "openai";
