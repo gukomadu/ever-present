@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#476b5c">
+<meta name="theme-color" content="#1f4d3a">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131815">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -13,50 +14,104 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Ever Present</title>
 <style>
-  /* ================= Ever Present v1 — styles =================
-     Palette carried from the local product build: warm paper, calm green.
-     Mobile-first. Big tap targets. No streaks, no scores on the person. */
+  /* ================= Ever Present v1.19 — the aesthetics pass =================
+     "A warm room, editorial calm." Every color is a variable; the
+     companion speaks in a serif (a book's voice), the UI in a clean
+     sans. System stacks only — the app stays offline-capable.
+     A dark scheme (the evening room) rides the same variables. */
   :root{
-    --paper:#faf7f1; --card:#fffdf9; --ink:#2b2620; --muted:#7a7166;
-    --line:#e4dccb; --accent:#476b5c; --accent-soft:#e9f0ea;
-    --amber-bg:#fbf3e2; --amber-line:#e6d3a3; --amber-ink:#7a5b23;
-    --help:#a8432f; --help-soft:#f9ebe7;
-    --radius:12px;
+    color-scheme:light;
+    /* warm paper + room green */
+    --paper:#f6f1e7; --paper-glow:#fdfaf1;
+    --card:#fffdf8; --card-line:#e3dac6;
+    --field:#ffffff;
+    --ink:#22271f; --ink-soft:#4c4a3e; --muted:#7d7a68;
+    --green:#1f4d3a; --green-deep:#173c2d; --green-soft:#e9efe7;
+    --sage:#8a9a8b; --sage-soft:#e9ede1; --sage-line:#ccd6c0;
+    --room-bg:#edf0e3; --room-line:#cdd8bf;
+    --help:#b3402a; --help-deep:#93331f; --help-soft:#f8ece5;
+    --amber-bg:#fbf3e0; --amber-line:#e6d3a3; --amber-ink:#7a5b23;
+    /* legacy aliases (older rules and markup lean on these names) */
+    --line:var(--card-line); --accent:var(--green); --accent-soft:var(--green-soft);
+    --radius:16px;
+    --shadow-card:0 1px 2px rgba(34,39,31,.05), 0 10px 28px rgba(34,39,31,.07);
+    --shadow-bubble:0 1px 2px rgba(34,39,31,.05), 0 6px 20px rgba(34,39,31,.07);
+    --shadow-me:0 2px 4px rgba(23,60,45,.22), 0 8px 20px rgba(23,60,45,.22);
+    --shadow-bar:0 12px 32px rgba(34,39,31,.14), 0 2px 8px rgba(34,39,31,.08);
+    --serif:Georgia,"Iowan Old Style",Charter,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      color-scheme:dark;
+      /* the evening room: deep green-charcoal, warm paper text */
+      --paper:#131815; --paper-glow:#1a211c;
+      --card:#1f2822; --card-line:#36443b;
+      --field:#262f29;
+      --ink:#ede6d4; --ink-soft:#c6c0ac; --muted:#9aa48d;
+      --green:#2f6e52; --green-deep:#23573f; --green-soft:#233a2d;
+      --sage:#8a9a8b; --sage-soft:#243128; --sage-line:#41523f;
+      --room-bg:#212d24; --room-line:#3a4d3c;
+      --help:#cf5138; --help-deep:#b3402a; --help-soft:#38221c;
+      --amber-bg:#2f2716; --amber-line:#5b4a22; --amber-ink:#dcbc72;
+      --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.35);
+      --shadow-bubble:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.3);
+      --shadow-me:0 2px 4px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.35);
+      --shadow-bar:0 12px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.35);
+    }
   }
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
   body{
-    margin:0; background:var(--paper); color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    line-height:1.6; font-size:16px;
+    margin:0; color:var(--ink);
+    background:linear-gradient(180deg, var(--paper-glow), var(--paper) 260px) var(--paper);
+    font-family:var(--sans);
+    line-height:1.55; font-size:17px;
     padding-bottom:calc(104px + env(safe-area-inset-bottom));
   }
-  .wrap{max-width:680px; margin:0 auto; padding:18px 16px 30px}
+  ::selection{background:var(--sage-soft)}
+  :focus-visible{outline:2px solid var(--sage); outline-offset:2px}
+  /* the Help shelf: a fixed paper veil across the top of the screen.
+     Thread content scrolls up INTO the paper and is gone before it
+     can reach the pill — so the floating Help can never sit on top
+     of readable text or a card, at any scroll position. The wrap's
+     top padding gives the same clearance at rest. */
+  body::before{
+    content:""; position:fixed; top:0; left:0; right:0; z-index:70;
+    height:calc(78px + env(safe-area-inset-top));
+    background:linear-gradient(180deg, var(--paper) 0, var(--paper) 60px,
+      color-mix(in srgb, var(--paper) 0%, transparent) 78px);
+    pointer-events:none;
+  }
+  .wrap{
+    max-width:680px; margin:0 auto;
+    padding:calc(72px + env(safe-area-inset-top)) 16px 30px;
+  }
   h1.appname{
-    font-family:Georgia,"Times New Roman",serif; font-weight:600;
+    font-family:var(--serif); font-weight:600;
     font-size:1.55rem; margin:6px 0 0; letter-spacing:.2px;
   }
   .companion-line{color:var(--muted); margin:2px 0 14px; font-size:.98rem}
   .card{
-    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-    padding:20px; margin:0 0 14px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:18px;
+    padding:22px; margin:0 0 14px; box-shadow:var(--shadow-card);
   }
-  .card h2{font-family:Georgia,serif; font-size:1.3rem; margin:0 0 10px; font-weight:600}
+  .card h2{font-family:var(--serif); font-size:1.3rem; margin:0 0 10px; font-weight:600}
   .card h3{font-size:1.02rem; margin:18px 0 6px; font-weight:700}
   .card h3:first-child{margin-top:0}
   .muted{color:var(--muted)} .small{font-size:.88rem}
-  .lede{font-size:1.03rem}
+  .lede{font-family:var(--serif); font-size:1.08rem; line-height:1.55}
   .empty{color:var(--muted); font-style:italic}
   .field-label{font-weight:600; font-size:.95rem; margin:14px 0 6px}
   .field-label:first-child{margin-top:0}
 
   /* ---- buttons ---- */
   .btn{
-    display:inline-block; border:1px solid var(--accent); background:var(--accent); color:#fff;
+    display:inline-block; border:1px solid var(--green); background:var(--green); color:#fff;
     padding:12px 20px; border-radius:999px; font-size:1rem; cursor:pointer; min-height:48px;
-    font-family:inherit;
+    font-family:inherit; transition:background .12s ease, border-color .12s ease;
   }
-  .btn.secondary{background:var(--card); color:var(--ink); border-color:var(--line)}
+  .btn.secondary{background:var(--card); color:var(--ink); border-color:var(--card-line)}
   .btn.quiet{background:transparent; color:var(--muted); border-color:transparent}
   .btn.danger{background:var(--card); color:var(--help); border-color:var(--help)}
   .btn.small{padding:8px 14px; min-height:40px; font-size:.92rem}
@@ -64,20 +119,21 @@
   .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
   .btn:disabled{opacity:.5}
 
-  /* ---- chips (options first, questions last) ---- */
+  /* ---- chips (options first, questions last): quiet outlined pills ---- */
   .chiprow{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px}
   .chip{
-    border:1px solid var(--line); background:#fff; color:var(--ink);
-    padding:10px 14px; border-radius:999px; font-size:.95rem; cursor:pointer;
-    min-height:44px; font-family:inherit; text-align:left;
+    border:1px solid var(--sage-line); background:transparent; color:var(--ink);
+    padding:10px 15px; border-radius:999px; font-size:.95rem; cursor:pointer;
+    min-height:44px; font-family:var(--sans); text-align:left;
+    transition:background .12s ease, border-color .12s ease, color .12s ease;
   }
-  .chip.on{background:var(--accent); border-color:var(--accent); color:#fff}
-  .chip.alt.on{background:#7a5b23; border-color:#7a5b23}
+  .chip.on{background:var(--green); border-color:var(--green); color:#fff}
+  .chip.alt.on{background:var(--amber-ink); border-color:var(--amber-ink)}
   .chip small{display:block; font-size:.78rem; opacity:.85; font-weight:400}
 
   /* ---- inputs ---- */
   textarea.big, input.txt, textarea.txt{
-    width:100%; border:1px solid var(--line); border-radius:10px; background:#fff;
+    width:100%; border:1px solid var(--card-line); border-radius:12px; background:var(--field);
     padding:12px 14px; font-size:1rem; font-family:inherit; color:var(--ink);
   }
   textarea.big{min-height:16vh; line-height:1.55}
@@ -90,47 +146,52 @@
   }
   .tdots span:last-child{margin-right:0}
 
-  /* ---- persistent help button ---- */
+  /* ---- persistent help button: terracotta, on its paper shelf ---- */
   #helpBtn{
     position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:80;
-    background:var(--help); color:#fff; border:2px solid rgba(255,255,255,.9); border-radius:999px;
-    padding:12px 22px; font-size:1.02rem; font-weight:700; cursor:pointer; min-height:48px;
-    box-shadow:0 5px 16px rgba(43,38,32,.4), 0 2px 5px rgba(43,38,32,.3), inset 0 1px 0 rgba(255,255,255,.35);
-    font-family:inherit;
+    background:linear-gradient(160deg, #c55034, var(--help) 55%, var(--help-deep));
+    color:#fff8f2; border:1px solid rgba(255,255,255,.5); border-radius:999px;
+    padding:12px 24px; font-size:1.02rem; font-weight:700; letter-spacing:.01em;
+    cursor:pointer; min-height:48px; font-family:var(--sans);
+    box-shadow:0 8px 22px rgba(147,51,31,.35), 0 2px 6px rgba(34,39,31,.25),
+      inset 0 1px 0 rgba(255,255,255,.35);
   }
-  #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(43,38,32,.35)}
+  #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(34,39,31,.35)}
+  @media (max-width:420px){
+    #helpBtn{padding:10px 17px; font-size:.95rem; min-height:44px}
+  }
 
   .chip.big{font-size:1.05rem; padding:14px 18px}
 
   /* ---- the Hub (Home) ---- */
   .hub-top{padding:8px 2px 18px}
   .hub-opener{
-    font-family:Georgia,"Times New Roman",serif; font-weight:600;
+    font-family:var(--serif); font-weight:600;
     font-size:1.85rem; line-height:1.32; margin:6px 0 12px;
   }
   .status-chips{display:flex; flex-wrap:wrap; gap:8px}
   .status-chips span{
-    background:var(--accent-soft); color:var(--accent); border-radius:999px;
+    background:var(--green-soft); color:var(--green); border-radius:999px;
     padding:6px 13px; font-size:.84rem; font-weight:600;
   }
   .hero-card{
     border-radius:24px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
-    background:linear-gradient(155deg,#5f8772 0%, #476b5c 48%, #324a3e 100%);
-    color:#f7f3e8; box-shadow:0 14px 34px rgba(50,74,62,.38);
+    background:linear-gradient(155deg,#5f8772 0%, #2c5a44 48%, var(--green-deep) 100%);
+    color:#f7f3e8; box-shadow:0 14px 34px rgba(23,60,45,.38);
   }
   .hero-label{
-    font-size:.76rem; letter-spacing:1.5px; text-transform:uppercase;
+    font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
     font-weight:700; opacity:.85;
   }
   .hero-line{
-    font-family:Georgia,"Times New Roman",serif; font-size:1.5rem;
+    font-family:var(--serif); font-size:1.5rem;
     line-height:1.35; margin:10px 0 20px;
   }
   .hero-main{
     display:block; width:100%; border:none; cursor:pointer; font-family:inherit;
-    background:#faf7f1; color:#324a3e; font-weight:700; font-size:1.12rem;
+    background:#faf7f1; color:#173c2d; font-weight:700; font-size:1.12rem;
     padding:16px 20px; border-radius:999px; min-height:58px;
-    box-shadow:0 4px 14px rgba(30,45,38,.25);
+    box-shadow:0 4px 14px rgba(23,60,45,.25);
   }
   .hero-quick{
     display:block; margin:12px auto 2px; background:transparent; color:#f7f3e8;
@@ -139,91 +200,95 @@
     min-height:48px;
   }
   .hub-card{
-    background:var(--card); border:1px solid var(--line); border-radius:22px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:22px;
     padding:20px 22px; margin:0 0 16px;
-    box-shadow:0 6px 22px rgba(43,38,32,.07);
+    box-shadow:var(--shadow-card);
   }
-  .hub-card h2{font-family:Georgia,serif; font-size:1.28rem; margin:0 0 8px; font-weight:600}
+  .hub-card h2{font-family:var(--serif); font-size:1.28rem; margin:0 0 8px; font-weight:600}
   .hub-label{
-    font-size:.78rem; letter-spacing:1.4px; text-transform:uppercase;
-    color:var(--accent); font-weight:700; margin:0 0 10px;
+    font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--green); font-weight:700; margin:0 0 8px; font-family:var(--sans);
   }
   .hub-card .claim-text{font-size:1.08rem; line-height:1.45}
 
   /* ---- tallies (ported) ---- */
   .tally{display:flex; gap:14px; flex-wrap:wrap; margin:0 0 14px}
   .tally .pill{
-    background:var(--accent-soft); border-radius:999px; padding:8px 16px; font-size:.95rem;
+    background:var(--green-soft); border-radius:999px; padding:8px 16px; font-size:.95rem;
   }
   .tally .pill b{font-size:1.15rem; margin-right:6px}
 
   /* ---- claims ledger (ported from the local product build) ---- */
-  .ledger-entry{border-top:1px solid var(--line); padding:14px 0}
+  .ledger-entry{border-top:1px solid var(--card-line); padding:14px 0}
   .ledger-entry:first-of-type{border-top:none}
   .ledger-entry .claim-text{font-size:1.05rem}
   .ledger-outcome{
-    background:var(--accent-soft); border-radius:8px; padding:10px 14px; margin-top:10px;
+    background:var(--green-soft); border-radius:10px; padding:10px 14px; margin-top:10px;
   }
   .kind-tag{
     display:inline-block; background:var(--amber-bg); border:1px solid var(--amber-line);
     color:var(--amber-ink); border-radius:999px; padding:1px 9px; font-size:.76rem;
-    margin-left:8px; vertical-align:middle;
+    margin-left:8px; vertical-align:middle; font-family:var(--sans);
   }
 
   /* ---- map pieces ---- */
   .piece-card{cursor:pointer}
-  .piece-card:active{border-color:var(--accent)}
-  .piece-name{font-family:Georgia,serif; font-size:1.2rem; font-weight:600}
+  .piece-card:active{border-color:var(--green)}
+  .piece-name{font-family:var(--serif); font-size:1.2rem; font-weight:600}
   .type-tag{
-    display:inline-block; background:var(--accent-soft); color:var(--accent);
+    display:inline-block; background:var(--green-soft); color:var(--green);
     border-radius:999px; padding:1px 9px; font-size:.76rem; margin-left:8px; vertical-align:middle;
+    font-family:var(--sans);
   }
   .seeing-box{
-    background:var(--amber-bg); border:1px solid var(--amber-line); border-radius:8px;
+    background:var(--amber-bg); border:1px solid var(--amber-line); border-radius:10px;
     padding:10px 14px; margin:10px 0;
   }
-  .seeing-box .lab{font-size:.78rem; text-transform:uppercase; letter-spacing:.6px; color:var(--amber-ink); font-weight:700}
+  .seeing-box .lab{font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; color:var(--amber-ink); font-weight:700; font-family:var(--sans)}
   .mini-chips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0}
   .mini-chips span{
-    background:#fff; border:1px solid var(--line); border-radius:999px;
+    background:var(--field); border:1px solid var(--card-line); border-radius:999px;
     padding:2px 10px; font-size:.82rem;
   }
 
   /* ---- journal prompts ---- */
   .prompt-card{cursor:pointer; text-align:left; width:100%; font-family:inherit; font-size:1rem}
-  .prompt-card:active{border-color:var(--accent)}
+  .prompt-card:active{border-color:var(--green)}
 
   /* ---- help ladder ---- */
-  .rung{border-left:5px solid var(--accent); padding-left:14px; margin:18px 0}
+  .rung{border-left:5px solid var(--green); padding-left:14px; margin:18px 0}
   .rung.far{border-left-color:var(--help)}
   .rung h3{margin:0 0 4px}
   .hardday-note{
-    font-family:Georgia,serif; font-size:1.15rem; background:var(--amber-bg);
-    border:1px solid var(--amber-line); border-radius:8px; padding:14px 16px; margin:10px 0;
+    font-family:var(--serif); font-size:1.15rem; background:var(--amber-bg);
+    border:1px solid var(--amber-line); border-radius:10px; padding:14px 16px; margin:10px 0;
     white-space:pre-wrap;
   }
   .call-link{
     display:inline-block; margin:4px 8px 4px 0; padding:10px 16px; border-radius:999px;
-    background:var(--accent); color:#fff; text-decoration:none; font-weight:600; min-height:44px;
+    background:var(--green); color:#fff; text-decoration:none; font-weight:600; min-height:44px;
+    line-height:1.55;
   }
   .call-link.far{background:var(--help)}
+  /* the room speaks on sage: visibly not ordinary talk */
   .room-line{
-    font-family:Georgia,serif; font-size:1.05rem; background:var(--accent-soft);
-    border-radius:8px; padding:12px 14px; margin:10px 0;
+    font-family:var(--serif); font-size:1.08rem; line-height:1.55;
+    background:var(--room-bg); border:1px solid var(--room-line);
+    border-radius:12px; padding:12px 16px; margin:10px 0;
   }
 
   /* ---- misc ---- */
-  .howto{background:var(--accent-soft); border-radius:8px; padding:10px 14px; font-size:.92rem; margin:0 0 14px}
+  .howto{background:var(--green-soft); border-radius:10px; padding:10px 14px; font-size:.92rem; margin:0 0 14px}
   .offer-card{border-color:var(--amber-line); background:var(--amber-bg)}
-  .divider{border:none; border-top:1px solid var(--line); margin:16px 0}
+  .divider{border:none; border-top:1px solid var(--card-line); margin:16px 0}
   .stepdots{color:var(--muted); font-size:.85rem; margin:0 0 10px}
   .quiet-screen{padding-top:12vh}
   .summary-list{margin:6px 0; padding-left:20px}
   .summary-list li{margin:3px 0}
-  a.plain{color:var(--accent)}
+  a.plain{color:var(--green)}
   .toast{
-    background:var(--accent-soft); border:1px solid var(--accent); color:var(--ink);
-    border-radius:8px; padding:10px 14px; margin:0 0 14px; font-size:.95rem;
+    background:var(--green-soft); border:1px solid var(--green); color:var(--ink);
+    border-radius:10px; padding:10px 14px; margin:0 0 14px; font-size:.95rem;
   }
 
   /* ---- the thread (Home is a conversation) ---- */
@@ -231,41 +296,85 @@
   .msg{display:flex}
   .msg.me{justify-content:flex-end}
   .msg .bubble{
-    background:var(--card); border:1px solid var(--line); border-radius:16px;
-    padding:12px 16px; max-width:88%; white-space:pre-wrap; line-height:1.5;
+    background:var(--card); border:1px solid var(--card-line); border-radius:16px;
+    padding:13px 17px; max-width:88%; white-space:pre-wrap; line-height:1.55;
+    box-shadow:var(--shadow-bubble);
   }
-  .msg.me .bubble{background:var(--accent); border-color:var(--accent); color:#fff}
+  /* the companion's voice is a book's voice; the controls inside
+     a bubble stay sans, and so do the small attributions */
+  .msg.them .bubble{font-family:var(--serif); font-size:1.05rem}
+  .msg .bubble .hub-label, .msg .bubble .chip, .msg .bubble .btn,
+  .msg .bubble textarea, .msg .bubble input, .msg .bubble select,
+  .msg .bubble .small, .msg .bubble .jtag, .msg .bubble .kind-tag,
+  .msg .bubble .type-tag{font-family:var(--sans)}
+  .msg.me .bubble{
+    background:linear-gradient(165deg, var(--green), var(--green-deep));
+    border-color:transparent; color:#f7f3e8;
+    border-radius:18px; box-shadow:var(--shadow-me);
+  }
+  /* the room and the playlist sit on sage — a different surface,
+     so a glance tells them apart from ordinary talk */
+  .msg .bubble.room{
+    background:var(--room-bg); border-color:var(--room-line);
+  }
   .msg .bubble .chiprow{margin-top:8px}
   .msg .bubble p{margin:0}
   .thread-spacer{height:118px}
+
+  /* ---- the composer: one rounded bar on an elevated surface ---- */
   .composer{
     position:fixed; left:50%; transform:translateX(-50%); z-index:65;
     width:min(680px, 100%);
     bottom:0;
-    background:var(--paper); border-top:1px solid var(--line);
-    padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,
+      color-mix(in srgb, var(--paper) 0%, transparent), var(--paper) 42%);
   }
-  .composer-row{display:flex; gap:8px; align-items:flex-end}
+  .composer-row{
+    display:flex; gap:6px; align-items:flex-end;
+    background:var(--card); border:1px solid var(--card-line); border-radius:28px;
+    padding:6px; box-shadow:var(--shadow-bar);
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .composer-row:focus-within{
+    border-color:var(--sage);
+    box-shadow:var(--shadow-bar), 0 0 0 3px var(--sage-soft);
+  }
   .composer textarea{
-    flex:1; border:1px solid var(--line); border-radius:12px; background:#fff;
-    padding:12px 14px; font-size:1rem; font-family:inherit; color:var(--ink);
-    min-height:48px; max-height:20vh; resize:none; line-height:1.4;
+    flex:1; border:none; background:transparent; border-radius:22px;
+    padding:11px 12px; font-size:1rem; font-family:inherit; color:var(--ink);
+    min-height:48px; max-height:20vh; resize:none; line-height:1.45;
   }
-  .composer .btn{min-height:48px}
-  .composer .record-btn{white-space:nowrap; padding-left:12px; padding-right:12px}
+  .composer textarea:focus{outline:none}
+  .composer textarea::placeholder{color:var(--muted); opacity:.75}
+  .composer .btn{min-height:48px; border-radius:999px}
+  .composer .record-btn{
+    white-space:nowrap; padding-left:12px; padding-right:12px;
+    background:transparent; border-color:transparent; color:var(--ink-soft);
+    box-shadow:none;
+  }
   .jmedia{width:100%; margin:6px 0; border-radius:12px}
   video.jmedia{max-height:340px; background:#000}
-  .record-dot{color:#b3261e; font-weight:700}
+  .record-dot{color:var(--help); font-weight:700}
   /* ---- the dynamic journal ---- */
-  .jitem{border-top:1px solid var(--line); padding:12px 0}
+  .jitem{border-top:1px solid var(--card-line); padding:12px 0}
   .jitem:first-of-type{border-top:none}
-  .jtag{font-size:.78rem; letter-spacing:1px; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 4px}
-  .jwords{white-space:pre-wrap; font-size:1.03rem; line-height:1.55; margin:4px 0}
+  .jtag{font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 4px; font-family:var(--sans)}
+  .jwords{white-space:pre-wrap; font-family:var(--serif); font-size:1.06rem; line-height:1.58; margin:4px 0}
   .jblock{margin-top:14px}
   .jhidden{opacity:.55}
   .msg .bubble.wide{max-width:94%}
-  .cardblock{border-top:1px solid var(--line); padding-top:10px; margin-top:10px}
+  .cardblock{border-top:1px solid var(--card-line); padding-top:10px; margin-top:10px}
   .cardblock:first-child{border-top:none; padding-top:0; margin-top:0}
+
+  /* ---- motion: a gentle settle as messages arrive ---- */
+  @keyframes msg-in{from{opacity:0; transform:translateY(5px)} to{opacity:1; transform:none}}
+  .msg{animation:msg-in .18s ease-out}
+  .card, .hero-card, .hub-card{animation:msg-in .18s ease-out}
+  @media (prefers-reduced-motion: reduce){
+    .msg, .card, .hero-card, .hub-card{animation:none}
+    *{transition:none !important}
+  }
 </style>
 </head>
 <body>
@@ -2671,7 +2780,7 @@ function threadMsgHTML(m){
     /* the room, shown: the bank's interview-grounded lines, plainly
        attributed — proof of belonging, not an assertion of it */
     var rl = (m.lines || []).map(function(l){ return '<p style="margin:6px 0">&ldquo;'+esc(l)+'&rdquo;</p>'; }).join("");
-    return '<div class="msg them"><div class="bubble"><p class="hub-label">From the room</p>'
+    return '<div class="msg them"><div class="bubble room"><p class="hub-label">From the room</p>'
       + '<p class="small muted" style="margin:4px 0">People who hear voices, describing it in their own words:</p>'
       + rl + '</div></div>';
   }
@@ -2835,7 +2944,7 @@ function threadMsgHTML(m){
   }
   if(m.type === "playlistseed"){
     if(m.dismissed) return "";
-    return '<div class="msg them"><div class="bubble"><p class="hub-label">Music</p>'
+    return '<div class="msg them"><div class="bubble room"><p class="hub-label">Music</p>'
       + '<p style="margin:4px 0">Music is core here. Your playlist starts whenever you want — with one song that’s yours.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seedstart">Start my playlist</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':seedlater">Later</button></div></div></div>';
@@ -2845,14 +2954,14 @@ function threadMsgHTML(m){
     var ss = SONG_STARTERS.map(function(s, i){
       return '<button type="button" class="chip" data-tchip="'+m.id+':seedframe:'+i+'">'+esc(s.label)+'</button>';
     }).join("");
-    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your playlist</p>'
+    return '<div class="msg them"><div class="bubble room"><p class="hub-label">Your playlist</p>'
       + '<p style="margin:4px 0">One song to start. Ways other people have started theirs:</p>'
       + '<div class="chiprow">'+ss
       + '<button type="button" class="chip" data-tchip="'+m.id+':songtype">Say the song</button></div></div></div>';
   }
   if(m.type === "wordless"){
     if(m.dismissed) return "";
-    return '<div class="msg them"><div class="bubble"><p class="hub-label">Music</p>'
+    return '<div class="msg them"><div class="bubble room"><p class="hub-label">Music</p>'
       + '<p style="margin:4px 0">A song can hold it. Want to put one on your playlist for this?</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':wordput">Put a song on</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
@@ -2861,15 +2970,15 @@ function threadMsgHTML(m){
     if(m.dismissed) return "";
     var mo = m.title ? '“'+esc(m.title)+'”'+(m.artist ? ' by '+esc(m.artist) : '')+' — want it on your playlist?'
                      : 'Want that song on your playlist?';
-    return '<div class="msg them"><div class="bubble"><p class="hub-label">Music</p>'
+    return '<div class="msg them"><div class="bubble room"><p class="hub-label">Music</p>'
       + '<p style="margin:4px 0">'+mo+'</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':musicput">Put it on my playlist</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
   }
   if(m.type === "songconfirm"){
     if(m.status === "dropped")
-      return '<div class="msg them"><div class="bubble"><p class="muted small" style="margin:4px 0">Dropped — nothing added.</p></div></div>';
-    var sc = '<div class="msg them"><div class="bubble"><p class="hub-label">For your playlist</p>'
+      return '<div class="msg them"><div class="bubble room"><p class="muted small" style="margin:4px 0">Dropped — nothing added.</p></div></div>';
+    var sc = '<div class="msg them"><div class="bubble room"><p class="hub-label">For your playlist</p>'
       + '<p style="margin:4px 0">Heard: “'+esc(m.title)+'”'+(m.artist ? ' by '+esc(m.artist) : '')+', for your playlist.</p>';
     if(m.status === "confirmed")
       return sc + '<p class="muted small" style="margin:4px 0 0">As you said it</p></div></div>';
@@ -2883,14 +2992,14 @@ function threadMsgHTML(m){
     var sf = (m.options || []).map(function(o, i){
       return '<button type="button" class="chip" data-tchip="'+m.id+':songnote:'+i+'">'+esc(o.label)+'</button>';
     }).join("");
-    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your playlist</p>'
+    return '<div class="msg them"><div class="bubble room"><p class="hub-label">Your playlist</p>'
       + '<p style="margin:4px 0">What’s “'+esc(m.title)+'” for?</p>'
       + '<div class="chiprow">'+sf
       + '<button type="button" class="chip" data-tchip="'+m.id+':songown">In my words</button></div></div></div>';
   }
   if(m.type === "playlistgrow"){
     if(m.dismissed) return "";
-    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your playlist</p>'
+    return '<div class="msg them"><div class="bubble room"><p class="hub-label">Your playlist</p>'
       + '<p style="margin:4px 0">'+(m.label ? 'One more, when you want it: '+esc(m.label)+'.' : 'Your playlist grows one song at a time. One more, when you want it.')+'</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':growadd">Add one</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
@@ -2925,7 +3034,7 @@ function threadMsgHTML(m){
    the playlist standing beside it — doors as chips on the one
    message; once a door is answered the words stay, the chips rest */
 function welcomeHTML(m){
-  var h = '<div class="msg them"><div class="bubble"><p class="hub-label">Welcome</p>'
+  var h = '<div class="msg them"><div class="bubble room"><p class="hub-label">Welcome</p>'
     + '<p style="margin:4px 0">'+esc(m.text)+'</p>';
   if(m.roomLine) h += '<p style="margin:4px 0"><span class="muted small">From the room:</span> '+esc(m.roomLine)+'</p>';
   if(m.playlistLine) h += '<p style="margin:4px 0">'+esc(m.playlistLine)+'</p>';
@@ -5028,8 +5137,8 @@ function ledgerEntryById(id){
   for(var i=0;i<ledger.entries.length;i++) if(ledger.entries[i].id === id) return ledger.entries[i];
   return null;
 }
-function cardBubble(label, inner){
-  return '<div class="msg them"><div class="bubble wide">'
+function cardBubble(label, inner, cls){
+  return '<div class="msg them"><div class="bubble wide'+(cls ? ' '+cls : '')+'">'
     + (label ? '<p class="hub-label">'+esc(label)+'</p>' : '') + inner + '</div></div>';
 }
 
@@ -5206,7 +5315,7 @@ function playlistCardHTML(m){
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':songdelask:'+s.id+'">Take it off</button></div></div>';
   });
   body += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':songadd">Add a song</button></div>';
-  return cardBubble("Your playlist", body);
+  return cardBubble("Your playlist", body, "room");
 }
 
 /* ---- a piece, as a card: both layers, its receipts, its doors ---- */
