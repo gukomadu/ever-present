@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d1230">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -44,11 +44,48 @@
      The serif stays OUT of the UI entirely (v1.21 finished that;
      v1.22 verifies it). All v1.20 geometry, motion tokens, target
      sizes and the 13px label floor are unchanged. Measured ratios
-     are reported with the v1.22 build. */
+     are reported with the v1.22 build.
+     v1.23 — DAY & NIGHT FROM THE FOUNDER'S PICTURES (2026-10-25):
+     he sent two reference photos, "I like this aesthetic for the
+     day" / "for night", and the ATMOSPHERE (never the images —
+     no photo backgrounds anywhere) now sets the schemes:
+     - DAY: the room opens to sky at the top — --paper-glow is the
+       palest sky tint #F2F9FD and the body gradient lets it fade
+       to white by 240px; the veil takes the tint too, so content
+       still dissolves before the Help pill. Everything else stays
+       low-saturation v1.22 — except HELP, which becomes the day
+       photo's one vivid anchor, the saturated red field:
+       #CF3316 (HSL 9°/81%/45%, white bold text 5.07:1 — the most
+       saturated poppy that still passes; terracotta superseded).
+       Danger #B3261E already harmonises with it.
+     - NIGHT: the founder's night sky is INDIGO, not black —
+       "night is blue" supersedes v1.22's plain-black reading.
+       Paper #0D1230, surfaces step up in blue (#171E42 card,
+       #20295C surface-2/field, #252E5E bubbles — off-white body
+       text 11.81:1 on the bubbles), secondary text turns
+       blue-gray, washes go indigo. Baby-blue signs stay #89CFF0
+       and glow on indigo (10.68:1 on the paper). Outgoing green
+       stays luminous against it; Help red stays saturated — the
+       tower's one warm light. No #000000 remains in the scheme.
+     - FOUND WHILE VERIFYING (latent v1.22 bug): in the dark
+       scheme --ink flips to off-white, so every baby-blue FILL
+       that took its text colour from --ink was carrying
+       near-white text at 1.57:1. A new --on-sign token (#141414
+       in BOTH schemes) pins dark text on sign fills everywhere;
+       light rendering is pixel-identical. The alt-chip selected
+       state likewise moves to the pale wash + family ink
+       (4.97:1 light / 8.05:1 dark). The hero card gets its own
+       --hero ground (near-black by day, deepest indigo #060A24
+       by night) instead of borrowing --ink, which flips. */
   :root{
     color-scheme:light;
-    --paper:#ffffff; --paper-glow:#ffffff;
+    --paper:#ffffff; --paper-glow:#f2f9fd;
     --card:#ffffff; --card-line:#e7e7e7;
+    /* text on a baby-blue sign fill: dark in BOTH schemes (the
+       fill never changes, so its text must not flip with --ink) */
+    --on-sign:#141414;
+    /* the hero card's own ground: near-black by day */
+    --hero:#141414;
     --field:#ffffff; --surface2:#ffffff;
     /* incoming bubbles: the gray he likes, kept */
     --bubble-in:#f0f0f0;
@@ -72,8 +109,9 @@
     /* the room: neutral light gray — told apart by the baby-blue
        sign marks and its labels, not a tint wash */
     --room-bg:#f5f5f5; --room-line:#e7e7e7;
-    /* Help: terracotta, restored (v1.20 values) */
-    --help:#b4552d; --help-deep:#93331f; --help-hi:#c96a3f; --help-soft:#fbeee6;
+    /* Help: the day photo's one vivid anchor — a saturated
+       poppy red field (v1.23; white bold text 5.07:1) */
+    --help:#cf3316; --help-deep:#a02c12; --help-hi:#e8603c; --help-soft:#fdeee9;
     --danger:#b3261e;
     /* legacy --amber names: now a pale baby-blue wash + deep-blue ink */
     --amber-bg:#eaf6fd; --amber-line:#bfe6f7; --amber-ink:#0b6fa4;
@@ -94,28 +132,37 @@
   @media (prefers-color-scheme: dark){
     :root{
       color-scheme:dark;
-      /* dark: TRUE BLACK (the founder's white "can go black for
-         dark theme at night"); surfaces step up in gray;
-         off-white text mitigates halation */
-      --paper:#000000; --paper-glow:#000000;
-      --card:#1a1a1a; --card-line:#2e2e2e;
-      --field:#262626; --surface2:#1a1a1a;
-      --bubble-in:#262626;
-      --ink:#f5f5f5; --ink-soft:#a8a8a8; --muted:#a8a8a8;
-      /* signs in the dark: baby-blue fills still carry ink text;
-         sign TEXT on black takes the lightened deep blue (11.27:1) */
-      --sign:#89cff0; --sign-deep:#7cc7ef; --sign-soft:#0e2a3d;
-      /* outgoing stays the deep room green (9.12–12.29:1) */
+      /* dark: INDIGO (v1.23 — the founder's night photo: cherry
+         blossoms against a deep saturated indigo sky; "night is
+         blue, not black" supersedes v1.22's plain-black reading).
+         Paper is deep indigo #0D1230 and every surface steps up
+         in blue; off-white text mitigates halation */
+      --paper:#0d1230; --paper-glow:#0d1230;
+      --card:#171e42; --card-line:#303a75;
+      --field:#20295c; --surface2:#20295c;
+      --bubble-in:#252e5e;
+      --on-sign:#141414;
+      --hero:#060a24;
+      --ink:#f5f5f5; --ink-soft:#aab3d8; --muted:#98a1c6;
+      /* signs in the dark: baby blue stays #89CFF0 and GLOWS on
+         indigo (10.68:1 on the paper); sign fills carry --on-sign
+         text; sign TEXT on indigo takes the lightened deep blue
+         #7CC7EF (9.83:1 on the paper, 8.67:1 on card) */
+      --sign:#89cff0; --sign-deep:#7cc7ef; --sign-soft:#1a2350;
+      /* outgoing stays the luminous deep room green against the
+         indigo (white text 9.12–12.29:1, as measured in v1.22) */
       --me:#1e3a33;
       --me-grad:linear-gradient(160deg, #26503f 0%, #1e3a33 100%);
       --me-ink:#ffffff;
-      --accent:#0b6fa4; --accent-soft:#0e2a3d; --on-accent:#ffffff;
+      --accent:#0b6fa4; --accent-soft:#1a2350; --on-accent:#ffffff;
       --link:#7cc7ef;
-      --sage:#737373; --sage-soft:#262626; --sage-line:#363636;
-      --room-bg:#1a1a1a; --room-line:#2e2e2e;
-      --help:#b4552d; --help-deep:#93331f; --help-hi:#c96a3f; --help-soft:#2e1c12;
+      --sage:#6b74a3; --sage-soft:#252e5e; --sage-line:#323c74;
+      --room-bg:#171e42; --room-line:#303a75;
+      /* Help stays the saturated poppy — the tower's one warm
+         light against the indigo (white bold text 5.07:1) */
+      --help:#cf3316; --help-deep:#a02c12; --help-hi:#e8603c; --help-soft:#2e1420;
       --danger:#ea8a7f;
-      --amber-bg:#0e2a3d; --amber-line:#1d4a66; --amber-ink:#7cc7ef;
+      --amber-bg:#1a2350; --amber-line:#2c3a7d; --amber-ink:#7cc7ef;
       --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.35);
       --shadow-bubble:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.3);
       --shadow-me:0 2px 4px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.35);
@@ -126,23 +173,25 @@
   html{-webkit-text-size-adjust:100%}
   body{
     margin:0; color:var(--ink);
-    background:linear-gradient(180deg, var(--paper-glow), var(--paper) 260px) var(--paper);
+    background:linear-gradient(180deg, var(--paper-glow), var(--paper) 240px) var(--paper);
     font-family:var(--sans);
     line-height:26px; font-size:17px;
     padding-bottom:calc(104px + env(safe-area-inset-bottom));
   }
-  ::selection{background:var(--sign)}
+  ::selection{background:var(--sign); color:var(--on-sign)}
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-  /* the Help shelf: a fixed paper veil across the top of the screen.
-     Thread content scrolls up INTO the paper and is gone before it
-     can reach the pill — so the floating Help can never sit on top
-     of readable text or a card, at any scroll position. The wrap's
-     top padding gives the same clearance at rest. */
+  /* the Help shelf: a fixed veil across the top of the screen.
+     Thread content scrolls up INTO the veil's colour and is gone
+     before it can reach the pill — so the floating Help can never
+     sit on top of readable text or a card, at any scroll position.
+     The wrap's top padding gives the same clearance at rest.
+     v1.23: the veil takes --paper-glow — the local sky tint at
+     the top of the room by day, the indigo by night. */
   body::before{
     content:""; position:fixed; top:0; left:0; right:0; z-index:70;
     height:calc(78px + env(safe-area-inset-top));
-    background:linear-gradient(180deg, var(--paper) 0, var(--paper) 60px,
-      color-mix(in srgb, var(--paper) 0%, transparent) 78px);
+    background:linear-gradient(180deg, var(--paper-glow) 0, var(--paper-glow) 60px,
+      color-mix(in srgb, var(--paper-glow) 0%, transparent) 78px);
     pointer-events:none;
   }
   .wrap{
@@ -190,9 +239,14 @@
     min-height:44px; font-family:var(--sans); text-align:left;
     transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std), color var(--dur-press) var(--ease-std);
   }
-  /* a selected chip is a sign: baby-blue fill, ink text (10.74:1) */
-  .chip.on{background:var(--sign); border-color:var(--sign); color:var(--ink)}
-  .chip.alt.on{background:var(--amber-ink); border-color:var(--amber-ink)}
+  /* a selected chip is a sign: baby-blue fill, on-sign text
+     (10.74:1 in both schemes — the fill never flips, so the
+     text colour is pinned by --on-sign, not --ink) */
+  .chip.on{background:var(--sign); border-color:var(--sign); color:var(--on-sign)}
+  /* the alt selected chip: pale family wash, family ink
+     (4.97:1 light / 8.05:1 dark — the solid family ink as a
+     fill failed its own text in one scheme or the other) */
+  .chip.alt.on{background:var(--amber-bg); border-color:var(--amber-ink); color:var(--amber-ink)}
   .chip small{display:block; font-size:.8125rem; opacity:.85; font-weight:400}
 
   /* ---- inputs ---- */
@@ -210,15 +264,16 @@
   }
   .tdots span:last-child{margin-right:0}
 
-  /* ---- persistent help button: solid terracotta (v1.20 values,
-     restored in v1.22), on its paper shelf — position unchanged ---- */
+  /* ---- persistent help button: the one saturated element in
+     the room — the day photo's red field (v1.23 poppy #CF3316),
+     on its veil shelf — position unchanged ---- */
   #helpBtn{
     position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:80;
     background:var(--help);
     color:#ffffff; border:1px solid rgba(255,255,255,.5); border-radius:999px;
     padding:12px 24px; font-size:1.02rem; font-weight:700; letter-spacing:.01em;
     cursor:pointer; min-height:48px; font-family:var(--sans);
-    box-shadow:0 8px 22px rgba(180,85,45,.35), 0 2px 6px rgba(20,20,20,.25),
+    box-shadow:0 8px 22px rgba(207,51,22,.35), 0 2px 6px rgba(20,20,20,.25),
       inset 0 1px 0 rgba(255,255,255,.35);
   }
   #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(20,20,20,.35)}
@@ -236,15 +291,16 @@
   }
   .status-chips{display:flex; flex-wrap:wrap; gap:8px}
   .status-chips span{
-    /* status badges are signs: baby-blue fill, ink text */
-    background:var(--sign); color:var(--ink); border-radius:999px;
+    /* status badges are signs: baby-blue fill, on-sign text */
+    background:var(--sign); color:var(--on-sign); border-radius:999px;
     padding:6px 13px; font-size:.84rem; font-weight:600;
   }
   .hero-card{
     border-radius:20px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
-    /* the black card: ink surface, white text (18.42:1), the
-       label and the main action signed in baby blue */
-    background:var(--ink);
+    /* the deep card: its own ground (--hero — near-black by
+       day, deepest indigo by night), white text (18.42:1 day /
+       19.51:1 night), label and main action signed in baby blue */
+    background:var(--hero);
     color:#ffffff; box-shadow:0 14px 34px rgba(20,20,20,.28);
   }
   .hero-label{
@@ -257,8 +313,8 @@
   }
   .hero-main{
     display:block; width:100%; border:none; cursor:pointer; font-family:inherit;
-    /* the hero's main action is a sign: baby-blue fill, ink text */
-    background:var(--sign); color:var(--ink); font-weight:700; font-size:1.12rem;
+    /* the hero's main action is a sign: baby-blue fill, on-sign text */
+    background:var(--sign); color:var(--on-sign); font-weight:700; font-size:1.12rem;
     padding:16px 20px; border-radius:999px; min-height:58px;
     box-shadow:0 4px 14px rgba(20,20,20,.25);
   }
@@ -286,8 +342,8 @@
   /* ---- tallies (ported) ---- */
   .tally{display:flex; gap:14px; flex-wrap:wrap; margin:0 0 14px}
   .tally .pill{
-    /* tally pills are signs: baby-blue fill, ink text */
-    background:var(--sign); border-radius:999px; padding:8px 16px; font-size:.95rem;
+    /* tally pills are signs: baby-blue fill, on-sign text */
+    background:var(--sign); color:var(--on-sign); border-radius:999px; padding:8px 16px; font-size:.95rem;
   }
   .tally .pill b{font-size:1.15rem; margin-right:6px}
 
@@ -299,9 +355,9 @@
     background:var(--sign-soft); border-radius:10px; padding:10px 14px; margin-top:10px;
   }
   .kind-tag{
-    /* a badge is a sign: baby-blue fill, ink text */
+    /* a badge is a sign: baby-blue fill, on-sign text */
     display:inline-block; background:var(--sign); border:1px solid var(--sign);
-    color:var(--ink); border-radius:999px; padding:1px 9px; font-size:.8125rem;
+    color:var(--on-sign); border-radius:999px; padding:1px 9px; font-size:.8125rem;
     margin-left:8px; vertical-align:middle; font-family:var(--sans);
   }
 
@@ -310,8 +366,8 @@
   .piece-card:active{border-color:var(--sign-deep)}
   .piece-name{font-family:var(--sans); font-size:1.2rem; font-weight:600}
   .type-tag{
-    /* a badge is a sign: baby-blue fill, ink text */
-    display:inline-block; background:var(--sign); color:var(--ink);
+    /* a badge is a sign: baby-blue fill, on-sign text */
+    display:inline-block; background:var(--sign); color:var(--on-sign);
     border-radius:999px; padding:1px 9px; font-size:.8125rem; margin-left:8px; vertical-align:middle;
     font-family:var(--sans);
   }
@@ -372,8 +428,9 @@
   .thread{display:flex; flex-direction:column; gap:16px; padding-top:4px}
   .msg{display:flex}
   .msg.me{justify-content:flex-end}
-  /* incoming: neutral light gray in the light scheme, #262626 on
-     true black in the dark; one radius (20px) for every bubble —
+  /* incoming: the gray he likes (#F0F0F0) in the light scheme,
+     indigo-gray #252E5E on the indigo in the dark (v1.23);
+     one radius (20px) for every bubble —
      the message markup carries no grouped-run class, so the spec's
      6px grouped corner is not applied rather than faked */
   .msg .bubble{
