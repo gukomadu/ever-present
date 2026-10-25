@@ -321,7 +321,8 @@ var K = {
   thread:    "ever_present_v1_thread",
   djournal:  "ever_present_v1_djournal",
   liveai:    "ever_present_v1_liveai",
-  connections: "ever_present_v1_connections"
+  connections: "ever_present_v1_connections",
+  playlist:  "ever_present_v1_playlist"
 };
 function storeLoad(key, blank){
   try{
@@ -340,6 +341,7 @@ function ledgerBlank(){ return {entries:[]}; } /* ported shape */
 function djournalBlank(){ return {corrections:{}, hidden:{}, dayFig:{}, precedents:{}, knowledgeDays:{}}; }
 function liveaiBlank(){ return {provider:"anthropic", key:"", model:"claude-sonnet-4-5", on:false}; }
 function connectionsBlank(){ return {shown:{}, lastTs:0}; } /* connections already brought, by theme (v1.11.1) */
+function playlistBlank(){ return {songs:[], seed:"", seedRestUntil:0, growTs:0}; } /* the co-built playlist (v1.13): songs + the seed/growth doors' state */
 
 var companion = storeLoad(K.companion, companionBlank);
 var atlas     = storeLoad(K.atlas, atlasBlank);
@@ -369,6 +371,12 @@ var connections = storeLoad(K.connections, connectionsBlank);
 if(!connections || typeof connections !== "object") connections = connectionsBlank();
 if(!connections.shown) connections.shown = {};
 if(!connections.lastTs) connections.lastTs = 0;
+var playlist = storeLoad(K.playlist, playlistBlank);
+if(!playlist || typeof playlist !== "object") playlist = playlistBlank();
+if(!playlist.songs) playlist.songs = [];
+if(playlist.seed == null) playlist.seed = "";
+if(!playlist.seedRestUntil) playlist.seedRestUntil = 0;
+if(!playlist.growTs) playlist.growTs = 0;
 
 function saveCompanion(){ storeSave(K.companion, companion); }
 function saveAtlas(){ storeSave(K.atlas, atlas); }
@@ -378,6 +386,7 @@ function saveLedger(){ storeSave(K.ledger, ledger); } /* ported save */
 function saveDjournal(){ storeSave(K.djournal, djournal); }
 function saveLiveai(){ storeSave(K.liveai, liveai); }
 function saveConnections(){ storeSave(K.connections, connections); }
+function savePlaylist(){ storeSave(K.playlist, playlist); }
 
 /* ================= shared lookups ================= */
 function pieceById(id){
@@ -1484,12 +1493,165 @@ function maybePostConnection(){
   if(!match) return false; /* no true pattern, no connection — silence is correct */
   return postConnection(match);
 }
+/* ================= THE PLAYLIST (v1.13) =================
+   The founder: "The song is not what you record though you can do
+   that. ... I'm talking about EP gradually working with you in
+   creating your playlist. It starts as soon as possible. Music is
+   core." The playlist is a first-class part of the record — a peer
+   of the map, the receipts, the journal: the person's own songs,
+   built WITH the companion, one song at a time, each for its
+   moment. It is not recording, and it is not streaming; it is
+   autobiography in songs. A song built here is theirs first —
+   sharing it later (into a circle's meetup playlist) is a choice
+   they make then, per-act, like everything shared in this place.
+
+   It starts as soon as possible: the seed is planted inside the
+   arrival greeting when arrival was met in person; for everyone
+   else — imported records included — it arrives once as a calm
+   daily surface, until answered. [Later] rests it for a season.
+   Then it grows gradually: a listening mention in talk can earn a
+   gentle door onto the playlist (listening-framing signals only —
+   the ops singing is never a cue), and at most weekly a calm
+   surface may offer one more song, for a moment their own record
+   names. Every add is a playback they confirm, like a claim:
+   heard, held open, theirs to drop. */
+var SONG_STARTERS = [
+  {label:"A song from a good stretch of life", note:"From a good stretch of my life"},
+  {label:"A song that sounds like it feels right now", note:"Sounds like it feels right now"},
+  {label:"A song that takes me somewhere calmer", note:"Takes me somewhere calmer"}
+];
+function playlistSeedDue(){
+  if(playlist.songs.length) return false;
+  if(playlist.seed === "done" || playlist.seed === "offered") return false;
+  if(playlist.seed === "resting" && Date.now() < (playlist.seedRestUntil || 0)) return false;
+  return true;
+}
+function postPlaylistSeed(){
+  if(!playlistSeedDue()) return false;
+  playlist.seed = "offered";
+  savePlaylist();
+  pushMsg({type:"playlistseed", dismissed:false});
+  return true;
+}
+function maybePostPlaylistSeedSurface(){
+  if(!playlistSeedDue()) return false;
+  if(knowledgeBlockedNow()) return false; /* a burst window or a fresh blast: HOLD wins */
+  return postPlaylistSeed();
+}
+/* one growth step, from their record: a moment that recurs in it
+   and has no song yet */
+function playlistMoment(){
+  function hasTag(t){ return playlist.songs.some(function(s){ return (s.tags || []).indexOf(t) !== -1; }); }
+  var ann = ledger.entries.filter(function(e){ return e.kind === "announcement"; }).length;
+  if(ann >= 2 && !hasTag("announce"))
+    return {note:"For when they announce", tag:"announce", label:"a song for when they announce"};
+  var com = ledger.entries.filter(function(e){ return e.kind === "commentary"; }).length;
+  if(com >= 1 && !hasTag("commentary"))
+    return {note:"For the commentary", tag:"commentary", label:"a song for the commentary"};
+  return null;
+}
+function maybePostPlaylistGrowth(){
+  if(!playlist.songs.length) return false;
+  if(knowledgeBlockedNow()) return false;
+  var now = Date.now();
+  if(playlist.growTs && (now - playlist.growTs) < 7 * 86400000) return false; /* at most one a week */
+  var mom = playlistMoment();
+  playlist.growTs = now;
+  savePlaylist();
+  pushMsg({type:"playlistgrow", label: mom ? mom.label : "", note: mom ? mom.note : "",
+           tag: mom ? mom.tag : "", dismissed:false});
+  return true;
+}
+/* ---- adding a song: a playback, confirmed, like a claim ---- */
+function splitSongText(text){
+  var t = String(text || "").trim().replace(/[.\s]+$/, "");
+  var m = t.match(/^(.*)\s+by\s+(.+)$/i);
+  if(m) return {title:m[1].trim(), artist:m[2].trim()};
+  return {title:t, artist:""};
+}
+function postSongConfirm(title, artist, note, tag){
+  return pushMsg({type:"songconfirm", title:title || "", artist:artist || "",
+                  note:note || "", tag:tag || "", status:""});
+}
+function songNoteOptions(){
+  var opts = [];
+  if(ledger.entries.some(function(e){ return e.kind === "announcement"; }))
+    opts.push({label:"For when they announce", note:"For when they announce", tag:"announce"});
+  if(ledger.entries.some(function(e){ return e.kind === "commentary"; }))
+    opts.push({label:"For the commentary", note:"For the commentary", tag:"commentary"});
+  opts.push({label:"For hard mornings", note:"For hard mornings", tag:"mornings"});
+  opts.push({label:"Just mine", note:"Just mine", tag:""});
+  return opts;
+}
+function postSongFor(confirmMsg){
+  return pushMsg({type:"songfor", confirmId:confirmMsg.id, title:confirmMsg.title,
+                  artist:confirmMsg.artist, options:songNoteOptions(), done:false});
+}
+function fileSong(title, artist, note, tag){
+  var song = {id:uid(), title:title, artist:artist || "", note:note || "",
+              tags: tag ? [tag] : [], ts:Date.now()};
+  playlist.songs.push(song);
+  playlist.seed = "done"; /* the playlist has begun — the seed door rests for good */
+  savePlaylist();
+  return song;
+}
+function postSongFiledLine(song){
+  var line = "On your playlist: “" + song.title + "”" + (song.artist ? " by " + song.artist : "") + ".";
+  if(song.note && song.note !== "Just mine")
+    line += " " + song.note.charAt(0).toLowerCase() + song.note.slice(1) + (/\.$/.test(song.note) ? "" : ".");
+  pushMsg({type:"companion", text:line});
+}
+function postPlaylistCard(){ pushMsg({type:"playlistcard"}); }
+/* ---- listening mentions in talk ----
+   Only listening-framing signals count: "listening to", "listened
+   to", "song by", "my song", "played", "playlist". The ops singing
+   is NOT a cue — none of these signals is singing talk, and a
+   mention whose object is the voices themselves is suppressed
+   outright. Err toward silence: a missed cue is fine; a wrong
+   cue is bad. */
+var MUSIC_SIGNALS = ["listening to", "listened to", "song by", "my song", "played", "playlist"];
+function musicSignalIn(text){
+  var low = " " + String(text || "").toLowerCase() + " ";
+  return MUSIC_SIGNALS.some(function(s){ return low.indexOf(s) !== -1; });
+}
+function parseSongMention(text){
+  var t = String(text || "").trim();
+  var m = t.match(/listening to\s+(.+)/i) || t.match(/listened to\s+(.+)/i) || t.match(/\bplayed\s+(.+)/i);
+  var rest = m ? m[1] : null;
+  if(!rest && musicSignalIn(t)){
+    var q = t.match(/[“"]([^”"]+)[”"]/);
+    if(q) rest = q[1];
+  }
+  if(!rest) return null;
+  for(var ti = 0; ti < 2; ti++)
+    rest = rest.replace(/\s+(this morning|this afternoon|this evening|last night|tonight|today|yesterday|all day|all night|on repeat|again and again|again)\s*$/i, "");
+  rest = rest.replace(/[.!?\s]+$/, "").trim();
+  if(/^(them|they|him|her|it|the voices|my voices|a voice|the voice)\b/i.test(rest)) return {suppress:true};
+  rest = rest.replace(/^(that song|the song|a song)\s+/i, "").trim();
+  if(!rest) return null;
+  var by = splitSongText(rest);
+  return by.title ? by : null;
+}
+function maybePostMusicOffer(text){
+  if(vibeOf() === "asked") return false;
+  if(knowledgeBlockedNow()) return false; /* HOLD wins, as with context */
+  if(!musicSignalIn(text)) return false;
+  var p = parseSongMention(text);
+  if(p && p.suppress) return false;
+  if(p && p.title && playlist.songs.some(function(s){ return s.title.toLowerCase() === p.title.toLowerCase(); }))
+    return false; /* already theirs — no door for what's already on it */
+  pushMsg({type:"musicoffer", title: p ? p.title : "", artist: p ? p.artist : "", dismissed:false});
+  return true;
+}
+
 function postDailySurface(){
   if(vibeOf() === "asked") return;
   if(postDoorsIfDue()) return;
   if(figNew()){ postFiguredReceipts(); return; }
   if(maybePostConnection()) return;
   if(postKnowledgeIfCalm()) return;
+  if(maybePostPlaylistSeedSurface()) return;
+  if(maybePostPlaylistGrowth()) return;
   var surfaces = [];
   if(openClaims().length) surfaces.push("receipt");
   var pick = (companion && companion.offerFreq !== "asked") ? hubTopPick() : null;
@@ -2233,6 +2395,7 @@ function ensureThread(){
     /* the companion speaks first and carries the opening — a new
        person is never faced with an empty thread (v1.12) */
     pushMsg({type:"companion", text:greetingText()});
+    var metArrival = thread.proofDue && !thread.roomShown;
     if(thread.proofDue && !thread.roomShown){
       /* the arrival law: the showing comes with the saying — the
          room itself first, then the not-alone line, never the
@@ -2246,6 +2409,11 @@ function ensureThread(){
       pushMsg({type:"companion", notAlone:true, text:notAloneLine()});
     }
     pushMsg(offerMsg(true));
+    /* the playlist starts as soon as possible (v1.13): the seed is
+       planted inside this first greeting, after the opening settles —
+       but only when arrival was met in person; a record that simply
+       appears gets the same door later, as a calm daily surface */
+    if(metArrival) postPlaylistSeed();
     thread.lastDay = today;
     thread.surfaceDay = today;
     thread.v16note = true; /* a brand-new thread is not an upgrade — no note owed */
@@ -2491,7 +2659,63 @@ function threadMsgHTML(m){
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':figsave">Save these figures</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':figcancel">Leave them</button></div></div></div>';
   }
+  if(m.type === "playlistseed"){
+    if(m.dismissed) return "";
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Music</p>'
+      + '<p style="margin:4px 0">Music is core here. Your playlist starts whenever you want — with one song that’s yours.</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seedstart">Start my playlist</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':seedlater">Later</button></div></div></div>';
+  }
+  if(m.type === "songstart"){
+    if(m.done) return "";
+    var ss = SONG_STARTERS.map(function(s, i){
+      return '<button type="button" class="chip" data-tchip="'+m.id+':seedframe:'+i+'">'+esc(s.label)+'</button>';
+    }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your playlist</p>'
+      + '<p style="margin:4px 0">One song to start. Ways other people have started theirs:</p>'
+      + '<div class="chiprow">'+ss
+      + '<button type="button" class="chip" data-tchip="'+m.id+':songtype">Say the song</button></div></div></div>';
+  }
+  if(m.type === "musicoffer"){
+    if(m.dismissed) return "";
+    var mo = m.title ? '“'+esc(m.title)+'”'+(m.artist ? ' by '+esc(m.artist) : '')+' — want it on your playlist?'
+                     : 'Want that song on your playlist?';
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Music</p>'
+      + '<p style="margin:4px 0">'+mo+'</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':musicput">Put it on my playlist</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
+  }
+  if(m.type === "songconfirm"){
+    if(m.status === "dropped")
+      return '<div class="msg them"><div class="bubble"><p class="muted small" style="margin:4px 0">Dropped — nothing added.</p></div></div>';
+    var sc = '<div class="msg them"><div class="bubble"><p class="hub-label">For your playlist</p>'
+      + '<p style="margin:4px 0">Heard: “'+esc(m.title)+'”'+(m.artist ? ' by '+esc(m.artist) : '')+', for your playlist.</p>';
+    if(m.status === "confirmed")
+      return sc + '<p class="muted small" style="margin:4px 0 0">As you said it</p></div></div>';
+    return sc + '<div class="chiprow">'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':songyes">That’s right</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':songno">Don’t keep it</button>'
+      + '</div></div></div>';
+  }
+  if(m.type === "songfor"){
+    if(m.done) return "";
+    var sf = (m.options || []).map(function(o, i){
+      return '<button type="button" class="chip" data-tchip="'+m.id+':songnote:'+i+'">'+esc(o.label)+'</button>';
+    }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your playlist</p>'
+      + '<p style="margin:4px 0">What’s “'+esc(m.title)+'” for?</p>'
+      + '<div class="chiprow">'+sf
+      + '<button type="button" class="chip" data-tchip="'+m.id+':songown">In my words</button></div></div></div>';
+  }
+  if(m.type === "playlistgrow"){
+    if(m.dismissed) return "";
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your playlist</p>'
+      + '<p style="margin:4px 0">'+(m.label ? 'One more, when you want it: '+esc(m.label)+'.' : 'Your playlist grows one song at a time. One more, when you want it.')+'</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':growadd">Add one</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
+  }
   if(m.type === "journalcard"){ return journalCardHTML(m); }
+  if(m.type === "playlistcard"){ return playlistCardHTML(m); }
   if(m.type === "mapcard"){ return mapCardHTML(m); }
   if(m.type === "piececard"){ return pieceCardHTML(m); }
   if(m.type === "receiptscard"){ return receiptsCardHTML(m); }
@@ -2607,6 +2831,9 @@ function notePourMessage(ev){
     sessionAckStreak = false;
     requestLiveReply();
     liveChain = liveChain.then(function(){ postImmediateProposal(ev, text); });
+    /* the playlist door rides this exchange too (v1.13) — code-side,
+       gated by the same HOLD discipline, after the playback */
+    liveChain = liveChain.then(function(){ maybePostMusicOffer(text); });
     return;
   }
   /* rule-based: ONE feedback rides this exchange, in this order —
@@ -2644,6 +2871,9 @@ function notePourMessage(ev){
   }
   sessionAckStreak = bare;
   postImmediateProposal(ev, text);
+  /* a listening mention in this exchange earns its gentle door onto
+     the playlist (v1.13) — after the playback, never instead of it */
+  maybePostMusicOffer(text);
 }
 /* ================= the live voice (optional, bring-your-own-key) =================
    The split is the design: THE CODE keeps the record — filing,
@@ -2693,6 +2923,7 @@ function liveConstitution(){
     "You do not only answer. You hold their whole record next to the research and the interviews, and when a real connection forms — their journal circling something others have described — you may bring it: what you noticed across their days, the voice from the research that joins it, and one idea offered as a door. Bring connections rarely, only when they're true, and always in a calm rhythm.",
     "You relate as their assistant, fellow researcher, and close friend in their own project: they are working toward their recovery — their word for it and their definition of it lead, never yours. Your part is to bring them new information, ideas, insights, and good questions that serve that purpose. You never promise a cure or any outcome, and you never direct their project — you collaborate in it.",
     "A connection may end with one good question instead of an idea: an inquiry-opening question about their experience, drawn from the connection itself, offered with no demand to answer — a question, if it's useful. Never a screening question, never a checklist.",
+    "Music is core here. You are gradually building this person's playlist with them, from as early as possible: their songs, for their moments. Suggest rarely and in rhythm; a song is autobiography, not content.",
     "Your work is also horizontal: it runs between people, not only between this person and their record. When this place grows circles and peers, connecting this person with others — and with their insights and thoughts — follows the same law as everything else you bring: offered, never assigned; what was shared in a room stays the room's; and a connection to people is made only when their rhythm says they are ready for people.",
     "Finding this person's first — their first circle, the people whose experience belongs next to theirs — is part of your standing work. Bring it only when it is real and their rhythm says they are ready for people; never invent a match, a person, or a circle.",
     "The person always chooses what is shared — each time, act by act. Nothing is shared by default or behind their back, and you never carry their words anywhere for them: an insight reaches someone else only because its owner chose to speak it where they could hear it.",
@@ -2729,6 +2960,15 @@ function buildRecordDigest(){
     atlas.glossary.slice(-12).forEach(function(g){
       L.push("- “" + g.term + "”" + (g.does ? " — " + g.does : "") + (g.doesOwn ? " — " + g.doesOwn : "") + (g.whoText ? " (about " + g.whoText + ")" : ""));
     });
+  }
+  if(playlist.songs.length){
+    L.push("Their playlist — music is core here; these are the person's own songs, built with you one song at a time, each for its moment:");
+    playlist.songs.slice(0, 12).forEach(function(s){
+      L.push("- “" + s.title + "”" + (s.artist ? " by " + s.artist : "") + (s.note ? " — " + s.note : ""));
+    });
+    if(playlist.songs.length > 12) L.push("- …and " + (playlist.songs.length - 12) + " more.");
+  } else {
+    L.push("Their playlist has not started yet — it starts with one song that's theirs, whenever they want it.");
   }
   var open = openClaims().slice().sort(function(a,b){ return a.ts - b.ts; });
   if(open.length){
@@ -2810,6 +3050,7 @@ function liveHistoryNote(m){
   if(m.type === "mapcard") return br("You brought their map card — the pieces and how they see them");
   if(m.type === "piececard"){ var p = pieceById(m.pieceId); return br("You brought the card for " + (p ? p.name : "a piece")); }
   if(m.type === "receiptscard") return br("You brought the receipts card — the figured picture and the open claims");
+  if(m.type === "playlistcard") return br("You brought their playlist card — the songs they are building with you, one at a time");
   if(m.type === "settingscard") return br("You brought the settings card");
   if(m.type === "moveask"){ var me = ledgerEntryById(m.claimId); return br("You asked whether they want to note their move on the claim “" + (me ? shortWords(me.claim, 80) : "") + "”"); }
   if(m.type === "mapGlimpse") return br("You showed a glimpse of their map");
@@ -2974,6 +3215,15 @@ function detectIntent(text){
     return {kind:"receipts"};
   if(w("settings") || w("export") || w("import") || w("erase") || w("reshape") || low.indexOf(" my data ") !== -1)
     return {kind:"settings"};
+  /* adding a song by talking: "add X by Y to my playlist" — the
+     words themselves carry the song; the confirm flow does the rest */
+  var addM = String(text).match(/\badd\s+(.+?)\s+to\s+my\s+playlist/i)
+          || String(text).match(/\bput\s+(.+?)\s+on\s+my\s+playlist/i);
+  if(addM){
+    var spx = splitSongText(addM[1]);
+    if(spx.title) return {kind:"songadd", title:spx.title, artist:spx.artist};
+  }
+  if(w("playlist") || low.indexOf(" my songs ") !== -1) return {kind:"playlist"};
   if(w("journal")) return {kind:"journal"};
   if((w("today") || low.indexOf(" my day ") !== -1 || low.indexOf(" this week ") !== -1) && req)
     return {kind:"journal"};
@@ -2988,6 +3238,8 @@ function routeIntent(it){
   else if(it.kind === "piece") postPieceCard(it.pieceId);
   else if(it.kind === "receipts") postReceiptsCard();
   else if(it.kind === "settings") postSettingsCard();
+  else if(it.kind === "playlist") postPlaylistCard();
+  else if(it.kind === "songadd") postSongConfirm(it.title, it.artist, "", "");
 }
 function sendThreadText(){
   var ta = el("threadInput");
@@ -3231,6 +3483,10 @@ function bindThread(){
           saveAtlas();
           pushMsg({type:"companion", text:(dp ? dp.name : "That piece") + " is out of the map. Its captures stay in your record."});
           render();
+        } else if(m.kind === "song"){
+          playlist.songs = playlist.songs.filter(function(x){ return x.id !== m.songId; });
+          savePlaylist();
+          render();
         } else if(m.kind === "import"){
           if(pendingImport){
             var pi = pendingImport;
@@ -3303,6 +3559,68 @@ function bindThread(){
       else if(act === "connreceipts"){ postReceiptsCard(); render(); }
       else if(act === "conntalk"){
         pushMsg({type:"companion", text:"Pour it out here — I’m listening. Nothing gets sorted while you talk."});
+        render();
+      }
+      else if(act === "seedstart" && m){
+        /* the seed is answered; the playlist's first song is the start */
+        playlist.seed = "done"; savePlaylist();
+        m.dismissed = true; saveThread();
+        pushMsg({type:"songstart", done:false});
+        render();
+      }
+      else if(act === "seedlater" && m){
+        playlist.seed = "resting";
+        playlist.seedRestUntil = Date.now() + 30 * 86400000; /* a season's rest — asked again later, not nagged */
+        savePlaylist();
+        m.dismissed = true; saveThread(); render();
+      }
+      else if(act === "seedframe" && m){
+        var sst = SONG_STARTERS[parseInt(parts[2], 10)] || SONG_STARTERS[0];
+        m.done = true; saveThread();
+        askText("songtitle", {presetNote:sst.note}, "Say the song — its title, and who it’s by if you know.");
+        render();
+      }
+      else if(act === "songtype" && m){
+        m.done = true; saveThread();
+        askText("songtitle", {}, "Say the song — its title, and who it’s by if you know.");
+        render();
+      }
+      else if(act === "songadd"){
+        askText("songtitle", {}, "Say the song — its title, and who it’s by if you know.");
+        render();
+      }
+      else if(act === "growadd" && m){
+        m.dismissed = true; saveThread();
+        askText("songtitle", {presetNote:m.note || "", presetTag:m.tag || ""}, "Say the song — its title, and who it’s by if you know.");
+        render();
+      }
+      else if(act === "musicput" && m){
+        m.dismissed = true; saveThread();
+        if(m.title) postSongConfirm(m.title, m.artist, "", "");
+        else askText("songtitle", {}, "Say the song — its title, and who it’s by if you know.");
+        render();
+      }
+      else if(act === "songyes" && m){
+        m.status = "confirmed"; saveThread();
+        if(m.note) postSongFiledLine(fileSong(m.title, m.artist, m.note, m.tag));
+        else postSongFor(m);
+        render();
+      }
+      else if(act === "songno" && m){
+        m.status = "dropped"; saveThread(); render();
+      }
+      else if(act === "songnote" && m){
+        var sopt = (m.options || [])[parseInt(parts[2], 10)];
+        m.done = true; saveThread();
+        if(sopt) postSongFiledLine(fileSong(m.title, m.artist, sopt.note, sopt.tag));
+        render();
+      }
+      else if(act === "songown" && m){
+        askText("songnote", {songforId:m.id}, "Say what it’s for, in your words.");
+        render();
+      }
+      else if(act === "songdelask"){
+        pushMsg({type:"confirmact", kind:"song", songId:parts[2], done:""});
         render();
       }
       else if(act === "more" && m){ m.expanded = true; saveThread(); render(); }
@@ -3995,6 +4313,22 @@ function mapCardHTML(m){
   return cardBubble("Your map", body);
 }
 
+/* ---- the playlist, as a card: their songs, each with what it's for ---- */
+function playlistCardHTML(m){
+  var body = "";
+  if(!playlist.songs.length){
+    body = '<p style="margin:4px 0">No songs yet. It builds one song at a time, with you.</p>';
+  }
+  playlist.songs.forEach(function(s){
+    body += '<div class="cardblock"><p style="margin:2px 0"><strong>'+esc(s.title)+'</strong>'
+      + (s.artist ? '<span class="small muted"> by '+esc(s.artist)+'</span>' : '') + '</p>'
+      + (s.note ? '<p class="small" style="margin:2px 0">'+esc(s.note)+'</p>' : '')
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':songdelask:'+s.id+'">Take it off</button></div></div>';
+  });
+  body += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':songadd">Add a song</button></div>';
+  return cardBubble("Your playlist", body);
+}
+
 /* ---- a piece, as a card: both layers, its receipts, its doors ---- */
 function postPieceCard(id){
   if(id) pushMsg({type:"piececard", pieceId:id});
@@ -4360,11 +4694,12 @@ function confirmActHTML(m){
     return '<div class="msg them"><div class="bubble"><p class="muted small">Kept, then. Nothing changed.</p></div></div>';
   if(m.done === "done"){
     if(m.kind === "piece") return '<div class="msg them"><div class="bubble"><p class="muted small">Removed from the map.</p></div></div>';
+    if(m.kind === "song") return '<div class="msg them"><div class="bubble"><p class="muted small">Off your playlist.</p></div></div>';
     return '<div class="msg them"><div class="bubble"><p class="muted small">Done.</p></div></div>';
   }
   if(m.kind === "erase1"){
     return '<div class="msg them"><div class="bubble"><p class="hub-label">Erase everything</p>'
-      + '<p style="margin:4px 0">Your companion, all map pieces, glossary terms, every claim you’ve told me, your journal writings, and your help ladder — erased from this phone. This can’t be undone.</p>'
+      + '<p style="margin:4px 0">Your companion, all map pieces, glossary terms, every claim you’ve told me, your journal writings, your playlist, and your help ladder — erased from this phone. This can’t be undone.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Erase everything</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep my record</button></div></div></div>';
   }
@@ -4384,6 +4719,13 @@ function confirmActHTML(m){
     var p = pieceById(m.pieceId);
     return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">Remove '+(p ? esc(p.name) : "this piece")+' from your map? Its captures stay in your record, but the piece itself will be gone.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Remove it</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep it</button></div></div></div>';
+  }
+  if(m.kind === "song"){
+    var sg = null;
+    playlist.songs.forEach(function(x){ if(x.id === m.songId) sg = x; });
+    return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">Take '+(sg ? '“'+esc(sg.title)+'”' : 'that song')+' off your playlist?</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Take it off</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep it</button></div></div></div>';
   }
   return "";
@@ -4415,6 +4757,15 @@ function handleTextAsk(text){
     /* the moveask message's own state is the proof — no extra line */
   } else if(ask.kind === "claimtext"){
     pushMsg({type:"claimkind", text:text, claimId:""});
+  } else if(ask.kind === "songtitle"){
+    var spt = splitSongText(text);
+    if(spt.title) postSongConfirm(spt.title, spt.artist, ask.presetNote || "", ask.presetTag || "");
+  } else if(ask.kind === "songnote"){
+    var sfm = threadMsgById(ask.songforId);
+    if(sfm && !sfm.done){
+      sfm.done = true; saveThread();
+      postSongFiledLine(fileSong(sfm.title, sfm.artist, text, ""));
+    }
   } else if(ask.kind === "seeing"){
     var p1 = pieceById(ask.pieceId);
     if(p1){ p1.seeing = text; p1.seeingTs = Date.now(); saveAtlas(); }
