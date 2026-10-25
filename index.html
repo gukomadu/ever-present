@@ -29,7 +29,7 @@
     margin:0; background:var(--paper); color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     line-height:1.6; font-size:16px;
-    padding-bottom:calc(92px + env(safe-area-inset-bottom));
+    padding-bottom:calc(126px + env(safe-area-inset-bottom));
   }
   .wrap{max-width:680px; margin:0 auto; padding:18px 16px 30px}
   h1.appname{
@@ -91,19 +91,73 @@
     box-shadow:0 2px 10px rgba(43,38,32,.25); font-family:inherit;
   }
 
-  /* ---- bottom nav ---- */
+  /* ---- floating pill dock ---- */
   nav.bottom{
-    position:fixed; left:0; right:0; bottom:0; z-index:70;
-    background:var(--card); border-top:1px solid var(--line);
-    padding-bottom:env(safe-area-inset-bottom);
-    display:flex; justify-content:space-around;
+    position:fixed; left:50%; transform:translateX(-50%); z-index:70;
+    bottom:calc(12px + env(safe-area-inset-bottom));
+    width:min(660px, calc(100% - 20px));
+    background:rgba(53,80,63,.97); border-radius:999px;
+    box-shadow:0 12px 32px rgba(43,38,32,.35), 0 2px 8px rgba(43,38,32,.22);
+    display:flex; padding:6px; gap:2px;
   }
   nav.bottom button{
     flex:1; background:none; border:none; cursor:pointer; font-family:inherit;
-    padding:9px 2px 8px; color:var(--muted); font-size:.78rem; min-height:56px;
+    padding:8px 2px 7px; color:#d9e4da; font-size:.7rem; min-height:52px;
+    border-radius:999px; line-height:1.2; min-width:0;
   }
-  nav.bottom button .gly{display:block; font-size:1.25rem; line-height:1.2}
-  nav.bottom button.active{color:var(--accent); font-weight:700}
+  nav.bottom button .gly{display:block; font-size:1.2rem; line-height:1.25}
+  nav.bottom button .navlab{
+    display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  nav.bottom button.active{background:var(--paper); color:var(--accent); font-weight:700}
+
+  /* ---- the Hub (Home) ---- */
+  .hub-top{padding:8px 2px 18px}
+  .hub-opener{
+    font-family:Georgia,"Times New Roman",serif; font-weight:600;
+    font-size:1.85rem; line-height:1.32; margin:6px 0 12px;
+  }
+  .status-chips{display:flex; flex-wrap:wrap; gap:8px}
+  .status-chips span{
+    background:var(--accent-soft); color:var(--accent); border-radius:999px;
+    padding:6px 13px; font-size:.84rem; font-weight:600;
+  }
+  .hero-card{
+    border-radius:24px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
+    background:linear-gradient(155deg,#5f8772 0%, #476b5c 48%, #324a3e 100%);
+    color:#f7f3e8; box-shadow:0 14px 34px rgba(50,74,62,.38);
+  }
+  .hero-label{
+    font-size:.76rem; letter-spacing:1.5px; text-transform:uppercase;
+    font-weight:700; opacity:.85;
+  }
+  .hero-line{
+    font-family:Georgia,"Times New Roman",serif; font-size:1.5rem;
+    line-height:1.35; margin:10px 0 20px;
+  }
+  .hero-main{
+    display:block; width:100%; border:none; cursor:pointer; font-family:inherit;
+    background:#faf7f1; color:#324a3e; font-weight:700; font-size:1.12rem;
+    padding:16px 20px; border-radius:999px; min-height:58px;
+    box-shadow:0 4px 14px rgba(30,45,38,.25);
+  }
+  .hero-quick{
+    display:block; margin:12px auto 2px; background:transparent; color:#f7f3e8;
+    border:1px solid rgba(247,243,232,.55); border-radius:999px;
+    padding:10px 20px; font-family:inherit; font-size:.95rem; cursor:pointer;
+    min-height:48px;
+  }
+  .hub-card{
+    background:var(--card); border:1px solid var(--line); border-radius:22px;
+    padding:20px 22px; margin:0 0 16px;
+    box-shadow:0 6px 22px rgba(43,38,32,.07);
+  }
+  .hub-card h2{font-family:Georgia,serif; font-size:1.28rem; margin:0 0 8px; font-weight:600}
+  .hub-label{
+    font-size:.78rem; letter-spacing:1.4px; text-transform:uppercase;
+    color:var(--accent); font-weight:700; margin:0 0 10px;
+  }
+  .hub-card .claim-text{font-size:1.08rem; line-height:1.45}
 
   /* ---- tallies (ported) ---- */
   .tally{display:flex; gap:14px; flex-wrap:wrap; margin:0 0 14px}
@@ -351,7 +405,7 @@ function renderNav(){
   if(view === "settings" || view === "help" || view === "ladder") base = "home";
   nav.innerHTML = navItems().map(function(n){
     return '<button type="button" data-nav="'+n[0]+'" class="'+(base===n[0] ? "active" : "")+'">'
-      + '<span class="gly">'+n[1]+'</span>'+esc(n[2])+'</button>';
+      + '<span class="gly">'+n[1]+'</span><span class="navlab">'+esc(n[2])+'</span></button>';
   }).join("");
   nav.querySelectorAll("[data-nav]").forEach(function(b){
     b.addEventListener("click", function(){
@@ -632,93 +686,199 @@ function companionOpener(){
   var dayIdx = Math.floor(Date.now() / 86400000);
   return cands[dayIdx % cands.length];
 }
-/* One calm-time door at a time, rotating by day. Offers obey the creation
-   setting; passing on one writes nothing about the person. */
-function homeOfferHTML(){
-  if(companion.offerFreq === "asked") return "";
-  var offers = [];
-  if(!ladder.noteForHardDay && !sessionDismissed.noteOffer) offers.push("note");
-  if(!sessionDismissed.promptOffer) offers.push("prompt");
-  var unseen = null;
-  for(var i=0;i<atlas.pieces.length;i++){ if(!atlas.pieces[i].seeing){ unseen = atlas.pieces[i]; break; } }
-  if(unseen && !sessionDismissed.seeingOffer) offers.push("seeing");
-  if(!offers.length) return "";
-  var dayIdx = Math.floor(Date.now() / 86400000);
-  var pick = offers[dayIdx % offers.length];
-  if(pick === "note"){
-    return '<div class="card offer-card"><h3>A door, if you want it</h3>'
-      + '<p>'+esc(companion.name)+' can keep a note you write on a calm day, saved for a hard one. It lives on your help ladder, on the reassurance rung.</p>'
-      + '<div class="btnrow"><button class="btn small" id="offerNote" type="button">Write the note</button>'
-      + '<button class="btn quiet small" id="offerNoteNo" type="button">Not now</button></div></div>';
+/* ================= the Hub (Home) =================
+   The companion speaks first; the record shows itself as cards.
+   Status chips and tallies describe the record, never the person. */
+function hubStatusChips(){
+  var chips = [];
+  var open = openClaims();
+  if(open.length) chips.push(open.length + (open.length === 1 ? " claim still open" : " claims still open"));
+  var evs = atlas.events.slice().sort(function(a,b){ return b.ts - a.ts; });
+  for(var i=0;i<evs.length;i++){
+    if(evs[i].mode === "pour" && evs[i].pourText){
+      var d = daysSince(evs[i].ts);
+      var when = d <= 0 ? "today" : d === 1 ? "yesterday"
+        : new Date(evs[i].ts).toLocaleDateString(undefined,{weekday:"short"});
+      chips.push("Last pour \u00b7 " + when);
+      break;
+    }
   }
-  if(pick === "prompt"){
+  if(atlas.pieces.length)
+    chips.push(atlas.pieces.length + (atlas.pieces.length === 1 ? " piece" : " pieces") + " on your map");
+  return chips.slice(0,3);
+}
+/* The companion's one suggestion for today. Candidates come from the
+   person's own record; one shows at a time, chosen by day. Passing on
+   one writes nothing about the person. */
+function hubTopPick(){
+  var cands = [];
+  if(!atlas.pieces.length && !ledger.entries.length && !atlas.events.length){
+    cands.push({key:"firstdoor", title:"A first door",
+      body:"When you\u2019re ready, the first pour can be small: who was around, or just how it landed. There\u2019s no form to fill \u2014 you pour, I keep it.",
+      goLabel:"Pour", act:"pour"});
+    var pr0 = journalPrompts()[0];
+    cands.push({key:"prompt", title:"A prompt for a calm moment",
+      body:pr0, goLabel:"Write with it", act:"prompt", prompt:pr0});
+  } else {
+    if(!ladder.noteForHardDay){
+      cands.push({key:"note", title:"A door, if you want it",
+        body:companion.name + " can keep a note you write on a calm day, saved for a hard one. It lives on your help ladder, on the reassurance rung.",
+        goLabel:"Write the note", act:"note"});
+    }
+    var unseen = null;
+    for(var i=0;i<atlas.pieces.length;i++){ if(!atlas.pieces[i].seeing){ unseen = atlas.pieces[i]; break; } }
+    if(unseen){
+      cands.push({key:"seeing", title:"A door, if you want it",
+        body:"You haven\u2019t said how you see " + unseen.name + " yet. How you see them is the top layer of your map \u2014 the door\u2019s open whenever.",
+        goLabel:"Open " + unseen.name, act:"piece", pieceId:unseen.id});
+    }
+    var seen = {};
+    atlas.events.forEach(function(ev){
+      (ev.whoIds||[]).forEach(function(id){ if(!seen[id] || ev.ts > seen[id]) seen[id] = ev.ts; });
+    });
+    var quietP = null, quietTs = Infinity;
+    atlas.pieces.forEach(function(p){
+      var t = seen[p.id] || p.created || 0;
+      if(t < quietTs){ quietTs = t; quietP = p; }
+    });
+    if(quietP && Date.now() - quietTs > 4 * 86400000){
+      cands.push({key:"visit", title:"From your map",
+        body:quietP.name + " hasn\u2019t been in the record since " + relDay(quietTs) + ". Quiet is part of the record too \u2014 visit the piece if you like.",
+        goLabel:"Open " + quietP.name, act:"piece", pieceId:quietP.id});
+    }
     var pr = journalPrompts()[0];
-    return '<div class="card offer-card"><h3>A door, if you want it</h3>'
-      + '<p>A prompt for a calm moment: '+esc(pr)+'</p>'
-      + '<div class="btnrow"><button class="btn small" id="offerPrompt" data-prompt-text="'+esc(pr)+'" type="button">Write with it</button>'
-      + '<button class="btn quiet small" id="offerPromptNo" type="button">Not now</button></div></div>';
+    cands.push({key:"prompt", title:"A prompt for a calm moment",
+      body:pr, goLabel:"Write with it", act:"prompt", prompt:pr});
   }
-  if(pick === "seeing" && unseen){
-    return '<div class="card offer-card"><h3>A door, if you want it</h3>'
-      + '<p>You haven\u2019t said how you see '+esc(unseen.name)+' yet. How you see them is the top layer of your map \u2014 the door\u2019s open whenever.</p>'
-      + '<div class="btnrow"><button class="btn small" id="offerSeeing" data-piece="'+unseen.id+'" type="button">Open '+esc(unseen.name)+'</button>'
-      + '<button class="btn quiet small" id="offerSeeingNo" type="button">Not now</button></div></div>';
-  }
-  return "";
+  cands = cands.filter(function(c){ return !sessionDismissed["pick_" + c.key]; });
+  if(!cands.length) return null;
+  var dayIdx = Math.floor(Date.now() / 86400000);
+  return cands[dayIdx % cands.length];
+}
+var hubPick = null;
+function heroInviteLine(){
+  var lines = [
+    "Pour it out here \u2014 deeply, in your words. I\u2019ll keep every word.",
+    "This is the room where it gets said. Pour it out; I\u2019ll hold the record.",
+    "Whatever they\u2019ve been doing, it can go here. Pour it out."
+  ];
+  var dayIdx = Math.floor(Date.now() / 86400000);
+  return lines[dayIdx % lines.length];
 }
 function viewHome(){
-  var addr = addressOf();
-  var h = '<div class="card">';
-  h += '<h2>'+esc(greetingWord())+(addr ? ", " + esc(addr) : "")+'.</h2>';
-  h += '<p class="lede">'+esc(companionOpener())+'</p>';
-  h += '<div class="btnrow"><button class="btn" id="hPourMain" type="button">Pour</button></div>';
-  h += '<div class="btnrow">'
-    + '<button class="btn secondary" id="hQuickNote" type="button">Quick note</button>'
-    + '<button class="btn secondary" id="hAddMap" type="button">Add to the map</button>'
-    + '<button class="btn secondary" id="hWrite" type="button">Write</button>'
-    + '<button class="btn quiet" id="hSettings" type="button">Settings</button></div>';
-  h += '</div>';
-
-  /* one rotating calm-time door; passing leaves no mark */
-  h += homeOfferHTML();
-
-  /* receipts on Home: open claims as tappable outcomes (offered, never homework) */
-  var open = openClaims();
-  h += '<div class="card"><h2>Check the receipts</h2>';
-  if(!ledger.entries.length){
-    h += '<p class="muted">The ledger writes down what the voices claim \u2014 then what actually happened. Nothing logged yet.</p>';
-  } else if(open.length){
-    h += '<p>'+open.length+(open.length === 1 ? " claim" : " claims")+' still open. When you know how one went, tap it \u2014 or don\u2019t. It keeps.</p>';
-    open.slice(0,3).forEach(function(e){
-      h += '<div class="ledger-entry"><div class="claim-text">&ldquo;'+esc(e.claim)+'&rdquo;</div>'
-        + '<div class="muted small">'+esc(fmtDate(e.ts))+(e.who ? ' &mdash; '+esc(e.who) : '')+'</div>'
-        + '<div class="chiprow">'
-        + '<button type="button" class="chip" data-hout="'+e.id+':happened">It happened</button>'
-        + '<button type="button" class="chip" data-hout="'+e.id+':didnt">It didn\u2019t</button>'
-        + '<button type="button" class="chip" data-hout="'+e.id+':partly">Partly</button>'
-        + '<button type="button" class="chip" data-hout="'+e.id+':notyet">Not yet</button>'
-        + '</div></div>';
-    });
-  } else {
-    h += '<p class="muted">Every claim so far has been checked against what happened.</p>';
+  var h = "";
+  /* ambient zone: the companion's opener is the headline */
+  h += '<section class="hub-top">';
+  h += '<p class="hub-opener">'+esc(companionOpener())+'</p>';
+  var chips = hubStatusChips();
+  if(chips.length){
+    h += '<div class="status-chips">' + chips.map(function(c){
+      return '<span>'+esc(c)+'</span>';
+    }).join("") + '</div>';
   }
-  h += '<div class="btnrow"><button class="btn secondary small" id="hReceipts" type="button">See all receipts</button></div>';
-  h += '</div>';
+  h += '</section>';
+
+  /* hero card: the pour invitation */
+  h += '<section class="hero-card" id="heroCard">';
+  h += '<div class="hero-label">'+esc(companion.name)+' \u00b7 your companion</div>';
+  h += '<p class="hero-line">'+esc(heroInviteLine())+'</p>';
+  h += '<button class="hero-main" id="hPourMain" type="button">Pour it out</button>';
+  h += '<button class="hero-quick" id="hQuickNote" type="button">Quick note instead</button>';
+  h += '</section>';
+
+  /* receipts card: only while a claim is still open */
+  var open = openClaims().slice().sort(function(a,b){ return a.ts - b.ts; });
+  if(open.length){
+    var e0 = open[0];
+    h += '<section class="hub-card"><p class="hub-label">Check the receipts</p>';
+    h += '<div class="claim-text">&ldquo;'+esc(e0.claim)+'&rdquo;</div>';
+    h += '<div class="muted small" style="margin-top:4px">'+esc(fmtDate(e0.ts))+(e0.who ? ' &mdash; '+esc(e0.who) : '')+'</div>';
+    h += '<div class="chiprow">'
+      + '<button type="button" class="chip" data-hout="'+e0.id+':happened">It happened</button>'
+      + '<button type="button" class="chip" data-hout="'+e0.id+':didnt">It didn\u2019t</button>'
+      + '<button type="button" class="chip" data-hout="'+e0.id+':partly">Partly</button>'
+      + '<button type="button" class="chip" data-hout="'+e0.id+':notyet">Not yet</button></div>';
+    if(open.length > 1)
+      h += '<p class="muted small">'+open.length+' claims still open in all. They keep until you know how they went.</p>';
+    h += '<div class="btnrow"><button class="btn secondary small" id="hReceipts" type="button">See all receipts</button></div>';
+    h += '</section>';
+  }
+
+  /* top pick: the companion's one suggestion for today */
+  hubPick = (companion.offerFreq === "asked") ? null : hubTopPick();
+  if(hubPick){
+    h += '<section class="hub-card"><p class="hub-label">Top pick</p>';
+    h += '<h2>'+esc(hubPick.title)+'</h2>';
+    h += '<p>'+esc(hubPick.body)+'</p>';
+    h += '<div class="btnrow"><button class="btn small" id="pickGo" type="button">'+esc(hubPick.goLabel)+'</button>'
+      + '<button class="btn quiet small" id="pickNo" type="button">Not now</button></div>';
+    h += '</section>';
+  }
+
+  /* map snapshot: their pieces, named as they named them */
+  if(atlas.pieces.length){
+    h += '<section class="hub-card"><p class="hub-label">Your map</p>';
+    h += '<div class="chiprow">' + atlas.pieces.slice(0,10).map(function(p){
+      return '<button type="button" class="chip" data-hubpiece="'+p.id+'">'+esc(p.name)+'</button>';
+    }).join("") + '</div>';
+    h += '<div class="btnrow"><button class="btn secondary small" id="hMap" type="button">Open your map</button>'
+      + '<button class="btn quiet small" id="hAddMap" type="button">Add to the map</button></div>';
+    h += '</section>';
+  }
+
+  /* journal card: today's prompt */
+  var prompts = journalPrompts();
+  var dayIdx = Math.floor(Date.now() / 86400000);
+  var todayPrompt = prompts[dayIdx % prompts.length];
+  h += '<section class="hub-card"><p class="hub-label">Journal</p>';
+  h += '<p class="lede">'+esc(todayPrompt)+'</p>';
+  h += '<div class="btnrow"><button class="btn secondary small" id="hWrite" data-prompt-text="'+esc(todayPrompt)+'" type="button">Write</button>'
+    + '<button class="btn quiet small" id="hJournal" type="button">All prompts &amp; past entries</button></div>';
+  h += '</section>';
+
+  /* help card: constant and calm */
+  h += '<section class="hub-card"><p class="hub-label">Help</p>';
+  h += '<p class="lede">Sometimes you just need help.</p>';
+  h += '<p class="muted small">Reassurance from your own record, a person you trust, or a professional \u2014 your ladder, one tap, no gates.</p>';
+  h += '<div class="btnrow"><button class="btn secondary small" id="hHelp" type="button">Open my help ladder</button></div>';
+  h += '</section>';
+
+  h += '<div class="btnrow" style="justify-content:center"><button class="btn quiet small" id="hSettings" type="button">Settings</button></div>';
   return h;
 }
 function bindHome(){
+  var hero = el("heroCard");
+  if(hero) hero.addEventListener("click", function(ev){
+    if(ev.target && ev.target.closest && ev.target.closest("button")) return;
+    startPour();
+  });
   el("hPourMain").addEventListener("click", function(){ startPour(); });
   el("hQuickNote").addEventListener("click", function(){ startQuickNote(); });
-  el("hAddMap").addEventListener("click", function(){ startCapture("quick"); });
-  el("hWrite").addEventListener("click", function(){ go("journal"); });
-  el("hSettings").addEventListener("click", function(){ go("settings"); });
   var hr = el("hReceipts"); if(hr) hr.addEventListener("click", function(){ go("receipts"); });
-  var on = el("offerNote"); if(on) on.addEventListener("click", function(){ go("ladder"); });
-  var onn = el("offerNoteNo"); if(onn) onn.addEventListener("click", function(){ sessionDismissed.noteOffer = true; render(); });
-  var op = el("offerPrompt"); if(op) op.addEventListener("click", function(){ journalPrompt = op.getAttribute("data-prompt-text") || ""; go("journalWrite"); });
-  var opn = el("offerPromptNo"); if(opn) opn.addEventListener("click", function(){ sessionDismissed.promptOffer = true; render(); });
-  var os = el("offerSeeing"); if(os) os.addEventListener("click", function(){ pieceDetailId = os.getAttribute("data-piece"); go("piece"); });
-  var osn = el("offerSeeingNo"); if(osn) osn.addEventListener("click", function(){ sessionDismissed.seeingOffer = true; render(); });
+  var pg = el("pickGo");
+  if(pg && hubPick) pg.addEventListener("click", function(){
+    var p = hubPick;
+    if(p.act === "pour") startPour();
+    else if(p.act === "note"){ ladderReturn = "home"; go("ladder"); }
+    else if(p.act === "piece"){ pieceDetailId = p.pieceId; go("piece"); }
+    else if(p.act === "prompt"){ journalPrompt = p.prompt || ""; go("journalWrite"); }
+  });
+  var pn = el("pickNo");
+  if(pn && hubPick) pn.addEventListener("click", function(){
+    sessionDismissed["pick_" + hubPick.key] = true;
+    render();
+  });
+  document.querySelectorAll("[data-hubpiece]").forEach(function(b){
+    b.addEventListener("click", function(){ pieceDetailId = b.getAttribute("data-hubpiece"); go("piece"); });
+  });
+  var hm = el("hMap"); if(hm) hm.addEventListener("click", function(){ go("map"); });
+  var ham = el("hAddMap"); if(ham) ham.addEventListener("click", function(){ startCapture("quick"); });
+  var hw = el("hWrite");
+  if(hw) hw.addEventListener("click", function(){ journalPrompt = hw.getAttribute("data-prompt-text") || ""; go("journalWrite"); });
+  var hj = el("hJournal"); if(hj) hj.addEventListener("click", function(){ go("journal"); });
+  var hh = el("hHelp");
+  if(hh) hh.addEventListener("click", function(){ helpReturn = "home"; go("help"); });
+  el("hSettings").addEventListener("click", function(){ go("settings"); });
   document.querySelectorAll("[data-hout]").forEach(function(b){
     b.addEventListener("click", function(){
       var parts = b.getAttribute("data-hout").split(":");
@@ -728,6 +888,7 @@ function bindHome(){
     });
   });
 }
+
 function setOutcome(id, chip, text){
   ledger.entries.forEach(function(e){
     if(e.id === id){
