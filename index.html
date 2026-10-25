@@ -824,6 +824,9 @@ if(thread.roomShown == null) thread.roomShown = false; /* the room proof has bee
 if(thread.proofDue == null) thread.proofDue = false; /* arrival was met in person — the proof is owed at the first greeting (v1.12) */
 if(thread.talkStarted == null) thread.talkStarted = false; /* they began by just talking, companion uncreated (v1.12) */
 if(thread.createOfferDay == null) thread.createOfferDay = ""; /* last day the create-your-companion offer was brought (v1.12) */
+if(thread.wordlessDay == null) thread.wordlessDay = ""; /* last day the wordless (music) door was offered (v1.14) */
+if(!thread.lifeShown) thread.lifeShown = {}; /* life topics already surfaced, by word, resting (v1.14) */
+if(thread.lifeFactDay == null) thread.lifeFactDay = ""; /* last day a life-topic fact rode an exchange (v1.14) */
 /* a person who already began — companion or not — reopens inside the
    conversation, never back at the arrival gate (v1.12) */
 if(!companion && view === "arrival" && (thread.messages.length || thread.talkStarted)) view = "home";
@@ -2579,7 +2582,7 @@ function threadMsgHTML(m){
   if(m.type === "knowledge"){
     if(m.dismissed) return "";
     var kc = "";
-    if(!m.expanded) kc += '<button type="button" class="chip" data-tchip="'+m.id+':more">Tell me more</button>';
+    if(!m.expanded) kc += '<button type="button" class="chip" data-tchip="'+m.id+':more">More</button>';
     kc += '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button>';
     return '<div class="msg them"><div class="bubble"><p class="hub-label">From others’ accounts</p>'
       + '<p style="margin:4px 0">'+esc(m.l1)+'</p>'
@@ -2675,6 +2678,13 @@ function threadMsgHTML(m){
       + '<p style="margin:4px 0">One song to start. Ways other people have started theirs:</p>'
       + '<div class="chiprow">'+ss
       + '<button type="button" class="chip" data-tchip="'+m.id+':songtype">Say the song</button></div></div></div>';
+  }
+  if(m.type === "wordless"){
+    if(m.dismissed) return "";
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Music</p>'
+      + '<p style="margin:4px 0">A song can hold it. Want to put one on your playlist for this?</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':wordput">Put a song on</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
   }
   if(m.type === "musicoffer"){
     if(m.dismissed) return "";
@@ -2810,6 +2820,212 @@ function flushPendingPour(){
 }
 var sessionAckStreak = false; /* a bare ack already covers this stretch of talk */
 function pickAck(){ return ACK_LINES[thread.messages.length % ACK_LINES.length]; }
+
+/* ================= the life lane (v1.14) =================
+   The founder: "The conversation is not just for recording the
+   voices. It's also you putting your life 'on paper'." So the
+   DEFAULT lane for talk is LIFE: his day, his feelings, his
+   thoughts, the interesting things — ordinary life, received the
+   way a close friend and fellow researcher of his life receives
+   it. Life talk is never routed into the claims machinery: no
+   playback, no filing, no event on the atlas. It lands on the
+   day's journal page verbatim, as his words — the journal store's
+   own writings shelf, which is where his unfiled words have
+   always lived — and the reply is conversation, with one honest
+   addition: when a topic from his own life genuinely recurs
+   across his days, the companion may say so, plainly, once.
+   A message leaves the life lane only on a voice-material
+   signal: a piece named (or implied by their own vocabulary), a
+   claim shape, or a bank theme matched on a distinctive tag —
+   whole words, never substrings, so "saw a heron" is a morning
+   at the pond, not a sighting. When in doubt, it is life. */
+var LANE_TAG_STOP = {};
+("will said announced claim never always saw while close do it means called outside smell taste "
+ + "a crowd crowd of it wants she wants he wants sounds like used to be same time at once both at "
+ + "ordered command word for").split(" ").forEach(function(w){ LANE_TAG_STOP[w] = 1; });
+function bankTagHitForLane(text){
+  var low = " " + String(text || "").toLowerCase().replace(/[^a-z0-9'\s]/g, " ") + " ";
+  for(var i = 0; i < KNOWLEDGE.length; i++){
+    var tags = KNOWLEDGE[i].tags;
+    for(var j = 0; j < tags.length; j++){
+      var tag = String(tags[j]).toLowerCase();
+      if(LANE_TAG_STOP[tag]) continue;
+      if(tag.length < 5 && tag.indexOf(" ") === -1) continue; /* a short generic word carries no theme alone */
+      if(low.indexOf(" " + tag + " ") !== -1) return true;
+    }
+  }
+  return false;
+}
+function voiceSignalIn(text){
+  if(piecesMentionedIn(text).length) return true;
+  if(CLAIM_PAT.test(text || "")) return true;
+  return bankTagHitForLane(text);
+}
+function fileLifeEntry(text){
+  var en = {id:uid(), ts:Date.now(), prompt:"", text:text, life:true};
+  journal.entries.push(en);
+  saveJournal();
+  return en;
+}
+/* ---- life topics: the ordinary things that keep coming up ----
+   Content words from his own journal words (life talk and
+   writings), counted by distinct told-days. A topic surfaces
+   only when it is true: in this message, and on at least three
+   distinct days inside the week. Then it rests — a topic is
+   said once, not narrated. */
+var LIFE_STOP = {};
+("today yesterday tomorrow morning evening night tonight really just like went came back time times "
+ + "thing things something stuff feel felt feels feeling think thought know want wanted need needed "
+ + "good bad well much many more most very again still even also day days week").split(" ")
+ .forEach(function(w){ LIFE_STOP[w] = 1; });
+function lifeWords(text){
+  var out = [], seen = {};
+  String(text || "").toLowerCase().replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).forEach(function(w){
+    w = w.replace(/^'+|'+$/g, "");
+    if(w.length < 4 || seen[w]) return;
+    if(CLAIM_STOPWORDS[w] || LIFE_STOP[w]) return;
+    seen[w] = 1;
+    out.push(w);
+  });
+  return out;
+}
+function lifeWordSet(text){
+  var o = {};
+  lifeWords(text).forEach(function(w){ o[w] = 1; });
+  return o;
+}
+function lifeWordDays(word, sinceMs){
+  var days = {};
+  journal.entries.forEach(function(en){
+    if(!en.text || en.ts < sinceMs) return;
+    if(lifeWordSet(en.text)[word]) days[dayKeyOf(en.ts)] = 1;
+  });
+  return Object.keys(days).length;
+}
+var LIFE_ORDINALS = {3:"Third", 4:"Fourth", 5:"Fifth", 6:"Sixth", 7:"Seventh"};
+function lifeFactLine(word, days){
+  var ord = LIFE_ORDINALS[days] || (days + "th");
+  return ord + " day this week " + word + "’s come up.";
+}
+function computeLifeFact(text){
+  if(noticedSuppressed() || knowledgeBlockedNow()) return null; /* the same discipline as every surface */
+  var now = Date.now(), tk = dayKeyOf(now);
+  if(thread.lifeFactDay === tk) return null; /* one life fact a day is conversation; two is commentary */
+  var words = lifeWords(text);
+  if(!words.length) return null;
+  var best = null;
+  words.forEach(function(w){
+    var shown = thread.lifeShown[w] || 0;
+    if(shown && (now - shown) < 30 * 86400000) return; /* a surfaced topic rests a season */
+    var days = lifeWordDays(w, now - 7 * 86400000);
+    if(days >= 3 && (!best || days > best.days)) best = {word:w, days:days};
+  });
+  if(!best) return null;
+  thread.lifeShown[best.word] = now;
+  thread.lifeFactDay = tk;
+  saveThread();
+  return {kind:"lifetopic", line:lifeFactLine(best.word, best.days)};
+}
+function lifeTopicCounts(){
+  var since = Date.now() - 30 * 86400000, byWord = {};
+  journal.entries.forEach(function(en){
+    if(!en.text || en.ts < since) return;
+    var dk = dayKeyOf(en.ts);
+    lifeWords(en.text).forEach(function(w){
+      if(!byWord[w]) byWord[w] = {};
+      byWord[w][dk] = 1;
+    });
+  });
+  return Object.keys(byWord).map(function(w){
+    return {word:w, days:Object.keys(byWord[w]).length};
+  }).filter(function(x){ return x.days >= 2; })
+    .sort(function(a, b){ return b.days - a.days || (a.word < b.word ? -1 : 1); })
+    .slice(0, 6);
+}
+/* ---- the wordless channel (v1.14) ----
+   "Sometimes you just don't have the words." Then music is a
+   way to say it: a song can hold what words can't. When his
+   text says the words aren't there, the companion may offer
+   that door — once a day, in rhythm, never in a burst, and
+   never as pressure. The door enters the playlist's own add
+   flow; the song, when it comes, is a song like any other. */
+var WORDLESS_PHRASES = [
+  "don't have the words", "do not have the words", "have no words", "no words",
+  "can't explain", "cannot explain", "hard to say",
+  "can't describe", "cannot describe", "can't put into words", "cannot put into words"
+];
+function wordlessIn(text){
+  var t = " " + String(text || "").toLowerCase().replace(/’/g, "'").replace(/[^a-z0-9'\s]/g, " ") + " ";
+  return WORDLESS_PHRASES.some(function(p){ return t.indexOf(" " + p + " ") !== -1; });
+}
+function maybePostWordlessDoor(text){
+  if(!wordlessIn(text)) return false;
+  if(knowledgeBlockedNow()) return false; /* a burst window or a fresh blast: HOLD wins */
+  var tk = dayKeyOf(Date.now());
+  if(thread.wordlessDay === tk) return false; /* once a day — offered, never pushed */
+  thread.wordlessDay = tk;
+  saveThread();
+  pushMsg({type:"wordless", dismissed:false});
+  return true;
+}
+/* ---- protest / lament (v1.14) ----
+   "Sometimes you need to express that it's not fair that you
+   have to go through all of this." That expression is complete
+   as it stands: the companion WITNESSES it — agrees, plainly,
+   and stays inside the feeling. No facts, no doors, no
+   questions, no brightening, no "but". Protest is authorship,
+   not helplessness: it never files as a claim, never becomes
+   an event, and the interruption reads only the ledger, so a
+   lament can never trip it. It outranks every other reception
+   form — when his text carries protest, witness is the whole
+   reply, and it files as life, verbatim, like other life talk. */
+var PROTEST_PHRASES = [
+  "not fair", "why me",
+  "didn't ask for this", "didnt ask for this",
+  "shouldn't have to", "shouldnt have to",
+  "tired of going through", "sick of going through",
+  "have to go through all of this", "have to go through all this"
+];
+function protestIn(text){
+  var t = " " + String(text || "").toLowerCase().replace(/’/g, "'").replace(/[^a-z0-9'\s]/g, " ") + " ";
+  return PROTEST_PHRASES.some(function(p){ return t.indexOf(" " + p + " ") !== -1; });
+}
+var WITNESS_LINES = [
+  "It isn’t fair.",
+  "No — it isn’t fair. You didn’t choose any of this.",
+  "It isn’t fair that this is yours to carry."
+];
+function witnessLine(){ return WITNESS_LINES[thread.messages.length % WITNESS_LINES.length]; }
+function noteProtestMessage(text){
+  sessionAckStreak = false; /* the witness is a full answer — no ack bookkeeping rides on it */
+  if(liveOn()){ requestLiveReply(); return; } /* the constitution's witness line governs the live voice */
+  pushMsg({type:"companion", protest:true, text:witnessLine()});
+}
+/* a life exchange: reception, one true fact when the record has
+   one, and the two gentle doors (wordless first — it is the
+   more specific answer — then a listening mention's) */
+function noteLifeMessage(text){
+  sessionHold = true; /* received and held — the same posture as a pour's aftermath */
+  var lf = computeLifeFact(text);
+  if(liveOn()){
+    if(lf) queueOrgNote(lf.line);
+    sessionAckStreak = false;
+    requestLiveReply();
+    liveChain = liveChain.then(function(){ maybePostWordlessDoor(text); });
+    liveChain = liveChain.then(function(){ maybePostMusicOffer(text); });
+    return;
+  }
+  var bare = false;
+  if(lf){
+    pushMsg({type:"companion", noticed:true, fbKind:"lifetopic",
+      text: sessionAckStreak ? lf.line : (pickAck() + " " + lf.line)});
+  } else if(!sessionAckStreak){
+    pushMsg({type:"companion", text:pickAck()});
+    bare = true;
+  }
+  sessionAckStreak = bare;
+  if(!maybePostWordlessDoor(text)) maybePostMusicOffer(text);
+}
 /* would this message's filing be proposed? (the same matchers the
    proposal itself uses) — when it would, the proposal IS this
    exchange's organizing response, and knowledge waits its turn */
@@ -2831,8 +3047,10 @@ function notePourMessage(ev){
     sessionAckStreak = false;
     requestLiveReply();
     liveChain = liveChain.then(function(){ postImmediateProposal(ev, text); });
-    /* the playlist door rides this exchange too (v1.13) — code-side,
-       gated by the same HOLD discipline, after the playback */
+    /* the wordless door rides this exchange too (v1.14) — when the
+       words aren't there, music is a way to say it; then the
+       playlist mention door (v1.13), after the playback */
+    liveChain = liveChain.then(function(){ maybePostWordlessDoor(text); });
     liveChain = liveChain.then(function(){ maybePostMusicOffer(text); });
     return;
   }
@@ -2871,9 +3089,11 @@ function notePourMessage(ev){
   }
   sessionAckStreak = bare;
   postImmediateProposal(ev, text);
-  /* a listening mention in this exchange earns its gentle door onto
-     the playlist (v1.13) — after the playback, never instead of it */
-  maybePostMusicOffer(text);
+  /* wordlessness in this exchange earns the music door (v1.14) —
+     a song can hold what words can't; a listening mention earns
+     its own door onto the playlist (v1.13). After the playback,
+     never instead of it, and only one of them */
+  if(!maybePostWordlessDoor(text)) maybePostMusicOffer(text);
 }
 /* ================= the live voice (optional, bring-your-own-key) =================
    The split is the design: THE CODE keeps the record — filing,
@@ -2924,6 +3144,9 @@ function liveConstitution(){
     "You relate as their assistant, fellow researcher, and close friend in their own project: they are working toward their recovery — their word for it and their definition of it lead, never yours. Your part is to bring them new information, ideas, insights, and good questions that serve that purpose. You never promise a cure or any outcome, and you never direct their project — you collaborate in it.",
     "A connection may end with one good question instead of an idea: an inquiry-opening question about their experience, drawn from the connection itself, offered with no demand to answer — a question, if it's useful. Never a screening question, never a checklist.",
     "Music is core here. You are gradually building this person's playlist with them, from as early as possible: their songs, for their moments. Suggest rarely and in rhythm; a song is autobiography, not content.",
+    "This conversation is their life on paper — not only the voices. Their days, feelings, thoughts, the interesting things: receive ordinary life the way a close friend and fellow researcher of their life would, with curiosity and memory. Never route ordinary life into the claims machinery.",
+    "Sometimes they won't have the words — then music is a way to say it. A song can hold what words can't.",
+    "Sometimes the truest thing in the room is that it isn't fair. When they say so, stand with them in it — don't fix it, don't brighten it, don't hand them a door. Witness is the whole reply.",
     "Your work is also horizontal: it runs between people, not only between this person and their record. When this place grows circles and peers, connecting this person with others — and with their insights and thoughts — follows the same law as everything else you bring: offered, never assigned; what was shared in a room stays the room's; and a connection to people is made only when their rhythm says they are ready for people.",
     "Finding this person's first — their first circle, the people whose experience belongs next to theirs — is part of your standing work. Bring it only when it is real and their rhythm says they are ready for people; never invent a match, a person, or a circle.",
     "The person always chooses what is shared — each time, act by act. Nothing is shared by default or behind their back, and you never carry their words anywhere for them: an insight reaches someone else only because its owner chose to speak it where they could hear it.",
@@ -3001,6 +3224,14 @@ function buildRecordDigest(){
     L.push("Themes across their days (research themes in their own words, counted by distinct days they talked about them): "
       + tdc.map(function(x){ return x.label + " — " + x.days + (x.days === 1 ? " day" : " days"); }).join("; ") + ".");
   }
+  /* life threads (v1.14): the ordinary things that keep coming up
+     in their life talk — so the live voice holds continuity about
+     their LIFE, not only their voices */
+  var ltc = lifeTopicCounts();
+  if(ltc.length){
+    L.push("Life threads — the ordinary things in their life that keep coming up, counted by distinct days they talked about them: "
+      + ltc.map(function(x){ return x.word + " — " + x.days + (x.days === 1 ? " day" : " days"); }).join("; ") + ".");
+  }
   var jkeys = journalDayKeys().slice(0, 3);
   if(jkeys.length){
     L.push("Journal, recent days:");
@@ -3051,6 +3282,7 @@ function liveHistoryNote(m){
   if(m.type === "piececard"){ var p = pieceById(m.pieceId); return br("You brought the card for " + (p ? p.name : "a piece")); }
   if(m.type === "receiptscard") return br("You brought the receipts card — the figured picture and the open claims");
   if(m.type === "playlistcard") return br("You brought their playlist card — the songs they are building with you, one at a time");
+  if(m.type === "wordless") return br("The words were hard to find, and you offered the wordless channel: a song can hold what words can't");
   if(m.type === "settingscard") return br("You brought the settings card");
   if(m.type === "moveask"){ var me = ledgerEntryById(m.claimId); return br("You asked whether they want to note their move on the claim “" + (me ? shortWords(me.claim, 80) : "") + "”"); }
   if(m.type === "mapGlimpse") return br("You showed a glimpse of their map");
@@ -3288,6 +3520,27 @@ function sendThreadText(){
     var evC = filePourEvent(text);
     pushMsg({type:"person", text:text, eventId:evC.id});
     pushMsg({type:"correctNote", dayKey:correctionDay, note:text, kept:false, skipped:false});
+    render();
+    return;
+  }
+  if(protestIn(text)){
+    /* protest is received, never routed (v1.14): it files as life,
+       verbatim, and the whole reply is witness — no playback, no
+       doors, no facts, and nothing in it can trip the ledger-read
+       interruption, because it never touches the ledger */
+    fileLifeEntry(text);
+    pushMsg({type:"person", text:text});
+    noteProtestMessage(text);
+    render();
+    return;
+  }
+  if(!voiceSignalIn(text)){
+    /* the life lane (v1.14): ordinary talk — his day, feelings,
+       thoughts, the interesting things — kept on the day's page
+       in his own words and answered as conversation */
+    fileLifeEntry(text);
+    pushMsg({type:"person", text:text});
+    noteLifeMessage(text);
     render();
     return;
   }
@@ -3598,6 +3851,13 @@ function bindThread(){
         m.dismissed = true; saveThread();
         if(m.title) postSongConfirm(m.title, m.artist, "", "");
         else askText("songtitle", {}, "Say the song — its title, and who it’s by if you know.");
+        render();
+      }
+      else if(act === "wordput" && m){
+        /* the wordless door opens the playlist's own add flow —
+           the song he names lands like any other song (v1.14) */
+        m.dismissed = true; saveThread();
+        askText("songtitle", {}, "Say the song — its title, and who it’s by if you know.");
         render();
       }
       else if(act === "songyes" && m){
