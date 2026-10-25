@@ -274,6 +274,13 @@
     min-height:48px; max-height:20vh; resize:none; line-height:1.4;
   }
   .composer .btn{min-height:48px}
+  /* ---- the dynamic journal ---- */
+  .jitem{border-top:1px solid var(--line); padding:12px 0}
+  .jitem:first-of-type{border-top:none}
+  .jtag{font-size:.78rem; letter-spacing:1px; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 4px}
+  .jwords{white-space:pre-wrap; font-size:1.03rem; line-height:1.55; margin:4px 0}
+  .jblock{margin-top:14px}
+  .jhidden{opacity:.55}
 </style>
 </head>
 <body>
@@ -285,7 +292,7 @@
 <script>
 "use strict";
 /* =====================================================================
-   Ever Present v1 — single-file web app.
+   Ever Present v1.5 — single-file web app.
    Private, on-device core: companion, capture (the pour), map,
    Check the receipts (claims ledger), journal, help ladder, settings.
    Nothing leaves the device. Nothing grades the person.
@@ -326,7 +333,8 @@ var K = {
   journal:   "ever_present_v1_journal",
   ladder:    "ever_present_v1_ladder",
   ledger:    "ever_present_ledger_v1",
-  thread:    "ever_present_v1_thread"
+  thread:    "ever_present_v1_thread",
+  djournal:  "ever_present_v1_djournal"
 };
 function storeLoad(key, blank){
   try{
@@ -342,6 +350,7 @@ function atlasBlank(){ return {pieces:[], events:[], glossary:[]}; }
 function journalBlank(){ return {entries:[]}; }
 function ladderBlank(){ return {noteForHardDay:"", contacts:[], clinician:{name:"", phone:""}}; }
 function ledgerBlank(){ return {entries:[]}; } /* ported shape */
+function djournalBlank(){ return {corrections:{}, hidden:{}, dayFig:{}, precedents:{}, knowledgeDays:{}}; }
 
 var companion = storeLoad(K.companion, companionBlank);
 var atlas     = storeLoad(K.atlas, atlasBlank);
@@ -355,12 +364,19 @@ if(!ladder.contacts) ladder.contacts = [];
 if(!ladder.clinician) ladder.clinician = {name:"", phone:""};
 var ledger    = storeLoad(K.ledger, ledgerBlank); /* ported load */
 if(!ledger.entries) ledger.entries = [];
+var djournal  = storeLoad(K.djournal, djournalBlank);
+if(!djournal.corrections) djournal.corrections = {};
+if(!djournal.hidden) djournal.hidden = {};
+if(!djournal.dayFig) djournal.dayFig = {};
+if(!djournal.precedents) djournal.precedents = {};
+if(!djournal.knowledgeDays) djournal.knowledgeDays = {};
 
 function saveCompanion(){ storeSave(K.companion, companion); }
 function saveAtlas(){ storeSave(K.atlas, atlas); }
 function saveJournal(){ storeSave(K.journal, journal); }
 function saveLadder(){ storeSave(K.ladder, ladder); }
 function saveLedger(){ storeSave(K.ledger, ledger); } /* ported save */
+function saveDjournal(){ storeSave(K.djournal, djournal); }
 
 /* ================= shared lookups ================= */
 function pieceById(id){
@@ -426,21 +442,23 @@ var toast = "";
 var sessionDismissed = {}; /* in-memory only: dismissing an offer writes nothing about the person */
 var pieceDetailId = null;
 var journalReadId = null;
+var correctionDay = ""; /* a journal day being corrected in the thread; "" = none */
+var writeMode = null;    /* {prompt} while a journal writing is open in the thread */
+var pourSession = null;  /* {msgId, eventIds} while a thread pour is open */
+var journalHiddenShown = {}; /* journal day key -> hidden entries currently shown */
 var journalPrompt = "";
 var frag = null;
 var fragReturn = "home";
 var FRAG_CHANNELS = ["Speaking","Noise","Body","Pain","Seeing","Presence"];
-var FRAG_VIEWS = ["home","map","piece","receipts","journal","journalRead"];
-var threadDoor = false; /* set when a flow was entered from the thread */
+var FRAG_VIEWS = ["home","map","piece","receipts","journal"];
 
 /* ================= render root + nav ================= */
 function navItems(){
   return [
     ["home","⌂", companion ? companion.name : "Companion"],
-    ["pour","◉","Pour"],
+    ["journal","✎","Journal"],
     ["map","✦","Map"],
-    ["receipts","✓","Receipts"],
-    ["journal","✎","Journal"]
+    ["receipts","✓","Receipts"]
   ];
 }
 function renderNav(){
@@ -448,20 +466,15 @@ function renderNav(){
   if(!companion){ nav.style.display = "none"; nav.innerHTML = ""; return; }
   nav.style.display = "flex";
   var base = (view === "fragment") ? fragReturn : view;
-  if(base === "piece" || base === "capture") base = "map";
-  if(base === "quick" || base === "create" || base === "settings" || base === "help" || base === "ladder" || base === "fragment") base = "home";
-  if(base === "proposals") base = "pour";
-  if(base === "confirm") base = (cap && cap.mode === "pour") ? "pour" : "map";
-  if(base === "journalWrite" || base === "journalRead") base = "journal";
+  if(base === "piece" || base === "capture" || base === "confirm") base = "map";
+  if(base === "create" || base === "settings" || base === "help" || base === "ladder" || base === "fragment") base = "home";
   nav.innerHTML = navItems().map(function(n){
     return '<button type="button" data-nav="'+n[0]+'" class="'+(base===n[0] ? "active" : "")+'">'
       + '<span class="gly">'+n[1]+'</span><span class="navlab">'+esc(n[2])+'</span></button>';
   }).join("");
   nav.querySelectorAll("[data-nav]").forEach(function(b){
     b.addEventListener("click", function(){
-      var target = b.getAttribute("data-nav");
-      if(target === "pour"){ threadDoor = false; startPour(); }
-      else go(target);
+      go(b.getAttribute("data-nav"));
     });
   });
 }
@@ -485,17 +498,12 @@ function render(){
   else if(view === "create"){ v.innerHTML = h + viewCreate(); bindCreate(); }
   else if(view === "home"){ v.innerHTML = headerHTML() + h + viewThread(); bindThread(); }
   else if(view === "capture"){ v.innerHTML = headerHTML() + h + viewCapture(); bindCapture(); }
-  else if(view === "pour"){ v.innerHTML = headerHTML() + h + viewPour(); bindPour(); }
-  else if(view === "proposals"){ v.innerHTML = headerHTML() + h + viewProposals(); bindProposals(); }
-  else if(view === "quick"){ v.innerHTML = headerHTML() + h + viewQuick(); bindQuick(); }
   else if(view === "fragment"){ v.innerHTML = headerHTML() + h + viewFragment(); bindFragment(); }
   else if(view === "confirm"){ v.innerHTML = headerHTML() + h + viewConfirm(); bindConfirm(); }
   else if(view === "map"){ v.innerHTML = headerHTML() + h + viewMap(); bindMap(); }
   else if(view === "piece"){ v.innerHTML = headerHTML() + h + viewPiece(); bindPiece(); }
   else if(view === "receipts"){ v.innerHTML = headerHTML() + h + viewReceipts(); bindReceipts(); }
   else if(view === "journal"){ v.innerHTML = headerHTML() + h + viewJournal(); bindJournal(); }
-  else if(view === "journalWrite"){ v.innerHTML = headerHTML() + h + viewJournalWrite(); bindJournalWrite(); }
-  else if(view === "journalRead"){ v.innerHTML = headerHTML() + h + viewJournalRead(); bindJournalRead(); }
   else if(view === "help"){ v.innerHTML = headerHTML() + h + viewHelp(); bindHelp(); }
   else if(view === "ladder"){ v.innerHTML = headerHTML() + h + viewLadder(); bindLadder(); }
   else if(view === "settings"){ v.innerHTML = headerHTML() + h + viewSettings(); bindSettings(); }
@@ -918,6 +926,8 @@ function postFiguredReceipts(){
     pushMsg({type:"companion", text:"No claims in the ledger yet. When they claim something, log it — I’ll keep the count."});
   } else {
     pushMsg({type:"receiptsFig", lines:fig.lines, dismissed:false});
+    djournal.dayFig[dayKeyOf(Date.now())] = fig.lines.slice(); /* the journal carries the figuring, stamped on the day it was figured */
+    saveDjournal();
   }
   thread.figSignature = figSignature();
   saveThread();
@@ -1119,6 +1129,8 @@ function postKnowledgeIfCalm(){
     }
     if(!hit) continue;
     pushMsg({type:"knowledge", theme:it.theme, l1:it.l1, l2:it.l2, expanded:false, dismissed:false});
+    djournal.knowledgeDays[dayKeyOf(now)] = {theme:it.theme, l1:it.l1}; /* the journal notes what was offered — one line */
+    saveDjournal();
     thread.knowledge.shown[it.theme] = now;
     saveThread();
     return true;
@@ -1198,6 +1210,10 @@ function maybePostPrecedent(entry){
     + (old.move && old.move.trim() ? " My move: " + old.move.trim() + "." : "")
     + " It ended: " + outcomeShort(old) + ".";
   pushMsg({type:"precedent", text:text, claimId:old.id});
+  var pk = dayKeyOf(Date.now());
+  if(!djournal.precedents[pk]) djournal.precedents[pk] = [];
+  djournal.precedents[pk].push(text);
+  saveDjournal();
 }
 function ensureThread(){
   var today = Math.floor(Date.now() / 86400000);
@@ -1338,6 +1354,55 @@ function threadMsgHTML(m){
       + '<p style="margin:4px 0">'+esc(m.text)+'</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seeclaim">See it</button></div></div></div>';
   }
+  if(m.type === "pourstart"){
+    if(m.done) return '<div class="msg them"><div class="bubble"><p class="muted small">That pour is closed.</p></div></div>';
+    return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">I’m listening. Take your time — pour it all here, in as many messages as it takes. Nothing gets sorted until you say you’re done.</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':pourdone">I’m done</button></div></div></div>';
+  }
+  if(m.type === "quickcard"){
+    return threadQuickHTML(m);
+  }
+  if(m.type === "writeprompts"){
+    var wp = (m.prompts || []).map(function(pr, i){
+      return '<button type="button" class="chip" data-tchip="'+m.id+':wprompt:'+i+'">'+esc(pr)+'</button>';
+    }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Writing</p>'
+      + '<p style="margin:4px 0">Prompts are for calm moments. What you write lands in your journal in your words — never summarized, never filed anywhere else.</p>'
+      + '<div class="chiprow">'+wp+'<button type="button" class="chip" data-tchip="'+m.id+':wblank">Blank page</button></div></div></div>';
+  }
+  if(m.type === "writestart"){
+    if(m.done) return '<div class="msg them"><div class="bubble"><p class="muted small">Writing closed — it’s in your journal.</p></div></div>';
+    return '<div class="msg them"><div class="bubble">'
+      + (m.prompt ? '<p class="small muted" style="margin:4px 0">The prompt:</p><p style="margin:4px 0">&ldquo;'+esc(m.prompt)+'&rdquo;</p>' : '')
+      + '<p style="margin:4px 0">Write here — each message you send is saved to your journal as its own entry, exactly as written.</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':writedone">Done writing</button></div></div></div>';
+  }
+  if(m.type === "correct"){
+    var ca = (m.actions || []).map(function(a){
+      if(a.act === "hide" && djournal.hidden[a.eventId]) return "";
+      var suffix = a.act === "hide" ? ":" + a.eventId : "";
+      return '<button type="button" class="chip" data-tchip="'+m.id+':'+a.act+suffix+'">'+esc(a.label)+'</button>';
+    }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Correcting a day</p>'
+      + '<p style="margin:4px 0">'+esc(m.text)+'</p>'
+      + '<div class="chiprow">'+ca+'</div></div></div>';
+  }
+  if(m.type === "correctNote"){
+    if(m.kept) return '<div class="msg them"><div class="bubble"><p class="small" style="margin:4px 0">On '+esc(dayLabel(m.dayKey))+' now, as your correction: &ldquo;'+esc(m.note)+'&rdquo;</p></div></div>';
+    if(m.skipped) return '<div class="msg them"><div class="bubble"><p class="muted small">Left in the talk — the day is unchanged.</p></div></div>';
+    return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">Put this on '+esc(dayLabel(m.dayKey))+' as your correction?</p>'
+      + '<p class="jwords" style="margin:4px 0">&ldquo;'+esc(m.note)+'&rdquo;</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':addnote">Put it on the day</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':skipnote">Just leave it here</button></div></div></div>';
+  }
+  if(m.type === "figedit"){
+    if(m.saved != null) return '<div class="msg them"><div class="bubble"><p class="muted small">'+(m.saved ? "The figures on that day read as you set them now." : "Figures left as they were.")+'</p></div></div>';
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">The figures, in your hands</p>'
+      + '<p class="small" style="margin:4px 0">These lines are mine — the figuring. Change them; the day will carry what you leave here.</p>'
+      + '<textarea class="big short" id="figEdit_'+m.id+'" aria-label="The figured receipts for that day">'+esc((m.lines || []).join("\n"))+'</textarea>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':figsave">Save these figures</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':figcancel">Leave them</button></div></div></div>';
+  }
   if(m.type === "proposal"){
     return threadProposalHTML(m);
   }
@@ -1379,11 +1444,15 @@ function composerHTML(){
       {act:"pour", label:"Pour (long)"},
       {act:"figreceipts", label:"Receipts"}
     ], function(d){ return d.act; });
+  var ph = "Say it here…";
+  if(writeMode) ph = "Writing in your journal…";
+  else if(pourSession) ph = "Pouring — take your time…";
+  else if(correctionDay) ph = "Say what’s off about that day…";
   var h = '<div class="composer"><div class="chiprow" style="margin:0 0 6px">'
     + doors.map(function(d){
         return '<button type="button" class="chip" data-tdoor="'+d.act+'">'+d.label+'</button>';
       }).join("") + '</div>';
-  h += '<div class="composer-row"><textarea id="threadInput" rows="1" placeholder="Say it here…" aria-label="Talk with your companion"></textarea>'
+  h += '<div class="composer-row"><textarea id="threadInput" rows="1" placeholder="'+ph+'" aria-label="Talk with your companion"></textarea>'
     + '<button type="button" class="btn" id="threadSend">Send</button></div></div>';
   return h;
 }
@@ -1398,9 +1467,7 @@ function viewThread(){
   return h;
 }
 var ACK_LINES = ["Got it. It’s in the record.","Written down, word for word.","Kept.","In the record, as you said it.","Heard — filed as a pour."];
-function companionAfterPour(text, ev){
-  sessionHold = true; /* a pour's aftermath is HOLD posture */
-  pushMsg({type:"companion", text:ACK_LINES[thread.messages.length % ACK_LINES.length]});
+function proposeFromText(text, ev){
   var low = text.toLowerCase();
   var sug = [];
   atlas.pieces.forEach(function(p){
@@ -1414,11 +1481,27 @@ function companionAfterPour(text, ev){
     pushMsg({type:"proposal", eventId:ev.id, suggestIds:sug, claimPrompt:true, claimId:"", quiet:false});
   }
 }
+function companionAfterPour(text, ev){
+  sessionHold = true; /* a pour's aftermath is HOLD posture */
+  pushMsg({type:"companion", text:ACK_LINES[thread.messages.length % ACK_LINES.length]});
+  proposeFromText(text, ev);
+}
 function sendThreadText(){
   var ta = el("threadInput");
   if(!ta) return;
   var text = ta.value.trim();
   if(!text){ ta.focus(); return; }
+  ta.value = "";
+  if(writeMode){
+    /* writing in the talk: saved to the journal store, verbatim,
+       never analyzed, never filed anywhere else */
+    journal.entries.push({id:uid(), ts:Date.now(), prompt:writeMode.prompt || "", text:text});
+    saveJournal();
+    pushMsg({type:"person", text:text});
+    pushMsg({type:"companion", text:"Saved to your journal."});
+    render();
+    return;
+  }
   var ev = {
     id:uid(), ts:Date.now(), mode:"pour", pourText:text,
     whoIds:[], whoFlags:[], whoOwn:"", channels:[], mannerWhere:[], mannerHow:[],
@@ -1428,6 +1511,22 @@ function sendThreadText(){
   atlas.events.push(ev);
   saveAtlas();
   pushMsg({type:"person", text:text, eventId:ev.id});
+  if(pourSession){
+    /* mid-pour: reception only — no proposals, no sorting, no fixing */
+    sessionHold = true;
+    var firstSeg = pourSession.eventIds.length === 0;
+    pourSession.eventIds.push(ev.id);
+    if(firstSeg) pushMsg({type:"companion", text:"In, word for word. Keep going — nothing gets sorted until you say you’re done."});
+    render();
+    return;
+  }
+  if(correctionDay){
+    /* a correction is proposed, never applied silently: his words,
+       on the day, only when he taps */
+    pushMsg({type:"correctNote", dayKey:correctionDay, note:text, kept:false, skipped:false});
+    render();
+    return;
+  }
   companionAfterPour(text, ev);
   render();
 }
@@ -1445,9 +1544,35 @@ function bindThread(){
       var act = b.getAttribute("data-tdoor");
       bumpDoor(act);
       if(act === "fragment"){ startFragment(); }
-      else if(act === "quick"){ startQuickNote(); threadDoor = true; }
-      else if(act === "pour"){ startPour(); threadDoor = true; }
+      else if(act === "quick"){ startThreadQuick(); }
+      else if(act === "pour"){ startThreadPour(); }
       else if(act === "figreceipts"){ postFiguredReceipts(); render(); }
+    });
+  });
+  document.querySelectorAll("[data-qchip]").forEach(function(b){
+    b.addEventListener("click", function(){
+      if(!qn) return;
+      var raw = b.getAttribute("data-qchip");
+      var ci = raw.indexOf(":");
+      var act = ci < 0 ? raw : raw.slice(0, ci);
+      var val = ci < 0 ? "" : raw.slice(ci + 1);
+      if(act === "done"){ fileQuickNote(); return; }
+      if(act === "drop"){
+        var qmm = qnMsgId ? threadMsgById(qnMsgId) : null;
+        qn = null; qnMsgId = "";
+        if(qmm){ qmm.dropped = true; saveThread(); }
+        toast = "Not filed.";
+        render();
+        return;
+      }
+      harvestQuick();
+      if(act === "who") toggleIn(qn.whoIds, val);
+      else if(act === "new") qn.isNew = !qn.isNew;
+      else if(act === "feeling") qn.feeling = !qn.feeling;
+      else if(act === "reg") toggleIn(qn.register, val);
+      else if(act === "claim") qn.claimOn = !qn.claimOn;
+      else if(act === "kind") qn.claimKind = val;
+      render();
     });
   });
   document.querySelectorAll("[data-tchip]").forEach(function(b){
@@ -1456,10 +1581,10 @@ function bindThread(){
       var m = threadMsgById(parts[0]);
       var act = parts[1];
       bumpDoor(act);
-      if(act === "pour"){ startPour(); threadDoor = true; }
-      else if(act === "quick"){ startQuickNote(); threadDoor = true; }
+      if(act === "pour"){ startThreadPour(); }
+      else if(act === "quick"){ startThreadQuick(); }
       else if(act === "fragment"){ startFragment(); }
-      else if(act === "write"){ journalPrompt = ""; go("journalWrite"); }
+      else if(act === "write"){ startWriteChoices(); }
       else if(act === "figreceipts"){ postFiguredReceipts(); render(); }
       else if(act === "seereceipts"){ go("receipts"); }
       else if(act === "seeclaim"){ go("receipts"); }
@@ -1477,9 +1602,57 @@ function bindThread(){
       else if(act === "pourclaim" && m){
         var pce = null;
         ledger.entries.forEach(function(x){ if(x.id === m.claimId) pce = x; });
-        threadDoor = true;
-        startPour();
-        if(pce){ cap.pourText = "About the claim: \u201C" + pce.claim + "\u201D\n\n"; }
+        if(pce) startThreadPour(pce.claim); else startThreadPour();
+      }
+      else if(act === "pourdone" && m){ finishThreadPour(m); }
+      else if(act === "wprompt" && m){
+        var prs2 = m.prompts || [];
+        startThreadWrite(prs2[parseInt(parts[2], 10)] || "");
+      }
+      else if(act === "wblank"){ startThreadWrite(""); }
+      else if(act === "writedone" && m){
+        writeMode = null;
+        m.done = true; saveThread();
+        pushMsg({type:"companion", text:"It’s in your journal, in your words."});
+        render();
+      }
+      else if(act === "addnote" && m){
+        var dk = m.dayKey;
+        if(!djournal.corrections[dk]) djournal.corrections[dk] = [];
+        djournal.corrections[dk].push({text:m.note, ts:Date.now()});
+        saveDjournal();
+        m.kept = true; saveThread();
+        pushMsg({type:"companion", text:"On the day now — word for word."});
+        render();
+      }
+      else if(act === "skipnote" && m){ m.skipped = true; saveThread(); render(); }
+      else if(act === "hide" && m){
+        /* his entry leaves the journal view; the record itself is untouched */
+        djournal.hidden[parts[2]] = true;
+        saveDjournal(); render();
+      }
+      else if(act === "dropfig" && m){
+        delete djournal.dayFig[m.dayKey];
+        saveDjournal();
+        pushMsg({type:"companion", text:"The figures are off that day. The record underneath is untouched."});
+        render();
+      }
+      else if(act === "editfig" && m){
+        pushMsg({type:"figedit", dayKey:m.dayKey, lines:(djournal.dayFig[m.dayKey] || []).slice(), saved:null});
+        render();
+      }
+      else if(act === "figsave" && m){
+        var ft = el("figEdit_" + m.id);
+        var flines = ft ? ft.value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean) : [];
+        if(flines.length) djournal.dayFig[m.dayKey] = flines; else delete djournal.dayFig[m.dayKey];
+        saveDjournal();
+        m.saved = true; saveThread();
+        render();
+      }
+      else if(act === "figcancel" && m){ m.saved = false; saveThread(); render(); }
+      else if(act === "donecorrect" && m){
+        if(correctionDay === m.dayKey) correctionDay = "";
+        pushMsg({type:"companion", text:"That’s the day, corrected by you."});
         render();
       }
       else if(act === "helpdoor"){ helpReturn = "home"; view = "help"; window.scrollTo(0,0); render(); }
@@ -1509,10 +1682,10 @@ function bindThread(){
         render();
       }
       else if(act === "pickgo" && m){
-        if(m.act === "pour"){ startPour(); threadDoor = true; }
+        if(m.act === "pour"){ startThreadPour(); }
         else if(m.act === "note"){ ladderReturn = "home"; go("ladder"); }
         else if(m.act === "piece"){ pieceDetailId = m.pieceId; go("piece"); }
-        else if(m.act === "prompt"){ journalPrompt = m.prompt || ""; go("journalWrite"); }
+        else if(m.act === "prompt"){ startThreadWrite(m.prompt || ""); }
         else if(m.act === "map"){ go("map"); }
       }
     });
@@ -1581,7 +1754,7 @@ function setOutcome(id, chip, text){
   saveLedger();
 }
 
-/* ================= Screen 4 — the pour, quick note, Add to the map (detail trees) ================= */
+/* ================= Screen 4 — Add to the map (detail trees; the pour and the quick note live in the thread) ================= */
 var cap = null;
 function blankCap(){
   return {
@@ -1600,10 +1773,6 @@ function blankCap(){
 function startCapture(mode){
   cap = blankCap(); cap.mode = mode || "quick";
   go("capture");
-}
-function startPour(){
-  cap = blankCap(); cap.mode = "pour";
-  go("pour");
 }
 var CHANNEL_OPTS = ["Words, like someone talking","Like a thought, not a sound","Sounds or noises, no words",
   "A feeling in my body","Pain","Being touched","Something I saw \u2014 a person","Something I saw \u2014 a face",
@@ -1851,242 +2020,120 @@ function bindCapture(){
     else { cap = null; toast = "Not filed."; go("home"); }
   });
 }
-function viewPour(){
-  var h = '<div class="card quiet-screen"><h2>Pour it out</h2>'
-    + '<p class="lede">'+esc(companion.name)+' is listening. Take your time.</p>'
-    + '<p class="muted">Nothing is filed while you pour.</p>';
-  if(atlas.pieces.length){
-    h += '<p class="field-label">Who\u2019s in it (optional)</p>';
-    h += '<div class="chiprow">' + atlas.pieces.map(function(p){
-      var on = cap.pourWhoIds.indexOf(p.id) !== -1;
-      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-pourwho="'+p.id+'">'+esc(p.name)+'</button>';
-    }).join("") + '</div>';
+/* ================= the pour, in the thread =================
+   The pour moved into the conversation: the companion posts its
+   reception line, the person pours in the composer — as many
+   messages as it takes — and taps "I’m done". Only then do the
+   filing proposals follow. Nothing is sorted mid-pour. */
+function clearModes(){
+  writeMode = null;
+  pourSession = null;
+  correctionDay = "";
+  if(qn){
+    var qm = qnMsgId ? threadMsgById(qnMsgId) : null;
+    if(qm && !qm.filed && !qm.dropped){ qm.dropped = true; saveThread(); }
+    qn = null; qnMsgId = "";
   }
-  h += '<textarea class="big" id="pourText" style="min-height:34vh" placeholder="It all goes here\u2026" aria-label="Pour it out">'+esc(cap.pourText)+'</textarea>'
-    + '<div class="btnrow"><button class="btn" id="pourDone" type="button">Done pouring</button>'
-    + '<button class="btn secondary" id="pourQuick" type="button">Just a quick note instead</button>'
-    + '<button class="btn quiet" id="pourNever" type="button">Never mind</button></div></div>';
-  return h;
 }
-function bindPour(){
-  document.querySelectorAll("[data-pourwho]").forEach(function(b){
-    b.addEventListener("click", function(){
-      var pt = el("pourText"); if(pt) cap.pourText = pt.value;
-      toggleIn(cap.pourWhoIds, b.getAttribute("data-pourwho"));
-      render();
-    });
-  });
-  el("pourDone").addEventListener("click", function(){
-    cap.pourText = el("pourText").value;
-    startProposals();
-  });
-  el("pourQuick").addEventListener("click", function(){ cap = null; startQuickNote(); });
-  el("pourNever").addEventListener("click", function(){ cap = null; go("home"); });
+function startThreadPour(aboutClaim){
+  clearModes();
+  view = "home";
+  if(aboutClaim) pushMsg({type:"companion", text:"The claim, from your record: “" + aboutClaim + "”"});
+  var m = pushMsg({type:"pourstart", done:false});
+  pourSession = {msgId:m.id, eventIds:[]};
+  render();
 }
-
-/* ================= After the pour — the companion proposes the filing =================
-   The person poured; now the companion shows what it can file and the
-   person confirms, trims, or files the pour bare. Nothing here is
-   required: every section can be skipped, and "Just file the pour"
-   files the words alone, with zero organization. */
-var prop = null;
-function startProposals(){
-  var text = (cap.pourText || "").toLowerCase();
-  var pre = {};
-  cap.pourWhoIds.forEach(function(id){ pre[id] = true; });
-  atlas.pieces.forEach(function(p){
-    var names = [p.name].concat((p.nameHistory || []).map(function(n){ return n.name; }));
-    names.forEach(function(nm){
-      if(nm && text.indexOf(nm.toLowerCase()) !== -1) pre[p.id] = true;
-    });
-  });
-  prop = {
-    whoIds: Object.keys(pre), isNew:false, newName:"",
-    claimOn:false, claimKind:"", claimOwn:"",
-    register:[], seeingOwn:"", seeingChip:""
-  };
-  view = "proposals";
-  render(); window.scrollTo(0,0);
-}
-function viewProposals(){
-  var h = '<div class="card"><h2>Before it files</h2>'
-    + '<p class="muted">Your pour stays whole. All of this is optional.</p>'
-    + '<div class="btnrow"><button class="btn" id="propJustTop" type="button">Just file the pour</button></div></div>';
-
-  h += '<div class="card"><h3>Who it\u2019s about</h3>';
-  if(atlas.pieces.length){
-    h += '<div class="chiprow">' + atlas.pieces.map(function(p){
-      var on = prop.whoIds.indexOf(p.id) !== -1;
-      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-propwho="'+p.id+'">'+esc(p.name)+'</button>';
-    }).join("") + '</div>';
-  } else {
-    h += '<p class="muted small">No pieces in your map yet.</p>';
+function finishThreadPour(m){
+  if(!pourSession || pourSession.msgId !== m.id){
+    m.done = true; saveThread(); render(); return;
   }
-  h += '<div class="chiprow"><button type="button" class="chip'+(prop.isNew ? " on" : "")+'" id="propNew">Someone new</button></div>';
-  if(prop.isNew){
-    h += '<input type="text" class="txt" id="propNewName" value="'+esc(prop.newName)+'" placeholder="Their name \u2014 or a name you\u2019re giving them" aria-label="The new one\u2019s name">';
+  var evs = pourSession.eventIds.map(function(id){ return eventById(id); }).filter(Boolean);
+  pourSession = null;
+  m.done = true; saveThread();
+  if(!evs.length){
+    pushMsg({type:"companion", text:"Nothing poured — that’s fine too."});
+    render(); return;
   }
-  h += '</div>';
-
-  h += '<div class="card"><h3>A claim</h3>';
-  h += '<div class="chiprow"><button type="button" class="chip'+(prop.claimOn ? " on" : "")+'" id="propClaimToggle">A claim was made in this pour</button></div>';
-  if(prop.claimOn){
-    h += '<p class="field-label">Kind</p>';
-    h += '<div class="chiprow">' + [["prediction","A prediction"],["now","A claim about right now"],["commentary","Running commentary"],["announcement","An announcement"],["instruction","An instruction"]].map(function(o){
-      return '<button type="button" class="chip'+(prop.claimKind === o[0] ? " on" : "")+'" data-propkind="'+o[0]+'">'+o[1]+'</button>';
-    }).join("") + '</div>';
-    h += '<p class="field-label">The claim, in your words <span class="muted" style="font-weight:400">(optional)</span></p>';
-    h += '<textarea class="big short" id="propClaimOwn" placeholder="What was claimed" aria-label="The claim, in your words">'+esc(prop.claimOwn)+'</textarea>';
-
-  }
-  h += '</div>';
-
-  h += '<div class="card"><h3>How they presented</h3>';
-  h += '<div class="chiprow">' + REGISTER_OPTS_CAP.map(function(o){
-    var on = prop.register.indexOf(o[0]) !== -1;
-    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-propreg="'+esc(o[0])+'">'+esc(o[0])+(o[1] ? '<small>'+esc(o[1])+'</small>' : '')+'</button>';
-  }).join("") + '</div>';
-  h += '</div>';
-
-  h += '<div class="card"><h3>How you see them</h3>';
-
-  h += '<textarea class="big short" id="propSeeingOwn" placeholder="In my own words (optional)" aria-label="How I see them, in my own words">'+esc(prop.seeingOwn)+'</textarea>';
-  h += '<div class="chiprow">' + SEEING_OPTS.map(function(o){
-    return '<button type="button" class="chip'+(prop.seeingChip === o ? " on" : "")+'" data-propseeing="'+esc(o)+'">'+esc(o)+'</button>';
-  }).join("") + '</div>';
-  h += '</div>';
-
-  h += '<div class="card"><div class="btnrow">'
-    + '<button class="btn" id="propFile" type="button">File it with these</button>'
-    + '<button class="btn secondary" id="propJust" type="button">Just file the pour</button>'
-    + '<button class="btn quiet" id="propDrop" type="button">Don\u2019t file this</button></div></div>';
-  return h;
-}
-function harvestProp(){
-  if(!prop) return;
-  var nn = el("propNewName"); if(nn) prop.newName = nn.value;
-  var co = el("propClaimOwn"); if(co) prop.claimOwn = co.value;
-  var so = el("propSeeingOwn"); if(so) prop.seeingOwn = so.value;
-}
-function bindProposals(){
-  document.querySelectorAll("[data-propwho]").forEach(function(b){
-    b.addEventListener("click", function(){ harvestProp(); toggleIn(prop.whoIds, b.getAttribute("data-propwho")); render(); });
-  });
-  var pn = el("propNew");
-  if(pn) pn.addEventListener("click", function(){ harvestProp(); prop.isNew = !prop.isNew; render(); });
-  var pct = el("propClaimToggle");
-  if(pct) pct.addEventListener("click", function(){ harvestProp(); prop.claimOn = !prop.claimOn; render(); });
-  document.querySelectorAll("[data-propkind]").forEach(function(b){
-    b.addEventListener("click", function(){ harvestProp(); prop.claimKind = (prop.claimKind === b.getAttribute("data-propkind")) ? "" : b.getAttribute("data-propkind"); render(); });
-  });
-  document.querySelectorAll("[data-propreg]").forEach(function(b){
-    b.addEventListener("click", function(){ harvestProp(); toggleIn(prop.register, b.getAttribute("data-propreg")); render(); });
-  });
-  document.querySelectorAll("[data-propseeing]").forEach(function(b){
-    b.addEventListener("click", function(){ harvestProp(); prop.seeingChip = (prop.seeingChip === b.getAttribute("data-propseeing")) ? "" : b.getAttribute("data-propseeing"); render(); });
-  });
-  var jf = function(){ fileFromProposals(false); };
-  var jt = el("propJustTop"); if(jt) jt.addEventListener("click", jf);
-  var jb = el("propJust"); if(jb) jb.addEventListener("click", jf);
-  el("propFile").addEventListener("click", function(){ fileFromProposals(true); });
-  el("propDrop").addEventListener("click", function(){ cap = null; prop = null; toast = "Not filed."; go("home"); });
-}
-function fileFromProposals(withOrg){
-  harvestProp();
-  /* reset the filing fields; the pour itself is always kept whole */
-  cap.whoIds = []; cap.whoFlags = [];
-  cap.newPiece = {name:"", noName:false, likeness:"", status:"", standing:false};
-  cap.channels = []; cap.mannerWhere = []; cap.mannerHow = []; cap.bodySpots = []; cap.bodySpotOwn = "";
-  cap.among = []; cap.response = [];
-  cap.claimKind = ""; cap.claimChips = []; cap.claimOwn = ""; cap.claimWhoId = "";
-  cap.register = []; cap.seeingChip = ""; cap.seeingOwn = "";
-  cap.glossTerm = ""; cap.glossDoes = ""; cap.glossDoesOwn = ""; cap.eventOwn = "";
-  if(withOrg){
-    cap.whoIds = prop.whoIds.slice();
-    if(prop.isNew){
-      cap.whoFlags = ["new"];
-      cap.newPiece.name = prop.newName.trim();
-    }
-    if(prop.claimOn && prop.claimKind){
-      cap.claimKind = prop.claimKind;
-      cap.claimOwn = prop.claimOwn;
-      if(!prop.claimOwn.trim()) cap.claimChips = [KIND_LABELS[prop.claimKind]];
-      cap.claimWhoId = prop.whoIds.length ? prop.whoIds[0] : (prop.isNew ? "__new" : "");
-    }
-    cap.register = prop.register.slice();
-    cap.seeingOwn = prop.seeingOwn;
-    cap.seeingChip = prop.seeingChip;
-  }
-  prop = null;
-  fileCapture();
+  sessionHold = true; /* a pour's aftermath is HOLD posture */
+  pushMsg({type:"companion", text:"All of it is in, word for word."});
+  var combined = evs.map(function(e){ return e.pourText || ""; }).join("\n");
+  proposeFromText(combined, evs[evs.length - 1]);
+  render();
 }
 
-/* ================= Quick note — the in-the-moment path, one screen ================= */
+/* ================= writing, in the thread =================
+   Journal prompts and the blank page live in the talk now: the
+   companion offers the prompt, the person writes in the composer,
+   and each message is saved to the journal store verbatim — never
+   summarized, never filed anywhere else. */
+function startWriteChoices(){
+  clearModes();
+  view = "home";
+  pushMsg({type:"writeprompts", prompts:journalPrompts().slice(0, 3)});
+  render();
+}
+function startThreadWrite(prompt){
+  clearModes();
+  view = "home";
+  writeMode = {prompt: prompt || ""};
+  pushMsg({type:"writestart", prompt:writeMode.prompt, done:false});
+  render();
+}
+/* ================= Quick note — in the thread now =================
+   v1.3's one-screen pattern (chips + one optional line, Done files
+   it) rendered as a card inside the conversation. It files exactly
+   the event the old screen filed. */
 var qn = null;
-function startQuickNote(){
+var qnMsgId = "";
+function startThreadQuick(){
+  clearModes();
+  view = "home";
   qn = {whoIds:[], isNew:false, newName:"", feeling:false,
         register:[], claimOn:false, claimKind:"prediction", claimText:""};
-  view = "quick";
-  render(); window.scrollTo(0,0);
+  var m = pushMsg({type:"quickcard", filed:false, dropped:false});
+  qnMsgId = m.id;
+  render();
 }
-function viewQuick(){
-  var h = '<div class="card"><h2>Quick note</h2>'
-    + '<p class="muted">One screen. Done files it.</p></div>';
-  h += '<div class="card"><h3>Who\u2019s around</h3>';
+function threadQuickHTML(m){
+  if(m.filed) return '<div class="msg them"><div class="bubble"><p class="muted small">Quick note — filed.</p></div></div>';
+  if(m.dropped) return '<div class="msg them"><div class="bubble"><p class="muted small">Quick note — not filed.</p></div></div>';
+  if(!qn || qnMsgId !== m.id) return "";
+  var h = '<div class="msg them"><div class="bubble" style="max-width:94%"><p class="hub-label">Quick note</p>';
+  h += '<p class="small" style="margin:4px 0"><strong>Who’s around</strong></p>';
   if(atlas.pieces.length){
     h += '<div class="chiprow">' + atlas.pieces.map(function(p){
       var on = qn.whoIds.indexOf(p.id) !== -1;
-      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-qnwho="'+p.id+'" style="font-size:1.05rem;padding:14px 18px">'+esc(p.name)+'</button>';
+      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-qchip="who:'+p.id+'">'+esc(p.name)+'</button>';
     }).join("") + '</div>';
   }
   h += '<div class="chiprow">'
-    + '<button type="button" class="chip'+(qn.isNew ? " on" : "")+'" id="qnNew" style="font-size:1.05rem;padding:14px 18px">Someone new</button>'
-    + '<button type="button" class="chip'+(qn.feeling ? " on" : "")+'" id="qnFeeling" style="font-size:1.05rem;padding:14px 18px">No one specific \u2014 just a feeling</button></div>';
+    + '<button type="button" class="chip'+(qn.isNew ? " on" : "")+'" data-qchip="new">Someone new</button>'
+    + '<button type="button" class="chip'+(qn.feeling ? " on" : "")+'" data-qchip="feeling">No one specific — just a feeling</button></div>';
   if(qn.isNew){
-    h += '<input type="text" class="txt" id="qnNewName" value="'+esc(qn.newName)+'" placeholder="Their name \u2014 or a name you\u2019re giving them" aria-label="The new one\u2019s name" style="margin-top:8px">';
+    h += '<input type="text" class="txt" id="qnNewName" value="'+esc(qn.newName)+'" placeholder="Their name — or a name you’re giving them" aria-label="The new one’s name" style="margin-top:8px">';
   }
-  h += '</div>';
-  h += '<div class="card"><h3>How it\u2019s landing</h3>';
+  h += '<p class="small" style="margin:10px 0 4px"><strong>How it’s landing</strong></p>';
   h += '<div class="chiprow">' + REGISTER_OPTS_CAP.map(function(o){
     var on = qn.register.indexOf(o[0]) !== -1;
-    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-qnreg="'+esc(o[0])+'">'+esc(o[0])+(o[1] ? '<small>'+esc(o[1])+'</small>' : '')+'</button>';
+    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-qchip="reg:'+esc(o[0])+'">'+esc(o[0])+(o[1] ? '<small>'+esc(o[1])+'</small>' : '')+'</button>';
   }).join("") + '</div>';
-  h += '<div class="chiprow"><button type="button" class="chip'+(qn.claimOn ? " on" : "")+'" id="qnClaimToggle">They claimed something</button></div>';
+  h += '<div class="chiprow"><button type="button" class="chip'+(qn.claimOn ? " on" : "")+'" data-qchip="claim">They claimed something</button></div>';
   if(qn.claimOn){
     h += '<p class="field-label">The claim, in one line</p>';
     h += '<textarea class="big short" id="qnClaimText" placeholder="What was claimed" aria-label="The claim, in one line">'+esc(qn.claimText)+'</textarea>';
     h += '<div class="chiprow">' + [["prediction","A prediction"],["now","About right now"],["commentary","Running commentary"],["announcement","An announcement"],["instruction","An instruction"]].map(function(o){
-      return '<button type="button" class="chip'+(qn.claimKind === o[0] ? " on" : "")+'" data-qnkind="'+o[0]+'">'+o[1]+'</button>';
+      return '<button type="button" class="chip'+(qn.claimKind === o[0] ? " on" : "")+'" data-qchip="kind:'+o[0]+'">'+o[1]+'</button>';
     }).join("") + '</div>';
   }
-  h += '<div class="btnrow"><button class="btn" id="qnDone" type="button">Done</button>'
-    + '<button class="btn quiet" id="qnDrop" type="button">Don\u2019t file this</button></div>';
-  h += '</div>';
+  h += '<div class="btnrow"><button class="btn" data-qchip="done" type="button">Done</button>'
+    + '<button class="btn quiet" data-qchip="drop" type="button">Don’t file this</button></div>';
+  h += '</div></div>';
   return h;
 }
 function harvestQuick(){
   if(!qn) return;
   var nn = el("qnNewName"); if(nn) qn.newName = nn.value;
   var ct = el("qnClaimText"); if(ct) qn.claimText = ct.value;
-}
-function bindQuick(){
-  document.querySelectorAll("[data-qnwho]").forEach(function(b){
-    b.addEventListener("click", function(){ harvestQuick(); toggleIn(qn.whoIds, b.getAttribute("data-qnwho")); render(); });
-  });
-  var nw = el("qnNew");
-  if(nw) nw.addEventListener("click", function(){ harvestQuick(); qn.isNew = !qn.isNew; render(); });
-  var fl = el("qnFeeling");
-  if(fl) fl.addEventListener("click", function(){ harvestQuick(); qn.feeling = !qn.feeling; render(); });
-  document.querySelectorAll("[data-qnreg]").forEach(function(b){
-    b.addEventListener("click", function(){ harvestQuick(); toggleIn(qn.register, b.getAttribute("data-qnreg")); render(); });
-  });
-  var ct2 = el("qnClaimToggle");
-  if(ct2) ct2.addEventListener("click", function(){ harvestQuick(); qn.claimOn = !qn.claimOn; render(); });
-  document.querySelectorAll("[data-qnkind]").forEach(function(b){
-    b.addEventListener("click", function(){ harvestQuick(); qn.claimKind = b.getAttribute("data-qnkind"); render(); });
-  });
-  el("qnDone").addEventListener("click", function(){ fileQuickNote(); });
-  el("qnDrop").addEventListener("click", function(){ qn = null; toast = "Not filed."; go("home"); });
 }
 function fileQuickNote(){
   harvestQuick();
@@ -2125,11 +2172,14 @@ function fileQuickNote(){
     seeing:"", response:[], glossaryId:"", eventOwn:""
   });
   saveAtlas();
-  qn = null;
+  var mm = qnMsgId ? threadMsgById(qnMsgId) : null;
+  qn = null; qnMsgId = "";
+  if(mm){ mm.filed = true; saveThread(); }
+  pushMsg({type:"companion", text:"Filed."});
   toast = "Filed.";
-  if(threadDoor){ threadDoor = false; go("home"); } else { go("map"); }
+  view = "home";
+  render();
 }
-
 /* ================= Fragment — one tap, raw, filed =================
    The fast door: catch the fragment before the current does its work
    on it. Nothing is required but the fragment itself. Detail, if it
@@ -2309,7 +2359,7 @@ function adjustPiecesForEvent(ev, dir){
 function bindConfirm(){
   el("cfFile").addEventListener("click", function(){ fileCapture(); });
   el("cfFix").addEventListener("click", function(){ go("capture"); });
-  el("cfDrop").addEventListener("click", function(){ cap = null; toast = "Not filed."; go("home"); });
+  el("cfDrop").addEventListener("click", function(){ cap = null; toast = "Not filed."; go("map"); });
 }
 function fileCapture(){
   var d = cap;
@@ -2412,7 +2462,7 @@ function fileCapture(){
   saveAtlas();
   cap = null;
   toast = editingEv ? "Updated." : "Filed.";
-  if(threadDoor && d.mode === "pour" && !editingEv){ threadDoor = false; go("home"); } else { go("map"); }
+  go("map");
 }
 
 /* ================= Screen 5 — Map (your atlas) ================= */
@@ -2808,7 +2858,19 @@ function bindReceipts(){
   });
 }
 
-/* ================= Screen 7 — Journal ================= */
+/* ================= Screen 7 — the dynamic journal =================
+   The journal develops from the conversation the way the receipts
+   do: it assembles itself from the record, day by day. His words —
+   pours, fragments, journal writings — sit verbatim and dominant.
+   The companion's part is connective tissue and figuring only:
+   claims as they logged and closed, his moves, the receipts figured
+   (stamped on the day they were figured), precedents surfaced,
+   knowledge offered. It is never a form: no blank page, no compose
+   box — writing happens in the talk. Corrections happen in the
+   talk too: his correction notes append to the day; his own words
+   are never rewritten by the app (he can hide an entry from this
+   view; the record underneath is untouched), and the figuring —
+   companion-composed — can be amended or dropped by him. */
 function journalPrompts(){
   var prompts = [
     "What did they claim this week that never happened?",
@@ -2838,81 +2900,242 @@ function journalPrompts(){
   }
   return pers.concat(prompts);
 }
+function dayKeyOf(ts){
+  var d = new Date(ts);
+  var mo = d.getMonth() + 1, dd = d.getDate();
+  return d.getFullYear() + "-" + (mo < 10 ? "0" + mo : mo) + "-" + (dd < 10 ? "0" + dd : dd);
+}
+function dayLabel(key){
+  var p = key.split("-");
+  var d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return d.toLocaleDateString(undefined, {weekday:"long", month:"long", day:"numeric"});
+}
+function fmtTime(ts){
+  return new Date(ts).toLocaleTimeString(undefined, {hour:"numeric", minute:"2-digit"});
+}
+function evWords(ev){
+  return ev.fragmentText || ev.pourText || ev.eventOwn || "";
+}
+function journalDayData(key){
+  var d = {key:key, pours:[], writings:[], claimsLog:[], claimsClosed:[], moves:[],
+           fig:null, prec:[], know:null, corrections:[], hiddenItems:[], verbatim:[]};
+  atlas.events.forEach(function(ev){
+    if(dayKeyOf(ev.ts) !== key) return;
+    if(djournal.hidden[ev.id]){ d.hiddenItems.push({id:ev.id, text:evWords(ev)}); return; }
+    d.pours.push(ev);
+    d.verbatim.push({id:ev.id, text:evWords(ev)});
+  });
+  journal.entries.forEach(function(en){
+    if(dayKeyOf(en.ts) !== key) return;
+    if(djournal.hidden[en.id]){ d.hiddenItems.push({id:en.id, text:en.text}); return; }
+    d.writings.push(en);
+    d.verbatim.push({id:en.id, text:en.text});
+  });
+  ledger.entries.forEach(function(e){
+    if(dayKeyOf(e.ts) === key) d.claimsLog.push(e);
+    if(e.move && e.move.trim()){
+      if(dayKeyOf(e.tsOutcome || e.ts) === key) d.moves.push(e);
+    } else if(isChecked(e) && e.tsOutcome && dayKeyOf(e.tsOutcome) === key && dayKeyOf(e.ts) !== key){
+      d.claimsClosed.push(e);
+    }
+  });
+  if(djournal.dayFig[key]) d.fig = djournal.dayFig[key].slice();
+  d.prec = (djournal.precedents[key] || []).slice();
+  d.know = djournal.knowledgeDays[key] || null;
+  d.corrections = (djournal.corrections[key] || []).slice();
+  d.pours.sort(function(a,b){ return a.ts - b.ts; });
+  d.writings.sort(function(a,b){ return a.ts - b.ts; });
+  d.claimsLog.sort(function(a,b){ return a.ts - b.ts; });
+  d.claimsClosed.sort(function(a,b){ return (a.tsOutcome || 0) - (b.tsOutcome || 0); });
+  d.moves.sort(function(a,b){ return (a.tsOutcome || a.ts) - (b.tsOutcome || b.ts); });
+  return d;
+}
+function journalHasContent(d){
+  return !!(d.pours.length || d.writings.length || d.claimsLog.length || d.claimsClosed.length
+    || d.moves.length || d.fig || d.prec.length || d.know || d.corrections.length || d.hiddenItems.length);
+}
+function journalDayKeys(){
+  var seen = {};
+  atlas.events.forEach(function(ev){ seen[dayKeyOf(ev.ts)] = 1; });
+  journal.entries.forEach(function(en){ seen[dayKeyOf(en.ts)] = 1; });
+  ledger.entries.forEach(function(e){
+    seen[dayKeyOf(e.ts)] = 1;
+    if(e.tsOutcome) seen[dayKeyOf(e.tsOutcome)] = 1;
+  });
+  Object.keys(djournal.dayFig).forEach(function(k){ seen[k] = 1; });
+  Object.keys(djournal.precedents).forEach(function(k){ seen[k] = 1; });
+  Object.keys(djournal.knowledgeDays).forEach(function(k){ seen[k] = 1; });
+  Object.keys(djournal.corrections).forEach(function(k){ seen[k] = 1; });
+  return Object.keys(seen).sort().reverse();
+}
+function shortWords(text, n){
+  var t = String(text || "").replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n) + "…" : t;
+}
 function viewJournal(){
   var h = '<div class="card"><h2>Journal</h2>'
-    + '<p class="lede muted">For calm times. Entries are never summarized or filed anywhere else.</p></div>';
-  h += '<div class="card"><h3>Prompts</h3>';
-  journalPrompts().forEach(function(pr, i){
-    h += '<button type="button" class="card prompt-card" data-prompt="'+i+'">'+esc(pr)+'</button>';
-  });
-  h += '<div class="btnrow"><button class="btn" id="jBlank" type="button">Blank page</button></div></div>';
-  if(journal.entries.length){
-    h += '<div class="card"><h2>Past entries</h2>';
-    journal.entries.slice().sort(function(a,b){ return b.ts - a.ts; }).forEach(function(en){
-      h += '<div class="ledger-entry" data-entry="'+en.id+'" style="cursor:pointer">'
-        + '<div class="muted small">'+esc(fmtDate(en.ts))+(en.prompt ? ' \u2014 ' + esc(en.prompt) : '')+'</div>'
-        + '<div class="small">'+esc(en.text.length > 160 ? en.text.slice(0,160) + "\u2026" : en.text)+'</div></div>';
+    + '<p class="lede muted">This journal writes itself from your days — your words first, the figuring after. It is never a blank page. To write, use the talk.</p>'
+    + '<div class="btnrow"><button class="btn secondary" id="jWrite" type="button">Write in the talk</button></div></div>';
+  var keys = journalDayKeys();
+  var shown = 0;
+  keys.forEach(function(key){
+    var d = journalDayData(key);
+    if(!journalHasContent(d)) return;
+    shown++;
+    h += '<div class="card"><h2>' + esc(dayLabel(key)) + '</h2>';
+    /* his words — verbatim, dominant */
+    d.pours.forEach(function(ev){
+      var names = (ev.whoIds || []).map(function(id){ return pieceName(id); }).filter(Boolean).join(", ");
+      var isFrag = ev.mode === "fragment" || ev.type === "fragment";
+      h += '<div class="jitem">';
+      if(isFrag){
+        h += '<p class="jtag">Fragment · ' + esc(fmtTime(ev.ts)) + '</p>'
+          + '<p class="jwords">' + esc(evWords(ev)) + '</p>';
+      } else if(ev.mode === "quick"){
+        h += '<p class="jtag">Quick note · ' + esc(fmtTime(ev.ts)) + '</p>';
+        if(evWords(ev)) h += '<p class="jwords">' + esc(evWords(ev)) + '</p>';
+      } else {
+        h += '<p class="jtag">A pour · ' + esc(fmtTime(ev.ts)) + '</p>'
+          + '<p class="jwords">' + esc(ev.pourText || "") + '</p>';
+        if(ev.eventOwn && ev.eventOwn !== ev.pourText) h += '<p class="jwords">' + esc(ev.eventOwn) + '</p>';
+      }
+      var meta = [];
+      if(names) meta.push(names);
+      if(ev.channels && ev.channels.length) meta.push(ev.channels.join(" · "));
+      if(meta.length) h += '<p class="small muted">' + esc(meta.join(" — ")) + '</p>';
+      h += '</div>';
     });
+    d.writings.forEach(function(en){
+      h += '<div class="jitem">'
+        + (en.prompt ? '<p class="jtag">' + esc(en.prompt) + '</p>' : '<p class="jtag">Journal · ' + esc(fmtTime(en.ts)) + '</p>')
+        + '<p class="jwords">' + esc(en.text) + '</p>'
+        + '<div class="btnrow"><button class="btn quiet small" data-jerase="' + en.id + '" type="button">Erase this entry</button></div></div>';
+    });
+    /* the record around his words — the companion's figuring, kept plain */
+    if(d.claimsLog.length || d.claimsClosed.length || d.moves.length){
+      h += '<div class="jblock">';
+      d.claimsLog.forEach(function(e){
+        h += '<p class="small">A claim was logged — &ldquo;' + esc(e.claim) + '&rdquo;'
+          + (e.who ? ' — ' + esc(e.who) : '')
+          + (e.kind ? ' · ' + esc(KIND_LABELS[e.kind] || e.kind) : '')
+          + (isChecked(e) ? ' — checked: ' + esc(outcomeLabel(e)) : '') + '.</p>';
+      });
+      d.claimsClosed.forEach(function(e){
+        h += '<p class="small">&ldquo;' + esc(e.claim) + '&rdquo; was checked — ' + esc(outcomeLabel(e)) + '.</p>';
+      });
+      d.moves.forEach(function(e){
+        h += '<p class="small"><strong>Your move</strong> — on &ldquo;' + esc(e.claim) + '&rdquo;: ' + esc(e.move)
+          + (isChecked(e) ? ' It ended: ' + esc(outcomeShort(e)) + '.' : '') + '</p>';
+      });
+      h += '</div>';
+    }
+    if(d.fig){
+      h += '<div class="jblock"><p class="hub-label">Receipts, figured</p>'
+        + d.fig.map(function(l){ return '<p class="small" style="margin:4px 0">' + esc(l) + '</p>'; }).join("") + '</div>';
+    }
+    if(d.prec.length){
+      h += '<div class="jblock"><p class="hub-label">From your record</p>'
+        + d.prec.map(function(t){ return '<p class="small" style="margin:4px 0">' + esc(t) + '</p>'; }).join("") + '</div>';
+    }
+    if(d.know){
+      h += '<div class="jblock"><p class="hub-label">Offered</p>'
+        + '<p class="small muted">From the record of others: ' + esc(d.know.l1) + '</p></div>';
+    }
+    if(d.corrections.length){
+      h += '<div class="jblock"><p class="hub-label">Your correction</p>'
+        + d.corrections.map(function(c){ return '<p class="jwords">' + esc(c.text) + '</p>'; }).join("") + '</div>';
+    }
+    if(d.hiddenItems.length){
+      h += '<div class="jblock"><p class="small muted">' + d.hiddenItems.length
+        + (d.hiddenItems.length === 1 ? " entry you" : " entries you") + ' kept out of this journal. '
+        + (journalHiddenShown[key]
+            ? '<button type="button" class="btn quiet small" data-jhidehidden="' + key + '">Put them away</button>'
+            : '<button type="button" class="btn quiet small" data-jshowhidden="' + key + '">See them</button>')
+        + '</p>';
+      if(journalHiddenShown[key]){
+        d.hiddenItems.forEach(function(it){
+          h += '<div class="jitem jhidden"><p class="jwords">' + esc(it.text) + '</p>'
+            + '<div class="btnrow"><button class="btn quiet small" data-junhide="' + it.id + '" type="button">Put it back in the journal</button></div></div>';
+        });
+      }
+      h += '</div>';
+    }
+    h += '<div class="chiprow" style="margin-top:12px">'
+      + '<button type="button" class="chip" data-jtalk="' + key + '">Talk about this</button>'
+      + '<button type="button" class="chip" data-jcorrect="' + key + '">Correct this day</button></div>';
     h += '</div>';
+  });
+  if(!shown){
+    h += '<div class="card"><p class="empty">Nothing here yet. Talk with ' + esc(companion.name) + ' — the days will write themselves here, in your words.</p></div>';
   }
   return h;
 }
-var currentPrompts = [];
 function bindJournal(){
-  currentPrompts = journalPrompts();
-  currentPrompts.forEach(function(_, i){
-    document.querySelectorAll("[data-prompt='"+i+"']").forEach(function(b){
-      b.addEventListener("click", function(){ journalPrompt = currentPrompts[i]; go("journalWrite"); });
+  var jw = el("jWrite");
+  if(jw) jw.addEventListener("click", function(){ startWriteChoices(); });
+  document.querySelectorAll("[data-jtalk]").forEach(function(b){
+    b.addEventListener("click", function(){ startTalkDay(b.getAttribute("data-jtalk")); });
+  });
+  document.querySelectorAll("[data-jcorrect]").forEach(function(b){
+    b.addEventListener("click", function(){ startCorrectDay(b.getAttribute("data-jcorrect")); });
+  });
+  document.querySelectorAll("[data-jerase]").forEach(function(b){
+    b.addEventListener("click", function(){
+      if(!confirm("Erase this journal entry?")) return;
+      var id = b.getAttribute("data-jerase");
+      journal.entries = journal.entries.filter(function(x){ return x.id !== id; });
+      saveJournal();
+      toast = "Entry erased.";
+      render();
     });
   });
-  el("jBlank").addEventListener("click", function(){ journalPrompt = ""; go("journalWrite"); });
-  document.querySelectorAll("[data-entry]").forEach(function(row){
-    row.addEventListener("click", function(){ journalReadId = row.getAttribute("data-entry"); go("journalRead"); });
+  document.querySelectorAll("[data-jshowhidden]").forEach(function(b){
+    b.addEventListener("click", function(){ journalHiddenShown[b.getAttribute("data-jshowhidden")] = true; render(); });
+  });
+  document.querySelectorAll("[data-jhidehidden]").forEach(function(b){
+    b.addEventListener("click", function(){ journalHiddenShown[b.getAttribute("data-jhidehidden")] = false; render(); });
+  });
+  document.querySelectorAll("[data-junhide]").forEach(function(b){
+    b.addEventListener("click", function(){
+      delete djournal.hidden[b.getAttribute("data-junhide")];
+      saveDjournal();
+      render();
+    });
   });
 }
-function viewJournalWrite(){
-  var h = '<div class="card"><button class="btn quiet small" id="jwBack" type="button">\u2190 Journal</button>';
-  if(journalPrompt) h += '<p class="lede" style="margin-top:10px">'+esc(journalPrompt)+'</p>';
-  h += '<textarea class="big" id="jwText" style="min-height:34vh" placeholder="Your words\u2026" aria-label="Journal entry"></textarea>'
-    + '<div class="btnrow"><button class="btn" id="jwSave" type="button">Save</button>'
-    + '<button class="btn quiet" id="jwDiscard" type="button">Discard</button></div></div>';
-  return h;
+/* ---- talking about a day, correcting a day — both live in the thread ---- */
+function startTalkDay(key){
+  clearModes();
+  view = "home";
+  var d = journalDayData(key);
+  var bits = [];
+  if(d.pours.length) bits.push(d.pours.length + (d.pours.length === 1 ? " thing poured" : " things poured"));
+  if(d.writings.length) bits.push(d.writings.length === 1 ? "a journal entry" : d.writings.length + " journal entries");
+  if(d.claimsLog.length) bits.push(d.claimsLog.length + (d.claimsLog.length === 1 ? " claim logged" : " claims logged"));
+  if(d.moves.length) bits.push(d.moves.length === 1 ? "your move" : d.moves.length + " moves");
+  if(d.fig) bits.push("the receipts figured");
+  var line = "Looking at " + dayLabel(key) + (bits.length ? " — " + bits.join(", ") : "") + ". I’m here.";
+  pushMsg({type:"companion", text:line});
+  render();
 }
-function bindJournalWrite(){
-  el("jwBack").addEventListener("click", function(){ go("journal"); });
-  el("jwDiscard").addEventListener("click", function(){ go("journal"); });
-  el("jwSave").addEventListener("click", function(){
-    var t = el("jwText").value.trim();
-    if(!t){ el("jwText").focus(); return; }
-    journal.entries.push({id:uid(), ts:Date.now(), prompt:journalPrompt, text:t});
-    saveJournal(); journalPrompt = "";
-    toast = "Saved.";
-    go("journal");
+function startCorrectDay(key){
+  clearModes();
+  correctionDay = key;
+  view = "home";
+  var d = journalDayData(key);
+  var actions = [];
+  d.verbatim.forEach(function(v){
+    actions.push({act:"hide", eventId:v.id, label:"Hide: " + (shortWords(v.text, 28) || "an entry")});
   });
+  if(d.fig){
+    actions.push({act:"editfig", label:"Rewrite the figures"});
+    actions.push({act:"dropfig", label:"Take the figures off this day"});
+  }
+  actions.push({act:"donecorrect", label:"That’s all"});
+  pushMsg({type:"correct", dayKey:key, actions:actions,
+    text:"What’s off about " + dayLabel(key) + "? Say it here — your words go on the day as a correction, word for word. Your pours and writings are never rewritten; you can hide one from the journal, and the figuring is mine to fix."});
+  render();
 }
-function viewJournalRead(){
-  var en = null;
-  journal.entries.forEach(function(x){ if(x.id === journalReadId) en = x; });
-  if(!en) return '<div class="card"><p class="empty">That entry isn\u2019t here anymore.</p></div>';
-  var h = '<div class="card"><button class="btn quiet small" id="jrBack" type="button">\u2190 Journal</button>'
-    + '<p class="muted small" style="margin-top:10px">'+esc(fmtDate(en.ts))+'</p>'
-    + (en.prompt ? '<p class="lede">'+esc(en.prompt)+'</p>' : '')
-    + '<p style="white-space:pre-wrap">'+esc(en.text)+'</p>'
-    + '<hr class="divider"><div class="btnrow"><button class="btn danger small" id="jrErase" type="button">Erase this entry</button></div></div>';
-  return h;
-}
-function bindJournalRead(){
-  el("jrBack").addEventListener("click", function(){ go("journal"); });
-  var er = el("jrErase");
-  if(er) er.addEventListener("click", function(){
-    if(!confirm("Erase this journal entry?")) return;
-    journal.entries = journal.entries.filter(function(x){ return x.id !== journalReadId; });
-    saveJournal(); journalReadId = null;
-    toast = "Entry erased.";
-    go("journal");
-  });
-}
-
 /* ================= Screen 8 — Help button + help ladder ================= */
 var helpReturn = "home";
 var ladderReturn = "help";
@@ -3072,7 +3295,7 @@ function bindSettings(){
   el("setExport").addEventListener("click", function(){
     var data = {
       exportedAt: new Date().toISOString(),
-      companion: companion, atlas: atlas, ledger: ledger, journal: journal, ladder: ladder, thread: thread
+      companion: companion, atlas: atlas, ledger: ledger, journal: journal, ladder: ladder, thread: thread, djournal: djournal
     };
     var blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
     var a = document.createElement("a");
