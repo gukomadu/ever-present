@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1f4d3a">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131815">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171512">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -14,45 +14,69 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Ever Present</title>
 <style>
-  /* ================= Ever Present v1.19 — the aesthetics pass =================
-     "A warm room, editorial calm." Every color is a variable; the
-     companion speaks in a serif (a book's voice), the UI in a clean
-     sans. System stacks only — the app stays offline-capable.
-     A dark scheme (the evening room) rides the same variables. */
+  /* ================= Ever Present v1.20 — the research applied =================
+     §7/§7B/§8 of the commissioned social-aesthetics research, applied
+     over the v1.19 room. Fluency is the law: body text is a clean
+     sans at 17/26; the serif is identity garnish only (headings,
+     journal prompts, the room lines, closing lines). Contrast sits
+     in the "enough, not maximum" band (~14:1 body, ~7:1 secondary —
+     never 21:1, never the 4.5:1 floor for long text). Motion is
+     tokenised; no bounce, no shimmer, no loops. System stacks only —
+     the app stays offline-capable. Founder law outranks the generic
+     spec where they differ (see the outgoing-bubble note below). */
   :root{
     color-scheme:light;
-    /* warm paper + room green */
-    --paper:#f6f1e7; --paper-glow:#fdfaf1;
-    --card:#fffdf8; --card-line:#e3dac6;
-    --field:#ffffff;
-    --ink:#22271f; --ink-soft:#4c4a3e; --muted:#7d7a68;
+    /* warm paper, per spec §8 */
+    --paper:#faf7f1; --paper-glow:#fdfbf5;
+    --card:#ffffff; --card-line:#e5ddcf;
+    --field:#ffffff; --surface2:#ffffff;
+    --bubble-in:#f1ebe0;
+    --ink:#26221c; --ink-soft:#5c554a; --muted:#71685a;
+    /* the founder's room-green: brand + the outgoing bubble */
     --green:#1f4d3a; --green-deep:#173c2d; --green-soft:#e9efe7;
+    --me-grad:linear-gradient(165deg, var(--green), var(--green-deep));
+    --me-ink:#f7f3e8;
+    /* primary action: deep green-teal, white text on it (~7.6:1) */
+    --accent:#175e52; --accent-soft:#dce9e2; --on-accent:#ffffff;
     --sage:#8a9a8b; --sage-soft:#e9ede1; --sage-line:#ccd6c0;
     --room-bg:#edf0e3; --room-line:#cdd8bf;
-    --help:#b3402a; --help-deep:#93331f; --help-soft:#f8ece5;
+    /* terracotta: small-area warmth only (Help) */
+    --help:#b4552d; --help-deep:#96431f; --help-hi:#c4663b; --help-soft:#f8ece5;
+    --danger:#b3261e;
     --amber-bg:#fbf3e0; --amber-line:#e6d3a3; --amber-ink:#7a5b23;
-    /* legacy aliases (older rules and markup lean on these names) */
-    --line:var(--card-line); --accent:var(--green); --accent-soft:var(--green-soft);
-    --radius:16px;
-    --shadow-card:0 1px 2px rgba(34,39,31,.05), 0 10px 28px rgba(34,39,31,.07);
-    --shadow-bubble:0 1px 2px rgba(34,39,31,.05), 0 6px 20px rgba(34,39,31,.07);
+    /* legacy alias (older rules lean on this name) */
+    --line:var(--card-line);
+    --radius:20px;
+    --shadow-card:0 1px 2px rgba(38,34,28,.05), 0 10px 28px rgba(38,34,28,.07);
+    --shadow-bubble:0 1px 2px rgba(38,34,28,.05), 0 6px 20px rgba(38,34,28,.07);
     --shadow-me:0 2px 4px rgba(23,60,45,.22), 0 8px 20px rgba(23,60,45,.22);
-    --shadow-bar:0 12px 32px rgba(34,39,31,.14), 0 2px 8px rgba(34,39,31,.08);
+    --shadow-bar:0 12px 32px rgba(38,34,28,.14), 0 2px 8px rgba(38,34,28,.08);
+    /* motion tokens (research §8): press / new turn / card / exit */
+    --dur-press:120ms; --dur-msg:180ms; --dur-card:280ms; --dur-exit:210ms;
+    --ease-std:cubic-bezier(0.2,0,0,1);
+    --ease-out:cubic-bezier(0.05,0.7,0.1,1);
+    --ease-exit:cubic-bezier(0.3,0,0.8,0.15);
     --serif:Georgia,"Iowan Old Style",Charter,"Times New Roman",serif;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   @media (prefers-color-scheme: dark){
     :root{
       color-scheme:dark;
-      /* the evening room: deep green-charcoal, warm paper text */
-      --paper:#131815; --paper-glow:#1a211c;
-      --card:#1f2822; --card-line:#36443b;
-      --field:#262f29;
-      --ink:#ede6d4; --ink-soft:#c6c0ac; --muted:#9aa48d;
+      /* the evening room: warm charcoal, never pure black (§5/§7B);
+         off-white text mitigates halation; the accent desaturates */
+      --paper:#171512; --paper-glow:#1e1a16;
+      --card:#221f1b; --card-line:#3a352c;
+      --field:#2b2721; --surface2:#2b2721;
+      --bubble-in:#221f1b;
+      --ink:#f3ede2; --ink-soft:#c9bfae; --muted:#a79b84;
       --green:#2f6e52; --green-deep:#23573f; --green-soft:#233a2d;
+      --me-grad:linear-gradient(165deg, #24463a, #1e3a33);
+      --me-ink:#f3ede2;
+      --accent:#7fb5a8; --accent-soft:#27473e; --on-accent:#10201b;
       --sage:#8a9a8b; --sage-soft:#243128; --sage-line:#41523f;
-      --room-bg:#212d24; --room-line:#3a4d3c;
-      --help:#cf5138; --help-deep:#b3402a; --help-soft:#38221c;
+      --room-bg:#23201b; --room-line:#3a352c;
+      --help:#d4694e; --help-deep:#b4552d; --help-hi:#e07f5f; --help-soft:#38221c;
+      --danger:#ea8a7f;
       --amber-bg:#2f2716; --amber-line:#5b4a22; --amber-ink:#dcbc72;
       --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.35);
       --shadow-bubble:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.3);
@@ -66,11 +90,11 @@
     margin:0; color:var(--ink);
     background:linear-gradient(180deg, var(--paper-glow), var(--paper) 260px) var(--paper);
     font-family:var(--sans);
-    line-height:1.55; font-size:17px;
+    line-height:26px; font-size:17px;
     padding-bottom:calc(104px + env(safe-area-inset-bottom));
   }
   ::selection{background:var(--sage-soft)}
-  :focus-visible{outline:2px solid var(--sage); outline-offset:2px}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   /* the Help shelf: a fixed paper veil across the top of the screen.
      Thread content scrolls up INTO the paper and is gone before it
      can reach the pill — so the floating Help can never sit on top
@@ -93,28 +117,29 @@
   }
   .companion-line{color:var(--muted); margin:2px 0 14px; font-size:.98rem}
   .card{
-    background:var(--card); border:1px solid var(--card-line); border-radius:18px;
-    padding:22px; margin:0 0 14px; box-shadow:var(--shadow-card);
+    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    padding:20px; margin:0 0 14px; box-shadow:var(--shadow-card);
+    font-size:16px; line-height:25px;
   }
   .card h2{font-family:var(--serif); font-size:1.3rem; margin:0 0 10px; font-weight:600}
   .card h3{font-size:1.02rem; margin:18px 0 6px; font-weight:700}
   .card h3:first-child{margin-top:0}
   .muted{color:var(--muted)} .small{font-size:.88rem}
-  .lede{font-family:var(--serif); font-size:1.08rem; line-height:1.55}
+  .lede{font-size:1.06rem; line-height:1.55}
   .empty{color:var(--muted); font-style:italic}
-  .field-label{font-weight:600; font-size:.95rem; margin:14px 0 6px}
+  .field-label{font-weight:500; font-size:15px; margin:14px 0 6px}
   .field-label:first-child{margin-top:0}
 
   /* ---- buttons ---- */
   .btn{
-    display:inline-block; border:1px solid var(--green); background:var(--green); color:#fff;
-    padding:12px 20px; border-radius:999px; font-size:1rem; cursor:pointer; min-height:48px;
-    font-family:inherit; transition:background .12s ease, border-color .12s ease;
+    display:inline-block; border:1px solid var(--accent); background:var(--accent); color:var(--on-accent);
+    padding:12px 24px; border-radius:999px; font-size:15px; font-weight:500; cursor:pointer; min-height:48px;
+    font-family:inherit; transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std);
   }
   .btn.secondary{background:var(--card); color:var(--ink); border-color:var(--card-line)}
   .btn.quiet{background:transparent; color:var(--muted); border-color:transparent}
-  .btn.danger{background:var(--card); color:var(--help); border-color:var(--help)}
-  .btn.small{padding:8px 14px; min-height:40px; font-size:.92rem}
+  .btn.danger{background:var(--card); color:var(--danger); border-color:var(--danger)}
+  .btn.small{padding:8px 14px; min-height:44px; font-size:14px}
   .btn.block{display:block; width:100%; text-align:center}
   .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
   .btn:disabled{opacity:.5}
@@ -123,18 +148,18 @@
   .chiprow{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px}
   .chip{
     border:1px solid var(--sage-line); background:transparent; color:var(--ink);
-    padding:10px 15px; border-radius:999px; font-size:.95rem; cursor:pointer;
+    padding:10px 16px; border-radius:999px; font-size:15px; font-weight:500; cursor:pointer;
     min-height:44px; font-family:var(--sans); text-align:left;
-    transition:background .12s ease, border-color .12s ease, color .12s ease;
+    transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std), color var(--dur-press) var(--ease-std);
   }
-  .chip.on{background:var(--green); border-color:var(--green); color:#fff}
+  .chip.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
   .chip.alt.on{background:var(--amber-ink); border-color:var(--amber-ink)}
-  .chip small{display:block; font-size:.78rem; opacity:.85; font-weight:400}
+  .chip small{display:block; font-size:.8125rem; opacity:.85; font-weight:400}
 
   /* ---- inputs ---- */
   textarea.big, input.txt, textarea.txt{
     width:100%; border:1px solid var(--card-line); border-radius:12px; background:var(--field);
-    padding:12px 14px; font-size:1rem; font-family:inherit; color:var(--ink);
+    padding:12px 14px; font-size:17px; font-family:inherit; color:var(--ink);
   }
   textarea.big{min-height:16vh; line-height:1.55}
   textarea.short{min-height:9vh}
@@ -149,11 +174,11 @@
   /* ---- persistent help button: terracotta, on its paper shelf ---- */
   #helpBtn{
     position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:80;
-    background:linear-gradient(160deg, #c55034, var(--help) 55%, var(--help-deep));
+    background:linear-gradient(160deg, var(--help-hi), var(--help) 55%, var(--help-deep));
     color:#fff8f2; border:1px solid rgba(255,255,255,.5); border-radius:999px;
     padding:12px 24px; font-size:1.02rem; font-weight:700; letter-spacing:.01em;
     cursor:pointer; min-height:48px; font-family:var(--sans);
-    box-shadow:0 8px 22px rgba(147,51,31,.35), 0 2px 6px rgba(34,39,31,.25),
+    box-shadow:0 8px 22px rgba(150,67,31,.35), 0 2px 6px rgba(38,34,28,.25),
       inset 0 1px 0 rgba(255,255,255,.35);
   }
   #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(34,39,31,.35)}
@@ -175,12 +200,12 @@
     padding:6px 13px; font-size:.84rem; font-weight:600;
   }
   .hero-card{
-    border-radius:24px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
+    border-radius:20px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
     background:linear-gradient(155deg,#5f8772 0%, #2c5a44 48%, var(--green-deep) 100%);
     color:#f7f3e8; box-shadow:0 14px 34px rgba(23,60,45,.38);
   }
   .hero-label{
-    font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
+    font-size:.8125rem; letter-spacing:.16em; text-transform:uppercase;
     font-weight:700; opacity:.85;
   }
   .hero-line{
@@ -200,13 +225,14 @@
     min-height:48px;
   }
   .hub-card{
-    background:var(--card); border:1px solid var(--card-line); border-radius:22px;
-    padding:20px 22px; margin:0 0 16px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:20px;
+    padding:20px; margin:0 0 16px;
     box-shadow:var(--shadow-card);
+    font-size:16px; line-height:25px;
   }
   .hub-card h2{font-family:var(--serif); font-size:1.28rem; margin:0 0 8px; font-weight:600}
   .hub-label{
-    font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
+    font-size:.8125rem; letter-spacing:.16em; text-transform:uppercase;
     color:var(--green); font-weight:700; margin:0 0 8px; font-family:var(--sans);
   }
   .hub-card .claim-text{font-size:1.08rem; line-height:1.45}
@@ -227,7 +253,7 @@
   }
   .kind-tag{
     display:inline-block; background:var(--amber-bg); border:1px solid var(--amber-line);
-    color:var(--amber-ink); border-radius:999px; padding:1px 9px; font-size:.76rem;
+    color:var(--amber-ink); border-radius:999px; padding:1px 9px; font-size:.8125rem;
     margin-left:8px; vertical-align:middle; font-family:var(--sans);
   }
 
@@ -237,14 +263,14 @@
   .piece-name{font-family:var(--serif); font-size:1.2rem; font-weight:600}
   .type-tag{
     display:inline-block; background:var(--green-soft); color:var(--green);
-    border-radius:999px; padding:1px 9px; font-size:.76rem; margin-left:8px; vertical-align:middle;
+    border-radius:999px; padding:1px 9px; font-size:.8125rem; margin-left:8px; vertical-align:middle;
     font-family:var(--sans);
   }
   .seeing-box{
     background:var(--amber-bg); border:1px solid var(--amber-line); border-radius:10px;
     padding:10px 14px; margin:10px 0;
   }
-  .seeing-box .lab{font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; color:var(--amber-ink); font-weight:700; font-family:var(--sans)}
+  .seeing-box .lab{font-size:.8125rem; text-transform:uppercase; letter-spacing:.12em; color:var(--amber-ink); font-weight:700; font-family:var(--sans)}
   .mini-chips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0}
   .mini-chips span{
     background:var(--field); border:1px solid var(--card-line); border-radius:999px;
@@ -252,7 +278,7 @@
   }
 
   /* ---- journal prompts ---- */
-  .prompt-card{cursor:pointer; text-align:left; width:100%; font-family:inherit; font-size:1rem}
+  .prompt-card{cursor:pointer; text-align:left; width:100%; font-family:var(--serif); font-size:1rem}
   .prompt-card:active{border-color:var(--green)}
 
   /* ---- help ladder ---- */
@@ -266,7 +292,7 @@
   }
   .call-link{
     display:inline-block; margin:4px 8px 4px 0; padding:10px 16px; border-radius:999px;
-    background:var(--green); color:#fff; text-decoration:none; font-weight:600; min-height:44px;
+    background:var(--accent); color:var(--on-accent); text-decoration:none; font-weight:600; min-height:44px;
     line-height:1.55;
   }
   .call-link.far{background:var(--help)}
@@ -285,38 +311,54 @@
   .quiet-screen{padding-top:12vh}
   .summary-list{margin:6px 0; padding-left:20px}
   .summary-list li{margin:3px 0}
-  a.plain{color:var(--green)}
+  a.plain{color:var(--accent)}
   .toast{
     background:var(--green-soft); border:1px solid var(--green); color:var(--ink);
     border-radius:10px; padding:10px 14px; margin:0 0 14px; font-size:.95rem;
   }
 
   /* ---- the thread (Home is a conversation) ---- */
-  .thread{display:flex; flex-direction:column; gap:10px; padding-top:4px}
+  .thread{display:flex; flex-direction:column; gap:16px; padding-top:4px}
   .msg{display:flex}
   .msg.me{justify-content:flex-end}
+  /* incoming: warm sand in the light room, surface-1 in the evening
+     room; one radius (20px) for every bubble — the message markup
+     carries no grouped-run class, so the spec's 6px grouped corner
+     is not applied rather than faked */
   .msg .bubble{
-    background:var(--card); border:1px solid var(--card-line); border-radius:16px;
-    padding:13px 17px; max-width:88%; white-space:pre-wrap; line-height:1.55;
+    background:var(--bubble-in); border:1px solid var(--card-line); border-radius:20px;
+    padding:10px 14px; max-width:78%; white-space:pre-wrap;
+    font-size:17px; line-height:26px;
     box-shadow:var(--shadow-bubble);
   }
-  /* the companion's voice is a book's voice; the controls inside
-     a bubble stay sans, and so do the small attributions */
-  .msg.them .bubble{font-family:var(--serif); font-size:1.05rem}
+  /* v1.20 (research §7.7): fluency is the law — companion body text
+     is sans like everything else; the serif survives only as
+     identity garnish (headings, journal prompts, the room lines,
+     closing lines). Controls and attributions inside a bubble were
+     always sans and stay sans. */
   .msg .bubble .hub-label, .msg .bubble .chip, .msg .bubble .btn,
   .msg .bubble textarea, .msg .bubble input, .msg .bubble select,
   .msg .bubble .small, .msg .bubble .jtag, .msg .bubble .kind-tag,
   .msg .bubble .type-tag{font-family:var(--sans)}
+  /* Outgoing keeps the founder's deep room-green with white text —
+     a DELIBERATE deviation from the research spec's pale sage
+     outgoing tint (§8): white on this green measures ~9.6:1, and
+     position + colour together encode "mine" (the redundant cue
+     §7B.7 asks for). Brand identity outranks the generic spec. */
   .msg.me .bubble{
-    background:linear-gradient(165deg, var(--green), var(--green-deep));
-    border-color:transparent; color:#f7f3e8;
-    border-radius:18px; box-shadow:var(--shadow-me);
+    background:var(--me-grad);
+    border-color:transparent; color:var(--me-ink);
+    border-radius:20px; box-shadow:var(--shadow-me);
   }
   /* the room and the playlist sit on sage — a different surface,
-     so a glance tells them apart from ordinary talk */
+     so a glance tells them apart from ordinary talk; the room
+     still speaks in the serif (it is one of the garnish keepers) */
   .msg .bubble.room{
     background:var(--room-bg); border-color:var(--room-line);
+    font-family:var(--serif);
   }
+  /* a journal prompt, quoted in the talk, keeps the serif too */
+  .jprompt{font-family:var(--serif); font-size:1.08rem}
   .msg .bubble .chiprow{margin-top:8px}
   .msg .bubble p{margin:0}
   .thread-spacer{height:118px}
@@ -332,9 +374,9 @@
   }
   .composer-row{
     display:flex; gap:6px; align-items:flex-end;
-    background:var(--card); border:1px solid var(--card-line); border-radius:28px;
+    background:var(--surface2); border:1px solid var(--card-line); border-radius:28px;
     padding:6px; box-shadow:var(--shadow-bar);
-    transition:border-color .15s ease, box-shadow .15s ease;
+    transition:border-color var(--dur-press) var(--ease-std), box-shadow var(--dur-press) var(--ease-std);
   }
   .composer-row:focus-within{
     border-color:var(--sage);
@@ -342,8 +384,8 @@
   }
   .composer textarea{
     flex:1; border:none; background:transparent; border-radius:22px;
-    padding:11px 12px; font-size:1rem; font-family:inherit; color:var(--ink);
-    min-height:48px; max-height:20vh; resize:none; line-height:1.45;
+    padding:11px 12px; font-size:17px; font-family:inherit; color:var(--ink);
+    min-height:48px; max-height:120px; resize:none; line-height:1.4;
   }
   .composer textarea:focus{outline:none}
   .composer textarea::placeholder{color:var(--muted); opacity:.75}
@@ -359,21 +401,28 @@
   /* ---- the dynamic journal ---- */
   .jitem{border-top:1px solid var(--card-line); padding:12px 0}
   .jitem:first-of-type{border-top:none}
-  .jtag{font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 4px; font-family:var(--sans)}
-  .jwords{white-space:pre-wrap; font-family:var(--serif); font-size:1.06rem; line-height:1.58; margin:4px 0}
+  .jtag{font-size:.8125rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 4px; font-family:var(--sans)}
+  .jwords{white-space:pre-wrap; font-size:1.06rem; line-height:1.53; margin:4px 0}
   .jblock{margin-top:14px}
   .jhidden{opacity:.55}
   .msg .bubble.wide{max-width:94%}
   .cardblock{border-top:1px solid var(--card-line); padding-top:10px; margin-top:10px}
   .cardblock:first-child{border-top:none; padding-top:0; margin-top:0}
 
-  /* ---- motion: a gentle settle as messages arrive ---- */
-  @keyframes msg-in{from{opacity:0; transform:translateY(5px)} to{opacity:1; transform:none}}
-  .msg{animation:msg-in .18s ease-out}
-  .card, .hero-card, .hub-card{animation:msg-in .18s ease-out}
+  /* ---- motion: tokenised and calm — no bounce, no shimmer, no
+     loops anywhere in the product. A new turn settles in 180ms on
+     the emphasized decelerate; cards take 280ms (inside the spec's
+     240–300 band); exits run at 75% of their enter (--dur-exit —
+     defined for the token system; the app has no exit animations).
+     Nothing exceeds the 400ms ceiling. ---- */
+  @keyframes msg-in{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+  @keyframes msg-fade{from{opacity:0} to{opacity:1}}
+  .msg{animation:msg-in var(--dur-msg) var(--ease-out)}
+  .card, .hero-card, .hub-card{animation:msg-in var(--dur-card) var(--ease-out)}
   @media (prefers-reduced-motion: reduce){
-    .msg, .card, .hero-card, .hub-card{animation:none}
-    *{transition:none !important}
+    /* crossfade only, ≤100ms, no travel */
+    .msg, .card, .hero-card, .hub-card{animation:msg-fade .1s ease-out}
+    *{transition-duration:.1s !important}
   }
 </style>
 </head>
@@ -2912,7 +2961,7 @@ function threadMsgHTML(m){
   if(m.type === "writestart"){
     if(m.done) return '<div class="msg them"><div class="bubble"><p class="muted small">Writing closed — it’s in your journal.</p></div></div>';
     return '<div class="msg them"><div class="bubble">'
-      + (m.prompt ? '<p class="small muted" style="margin:4px 0">The prompt:</p><p style="margin:4px 0">&ldquo;'+esc(m.prompt)+'&rdquo;</p>' : '')
+      + (m.prompt ? '<p class="small muted" style="margin:4px 0">The prompt:</p><p class="jprompt" style="margin:4px 0">&ldquo;'+esc(m.prompt)+'&rdquo;</p>' : '')
       + '<p style="margin:4px 0">Write here — each message you send becomes part of your journal, exactly as written.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':writedone">Done writing</button></div></div></div>';
   }
