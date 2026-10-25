@@ -103,7 +103,39 @@
        CRIMSON #DC143C (the named colour, exact, both schemes;
        white bold label 4.99:1) and the family shifts with it
        (deep #A80E30, hi #EF4E6F, pale washes). The v1.23 poppy
-       is superseded; danger stays #B3261E, a duller red. */
+       is superseded; danger stays #B3261E, a duller red.
+     v1.27 — HELP IS THREE BARS + THE BLUE BRIGHTENS (2026-10-25):
+     - "Inside help i like the hotline bars. So instead of
+       other words just have bar options for My Playlist, My
+       Encouragement, My People." The wordy ladder rungs are
+       GONE: Help opens onto three full-width bars in his order
+       and nothing else but one quiet "Arrange these" line to
+       the calm-time editor. The bars group the same ladder
+       store: song → My Playlist (the moment song leads, its
+       Play it door first, the rest listed); calm-day note +
+       room + receipts → My Encouragement; his people + his
+       professional (988 / Crisis Text Line included) → My
+       People. An empty playlist renders no Playlist bar.
+     - "Center the help button and Bigger so the separation
+       is evident." The pill moves to TOP-CENTER and grows
+       (18px/700, min-height 56px, a deeper crimson shadow);
+       the veil band and the wrap's top clearance grow with
+       it, so content still dissolves before reaching it, at
+       any scroll position, day and indigo night.
+     - "The last message and bottom bar is not small enough"
+       (on v1.26's ~14px): the under-thread stance tightens
+       again — spacer 56px → 24px, wrap bottom padding
+       30px → 20px — one tight rhythm step (~8px).
+     - "I want that blue to be a brighter happier color."
+       The whole blue family lifts to a brighter sky/azure:
+       sign fills #38BDF8 (ink on them 8.60:1), sign-deep
+       #0272AD (the #0284C7 family adjusted the minimum that
+       holds every floor: 5.23:1 on white, 4.56:1 on the new
+       wash), the composer glow takes the same #38BDF8
+       (cornflower #6495ED superseded), washes shift pale
+       with the family, and at night sign-deep lightens to
+       #7DD3FC (10.99:1 on the indigo). Crimson, plum, the
+       grays and the indigo are untouched. */
   :root{
     color-scheme:light;
     --paper:#ffffff; --paper-glow:#f2f9fd;
@@ -111,18 +143,25 @@
     /* text on a baby-blue sign fill: dark in BOTH schemes (the
        fill never changes, so its text must not flip with --ink) */
     --on-sign:#141414;
+    /* the composer glyphs (attach sign + microphone): PURE
+       BLACK by day (v1.27 — the founder: "black as black as
+       possible"); at night they take off-white, because black
+       cannot read on the indigo */
+    --glyph:#000;
     /* the hero card's own ground: near-black by day */
     --hero:#141414;
     --field:#ffffff; --surface2:#ffffff;
     /* incoming bubbles: the gray he likes, kept */
     --bubble-in:#f0f0f0;
     --ink:#141414; --ink-soft:#595959; --muted:#6a6a6a;
-    /* SIGN HIGHLIGHTS = baby blue (founder's stated preference).
-       --sign is a FILL (badges, selected chips, top lines) and
-       always carries ink text (10.74:1); --sign-deep is the same
-       family as readable TEXT on white (5.49:1) and carries white
-       on filled buttons (5.49:1) */
-    --sign:#89cff0; --sign-deep:#0b6fa4; --sign-soft:#e3f3fb;
+    /* SIGN HIGHLIGHTS = the blue family (founder's stated
+       preference; v1.27: "a brighter happier color" — the
+       family lifts to sky/azure). --sign is a FILL (badges,
+       selected chips, top lines) and always carries ink text
+       (8.60:1); --sign-deep is the same family as readable
+       TEXT on white (5.23:1) and carries white on filled
+       buttons (5.23:1) */
+    --sign:#38bdf8; --sign-deep:#0272ad; --sign-soft:#e0f2fe;
     /* outgoing: PLUM VIOLET (v1.24 — founder: "my message
        background to change from green to plum violet"). A warm
        reddish purple, not blue-violet, not lavender: white text
@@ -132,17 +171,22 @@
     --me:#55204a;
     --me-grad:linear-gradient(160deg, #7d3268 0%, #55204a 100%);
     --me-ink:#ffffff;
-    /* CORNFLOWER BLUE (v1.24, final home): the named colour
-       #6495ED. There is no send button (founder: "yours
-       doesn't have a send button — remove it, and incorporate
-       the color somewhere else"), so cornflower lives in the
-       composer: its focus light (border tint + soft glow) and
-       the Record button's pressed tint. --send, both schemes */
-    --send:#6495ed;
-    /* primary actions: the readable deep blue */
-    --accent:#0b6fa4; --accent-soft:#e3f3fb; --on-accent:#ffffff;
-    /* text links: the same readable deep blue */
-    --link:#0b6fa4;
+    /* THE COMPOSER GLOW (v1.24's home; v1.27's colour):
+       there is no send button (founder: "yours doesn't have
+       a send button — remove it, and incorporate the color
+       somewhere else"), so the blue lives in the composer:
+       its focus light (border tint + soft glow) and the
+       Record button's pressed tint. Cornflower #6495ED is
+       SUPERSEDED by the founder's brighter-blue call —
+       --send now takes the same bright sky as the signs,
+       #38BDF8, in both schemes */
+    --send:#38bdf8;
+    /* primary actions: the family's readable azure — the
+       same value as --sign-deep, as before (white on it
+       5.23:1) */
+    --accent:#0272ad; --accent-soft:#e0f2fe; --on-accent:#ffffff;
+    /* text links: the same readable azure */
+    --link:#0272ad;
     --sage:#a8a8a8; --sage-soft:#f0f0f0; --sage-line:#dbdbdb;
     /* the room: neutral light gray — told apart by the baby-blue
        sign marks and its labels, not a tint wash */
@@ -153,8 +197,10 @@
        v1.23 poppy #CF3316 family is superseded */
     --help:#dc143c; --help-deep:#a80e30; --help-hi:#ef4e6f; --help-soft:#fdecef;
     --danger:#b3261e;
-    /* legacy --amber names: now a pale baby-blue wash + deep-blue ink */
-    --amber-bg:#eaf6fd; --amber-line:#bfe6f7; --amber-ink:#0b6fa4;
+    /* legacy --amber names: now a pale azure wash + azure ink
+       (v1.27: shifted pale with the brighter family; the ink
+       holds 4.76:1 on the wash) */
+    --amber-bg:#eaf6fe; --amber-line:#a2dffc; --amber-ink:#0272ad;
     /* legacy alias (older rules lean on this name) */
     --line:var(--card-line);
     --radius:20px;
@@ -182,13 +228,15 @@
       --field:#20295c; --surface2:#20295c;
       --bubble-in:#252e5e;
       --on-sign:#141414;
+      --glyph:#f5f5f5;
       --hero:#060a24;
       --ink:#f5f5f5; --ink-soft:#aab3d8; --muted:#98a1c6;
-      /* signs in the dark: baby blue stays #89CFF0 and GLOWS on
-         indigo (10.68:1 on the paper); sign fills carry --on-sign
-         text; sign TEXT on indigo takes the lightened deep blue
-         #7CC7EF (9.83:1 on the paper, 8.67:1 on card) */
-      --sign:#89cff0; --sign-deep:#7cc7ef; --sign-soft:#1a2350;
+      /* signs in the dark (v1.27, the brighter family): the
+         fill stays the bright sky #38BDF8 and GLOWS on indigo
+         (8.55:1 on the paper); sign fills carry --on-sign
+         text; sign TEXT on indigo lightens further to
+         #7DD3FC (10.99:1 on the paper, 9.68:1 on card) */
+      --sign:#38bdf8; --sign-deep:#7dd3fc; --sign-soft:#0e2a47;
       /* outgoing at night: a LUMINOUS plum against the indigo
          (v1.24 supersedes the deep green) — white text 5.73:1
          on the light stop, 8.58:1 on the deep stop */
@@ -197,9 +245,9 @@
       --me-ink:#ffffff;
       /* cornflower keeps the same home at night — the
          composer's focus light, Record's pressed tint */
-      --send:#6495ed;
-      --accent:#0b6fa4; --accent-soft:#1a2350; --on-accent:#ffffff;
-      --link:#7cc7ef;
+      --send:#38bdf8;
+      --accent:#0b6fa4; --accent-soft:#0e2a47; --on-accent:#ffffff;
+      --link:#7dd3fc;
       --sage:#6b74a3; --sage-soft:#252e5e; --sage-line:#323c74;
       --room-bg:#171e42; --room-line:#303a75;
       /* Help stays CRIMSON at night — the tower's one warm
@@ -207,7 +255,7 @@
          4.99:1 — the poppy family superseded) */
       --help:#dc143c; --help-deep:#a80e30; --help-hi:#ef4e6f; --help-soft:#360a1b;
       --danger:#ea8a7f;
-      --amber-bg:#1a2350; --amber-line:#2c3a7d; --amber-ink:#7cc7ef;
+      --amber-bg:#0e2a47; --amber-line:#24507a; --amber-ink:#7dd3fc;
       --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.35);
       --shadow-bubble:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.3);
       --shadow-me:0 2px 4px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.35);
@@ -231,17 +279,23 @@
      sit on top of readable text or a card, at any scroll position.
      The wrap's top padding gives the same clearance at rest.
      v1.23: the veil takes --paper-glow — the local sky tint at
-     the top of the room by day, the indigo by night. */
+     the top of the room by day, the indigo by night.
+     v1.27: the pill is centered and BIGGER (bottom edge at
+     12 + 56 = 68px) — the veil's solid band grows to 78px and
+     is gone by 100px, and the wrap's top padding grows to
+     88px (the pill's bottom edge + 20px of clear air). The
+     wrap's bottom padding trims 30px → 20px in the same pass
+     (the tighter under-thread stance, see .thread-spacer). */
   body::before{
     content:""; position:fixed; top:0; left:0; right:0; z-index:70;
-    height:calc(78px + env(safe-area-inset-top));
-    background:linear-gradient(180deg, var(--paper-glow) 0, var(--paper-glow) 60px,
-      color-mix(in srgb, var(--paper-glow) 0%, transparent) 78px);
+    height:calc(100px + env(safe-area-inset-top));
+    background:linear-gradient(180deg, var(--paper-glow) 0, var(--paper-glow) 78px,
+      color-mix(in srgb, var(--paper-glow) 0%, transparent) 100px);
     pointer-events:none;
   }
   .wrap{
     max-width:680px; margin:0 auto;
-    padding:calc(72px + env(safe-area-inset-top)) 16px 30px;
+    padding:calc(88px + env(safe-area-inset-top)) 16px 20px;
   }
   h1.appname{
     font-family:var(--sans); font-weight:600;
@@ -312,20 +366,23 @@
   /* ---- persistent help button: the one saturated element in
      the room — CRIMSON #DC143C (v1.24, founder-named; the day
      photo's red field, the v1.23 poppy superseded), on its
-     veil shelf — position unchanged ---- */
+     veil shelf. v1.27 (the founder: "Center the help button
+     and Bigger so the separation is evident"): TOP-CENTER
+     and bigger — 18px/700, min-height 56px, a deeper crimson
+     shadow so it floats distinctly above the thread with
+     clear air around it. One size at every width: the small
+     -screen shrink is gone (it fought the call). The press
+     keeps the centering transform as it dips. ---- */
   #helpBtn{
-    position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:80;
+    position:fixed; top:calc(12px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); z-index:80;
     background:var(--help);
     color:#ffffff; border:1px solid rgba(255,255,255,.5); border-radius:999px;
-    padding:12px 24px; font-size:1.02rem; font-weight:700; letter-spacing:.01em;
-    cursor:pointer; min-height:48px; font-family:var(--sans);
-    box-shadow:0 8px 22px rgba(220,20,60,.35), 0 2px 6px rgba(20,20,20,.25),
+    padding:14px 34px; font-size:1.125rem; font-weight:700; letter-spacing:.01em;
+    cursor:pointer; min-height:56px; font-family:var(--sans);
+    box-shadow:0 14px 34px rgba(220,20,60,.45), 0 4px 10px rgba(20,20,20,.28),
       inset 0 1px 0 rgba(255,255,255,.35);
   }
-  #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(20,20,20,.35)}
-  @media (max-width:420px){
-    #helpBtn{padding:10px 17px; font-size:.95rem; min-height:44px}
-  }
+  #helpBtn:active{transform:translate(-50%, 2px); box-shadow:0 4px 12px rgba(220,20,60,.4)}
 
   .chip.big{font-size:1.05rem; padding:14px 18px}
 
@@ -447,6 +504,37 @@
     line-height:1.55;
   }
   .call-link.far{background:var(--help)}
+  /* ---- help: three bars (v1.27) ----
+     "instead of other words just have bar options" — the
+     bars ARE the words: full-width, calm card surfaces with
+     the baby-blue sign line across the top (the room cards'
+     mark) and the label in the family's readable azure.
+     Crimson stays on the Help button itself and on the true
+     -emergency call links (.far) inside My People; the bars
+     and their panels are calm. One bar opens at a time; its
+     panel sits directly beneath it. */
+  .helpbar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    width:100%; min-height:56px; margin:12px 0 0; padding:10px 18px;
+    background-color:var(--card); color:var(--ink);
+    background-image:linear-gradient(var(--sign), var(--sign));
+    background-size:100% 3px; background-position:top left; background-repeat:no-repeat;
+    border:1px solid var(--card-line); border-radius:16px;
+    font-family:inherit; font-size:1.06rem; font-weight:600; text-align:left; cursor:pointer;
+    box-shadow:var(--shadow-bubble);
+    transition:border-color var(--dur-press) var(--ease-std), background-color var(--dur-press) var(--ease-std);
+  }
+  .helpbar:active{border-color:var(--sign-deep)}
+  .helpbar.open{background-color:var(--room-bg); border-color:var(--sign-deep)}
+  .helpbar-label{color:var(--sign-deep)}
+  .helpbar-mark{
+    color:var(--sign-deep); font-size:1.35rem; line-height:1; flex:none;
+    transition:transform var(--dur-msg) var(--ease-std);
+  }
+  .helpbar.open .helpbar-mark{transform:rotate(90deg)}
+  .helpbar-panel{padding:12px 6px 2px}
+  /* the one quiet line under the bars */
+  .arrange-row{text-align:center; margin:18px 0 2px}
   /* the room speaks on neutral gray, marked with a baby-blue
      sign edge: visibly not ordinary talk, without a tint wash */
   .room-line{
@@ -475,17 +563,20 @@
      the last message and bottom bar should be close like
      yours is") — the column is a flex column justified to
      the END, with a min-height that fills the viewport
-     between the wrap's top padding (72px) and its bottom
-     padding (30px): a short thread therefore sits DOWN
+     between the wrap's top padding and its bottom
+     padding: a short thread therefore sits DOWN
      against the composer, the empty space collecting at the
      top under the sky tint, and a long thread simply grows
      past the min-height and scrolls as before. The spacer
-     below is sized with it (see .thread-spacer). */
+     below is sized with it (see .thread-spacer).
+     v1.27: the wrap's paddings moved (top 88px for the
+     bigger centered Help, bottom 20px for the tighter
+     stance), so the constant follows: 88 + 20 = 108px. */
   .thread{
     display:flex; flex-direction:column; gap:16px; padding-top:4px;
     justify-content:flex-end;
-    min-height:calc(100vh - 102px - env(safe-area-inset-top));
-    min-height:calc(100dvh - 102px - env(safe-area-inset-top));
+    min-height:calc(100vh - 108px - env(safe-area-inset-top));
+    min-height:calc(100dvh - 108px - env(safe-area-inset-top));
   }
   .msg{display:flex}
   .msg.me{justify-content:flex-end}
@@ -535,13 +626,16 @@
   .jprompt{font-family:var(--sans); font-size:1.08rem; font-weight:500}
   .msg .bubble .chiprow{margin-top:8px}
   .msg .bubble p{margin:0}
-  /* the clearance under the last message (v1.26): the
-     composer's row stands ~72px up from the bottom edge;
-     spacer (56) + the wrap's bottom padding (30) puts the
-     last message's underside ~14px above the bar — one
-     rhythm step, the way this chat app hugs its composer —
-     at rest and scrolled to the bottom alike */
-  .thread-spacer{height:56px}
+  /* the clearance under the last message: v1.26 set spacer
+     56px + wrap bottom 30px for ~14px above the bar by
+     structure — the founder's phone read it bigger: "The
+     last message and bottom bar is not small enough."
+     v1.27 tightens the stance by 42px — spacer 56 → 24 and
+     the wrap's bottom padding 30 → 20 — landing the resting
+     gap at one tight rhythm step (~8px), at rest and
+     scrolled to the bottom alike. The composer's own
+     safe-area inset is untouched. */
+  .thread-spacer{height:24px}
 
   /* ---- the composer: one rounded bar on an elevated surface ---- */
   .composer{
@@ -552,19 +646,23 @@
     background:linear-gradient(180deg,
       color-mix(in srgb, var(--paper) 0%, transparent), var(--paper) 42%);
   }
+  /* v1.27: the row centers its contents — the founder: "I
+     don't want pour hanging like that. Align it well." The
+     textarea's one line and the two glyphs share one vertical
+     center (see the textarea's tuned line below) */
   .composer-row{
-    display:flex; gap:6px; align-items:flex-end;
+    display:flex; gap:6px; align-items:center;
     background:var(--surface2); border:1px solid var(--card-line); border-radius:28px;
     padding:6px; box-shadow:var(--shadow-bar);
     transition:border-color var(--dur-press) var(--ease-std), box-shadow var(--dur-press) var(--ease-std);
   }
-  /* the focus light (v1.24, final): CORNFLOWER lives here —
-     the send button's former home (there is no send button;
-     Enter sends). The border tints cornflower with a soft
-     cornflower glow outside it; a 1px sign-deep hairline sits
-     INSIDE the glow, because cornflower alone measures
-     2.97:1 on white — the colour is the founder's, the
-     hairline is legibility */
+  /* the focus light (v1.24's home; v1.27's colour): the
+     bright sky lives here — the send button's former home
+     (there is no send button; Enter sends). The border
+     tints sky with a soft sky glow outside it; a 1px
+     azure hairline sits INSIDE the glow, because the sky
+     alone measures 2.14:1 on white — the colour is the
+     founder's, the hairline is legibility */
   .composer-row:focus-within{
     border-color:var(--send);
     box-shadow:var(--shadow-bar), inset 0 0 0 1px var(--accent),
@@ -573,8 +671,12 @@
   }
   .composer textarea{
     flex:1; border:none; background:transparent; border-radius:22px;
-    padding:11px 12px; font-size:17px; font-family:inherit; color:var(--ink);
-    min-height:48px; max-height:120px; resize:none; line-height:1.4;
+    /* one line, centered: a 24px line inside 12px of padding
+       is exactly the 48px row — the words (and "Pour") sit on
+       the same center as the glyphs; more lines still grow
+       the field to the 120px cap */
+    padding:12px; font-size:17px; font-family:inherit; color:var(--ink);
+    min-height:48px; max-height:120px; resize:none; line-height:24px;
   }
   .composer textarea:focus{outline:none}
   .composer textarea::placeholder{color:var(--muted); opacity:.75}
@@ -591,11 +693,12 @@
      record." The word goes away: an icon-only microphone in
      a 48px ghost circle, like this chat app's mic. Its name
      lives in the aria-label alone; pressed, it still takes
-     the cornflower tint — the colour's second home */
+     the sky tint — the colour's second home (cornflower in
+     v1.24–26, the brighter sky from v1.27) */
   .composer .record-btn{
     width:48px; min-width:48px; padding:0; flex:none;
     display:inline-flex; align-items:center; justify-content:center;
-    background:transparent; border-color:transparent; color:var(--ink-soft);
+    background:transparent; border-color:transparent; color:var(--glyph);
     box-shadow:none;
   }
   .composer .record-btn svg{display:block}
@@ -612,7 +715,7 @@
   .composer .attach-btn{
     width:48px; min-width:48px; padding:0; flex:none;
     display:inline-flex; align-items:center; justify-content:center;
-    background:transparent; border-color:transparent; color:var(--ink-soft);
+    background:transparent; border-color:transparent; color:var(--glyph);
     box-shadow:none;
   }
   .composer .attach-btn:active{
@@ -5070,7 +5173,7 @@ function bindThread(){
         pushMsg({type:"companion", text:"That’s the day, corrected by you."});
         render();
       }
-      else if(act === "helpdoor"){ helpReturn = "home"; view = "help"; window.scrollTo(0,0); render(); }
+      else if(act === "helpdoor"){ helpReturn = "home"; helpBar = ""; view = "help"; window.scrollTo(0,0); render(); }
       else if(act === "justlog" && m){
         ledger.entries.forEach(function(x){
           if(x.id === m.claimId) x.doorsDismissed = true;
@@ -6882,8 +6985,14 @@ var ladderReturn = "help";
    people's-own-words lines. They appear only when HE presses
    Help — nothing here is ever auto-triggered, and the protest
    witness (v1.14) never grows these doors: this is only what
-   happens inside the help card itself. */
-var helpSongShown = false;
+   happens inside the help card itself.
+   v1.27: the SURFACE changes, the stock doesn't. The wordy
+   rungs become three bars — My Playlist / My Encouragement /
+   My People — grouping the same ladder store, with one
+   quiet "Arrange these" line under them for the calm-time
+   editor. helpBar names the open bar ("" = none); entering
+   Help fresh (the button, a help door) starts at the bars. */
+var helpBar = "";
 var HELP_SONG_WORDS = ["announce", "hard", "commentary", "morning"];
 function helpSongForMoment(){
   if(!playlist.songs.length) return null;
@@ -6907,87 +7016,112 @@ function nextRoomLine(){
   ladder.roomIdx = (cur + 1) % KNOWLEDGE.length; /* rotates; never the same line twice in a row */
   saveLadder();
 }
+function helpBarHTML(key, label){
+  var open = (helpBar === key);
+  return '<button type="button" class="helpbar'+(open ? " open" : "")+'" data-helpbar="'+key+'" aria-expanded="'+(open ? "true" : "false")+'">'
+    + '<span class="helpbar-label">'+label+'</span>'
+    + '<span class="helpbar-mark" aria-hidden="true">\u203a</span></button>';
+}
 function viewHelp(){
   var t = allReceiptTallies();
   var h = '<div class="card" style="margin-top:10px">';
   h += '<button class="btn quiet small" id="helpBack" type="button">\u2190 Back</button>';
-  h += '<h2 style="margin-top:8px">Help, your way</h2>';
-  h += '<p class="lede muted">Sometimes you just need help. This connects you outward \u2014 it never alerts or notifies anyone behind your back, and pressing it writes nothing down. No log of help-seeking is kept, anywhere.</p>';
 
-  /* rung 1 — reassurance, from the person's own record */
-  h += '<div class="rung"><h3>Reassurance \u2014 from your own record</h3>';
-  if(ladder.noteForHardDay){
-    h += '<p class="muted small">A note you wrote on a calm day, for a hard one:</p>';
-    h += '<div class="hardday-note">'+esc(ladder.noteForHardDay)+'</div>';
-  }
-  /* their own song: the playlist they are building is a help
-     answer — one tap to it playing */
+  /* bar 1 — My Playlist: his song, from the playlist he is
+     co-building. An empty playlist renders no bar (v1.15 law:
+     the song rung never renders empty). Open, the moment-
+     matched song leads with its Play it door; the rest of
+     the playlist is listed under it. */
   var hs = helpSongForMoment();
   if(hs){
-    h += '<div class="btnrow"><button class="btn secondary small" id="helpSong" type="button">Hear a song</button></div>';
-    if(helpSongShown){
-      h += '<p style="margin:4px 0"><strong>“'+esc(hs.title)+'”</strong>'+(hs.artist ? ' — '+esc(hs.artist) : '')+'</p>';
+    h += helpBarHTML("playlist", "My Playlist");
+    if(helpBar === "playlist"){
+      h += '<div class="helpbar-panel">';
+      h += '<p style="margin:4px 0"><strong>\u201c'+esc(hs.title)+'\u201d</strong>'+(hs.artist ? ' \u2014 '+esc(hs.artist) : '')+'</p>';
       if(hs.note) h += '<p class="muted small">'+esc(hs.note)+(/\.$/.test(hs.note) ? '' : '.')+'</p>';
       h += '<p><a class="call-link" href="'+esc(helpPlayURL(hs))+'" target="_blank" rel="noopener">Play it</a></p>';
+      playlist.songs.forEach(function(s){
+        if(s.id === hs.id) return;
+        h += '<p class="small" style="margin:8px 0 2px"><strong>'+esc(s.title)+'</strong>'+(s.artist ? ' \u2014 '+esc(s.artist) : '')+'</p>';
+        if(s.note) h += '<p class="muted small" style="margin:2px 0">'+esc(s.note)+'</p>';
+      });
+      h += '</div>';
     }
   }
-  /* the room: a recognition that you are not alone, in people's
-     own words — one line per press, rotating, never repeated
-     back-to-back */
-  h += '<div class="btnrow"><button class="btn secondary small" id="helpRoom" type="button">Hear from the room</button></div>';
-  var rl = roomLineText();
-  if(rl){
-    h += '<p class="muted small">From the room — people who hear voices, in their own words:</p>';
-    h += '<div class="room-line">'+esc(rl)+'</div>';
-  }
-  if(t.total){
-    h += '<p>The claims have a track record, and you can check it: '+t.total+(t.total===1?" claim":" claims")+' logged, '
-      + t.checked+' checked' + (t.checked ? ' \u2014 '+t.held+' held up, '+t.didnt+' didn\u2019t' : '') + '.</p>';
-    h += '<div class="btnrow"><button class="btn secondary small" id="helpReceipts" type="button">Check the receipts</button></div>';
-  }
-  if(!ladder.noteForHardDay && !t.total){
-    h += '<p>You are the one who keeps this record. Their claims have a track record, and you can check it.</p>';
-  }
-  if(!ladder.noteForHardDay){
-    h += '<div class="btnrow"><button class="btn quiet small" id="helpNote" type="button">Write a note for a hard day</button></div>';
-  }
-  h += '</div>';
 
-  /* rung 2 — a person */
-  h += '<div class="rung"><h3>A person</h3>';
-  if(ladder.contacts.length){
+  /* bar 2 — My Encouragement: the reassurance stock in one
+     place — his calm-day note, the room, his receipts */
+  h += helpBarHTML("encouragement", "My Encouragement");
+  if(helpBar === "encouragement"){
+    h += '<div class="helpbar-panel">';
+    if(ladder.noteForHardDay){
+      h += '<div class="hardday-note">'+esc(ladder.noteForHardDay)+'</div>';
+    }
+    /* the room: a recognition that you are not alone, in
+       people's own words — one line per press, rotating,
+       never repeated back-to-back (the shared roomIdx) */
+    h += '<div class="btnrow"><button class="btn secondary small" id="helpRoom" type="button">Hear from the room</button></div>';
+    var rl = roomLineText();
+    if(rl){
+      h += '<p class="muted small">From the room \u2014 people who hear voices, in their own words:</p>';
+      h += '<div class="room-line">'+esc(rl)+'</div>';
+    }
+    if(t.total){
+      h += '<p>The claims have a track record, and you can check it: '+t.total+(t.total===1?" claim":" claims")+' logged, '
+        + t.checked+' checked' + (t.checked ? ' \u2014 '+t.held+' held up, '+t.didnt+' didn\u2019t' : '') + '.</p>';
+      h += '<div class="btnrow"><button class="btn secondary small" id="helpReceipts" type="button">Check the receipts</button></div>';
+    }
+    if(!ladder.noteForHardDay && !t.total){
+      h += '<p>You are the one who keeps this record. Their claims have a track record, and you can check it.</p>';
+    }
+    h += '</div>';
+  }
+
+  /* bar 3 — My People: his people and his professional,
+     each a tap-to-reach row. The bar always renders; with
+     nobody arranged yet it brings the invitation, never a
+     dead end — and the standard professional routes stand
+     here from first open, no setup, never removable. */
+  h += helpBarHTML("people", "My People");
+  if(helpBar === "people"){
+    h += '<div class="helpbar-panel">';
     ladder.contacts.forEach(function(c){
       h += '<p><strong>'+esc(c.name)+'</strong><br>'
         + '<a class="call-link" href="tel:'+esc(c.phone)+'">Call</a>'
         + '<a class="call-link" href="sms:'+esc(c.phone)+'">Text</a></p>';
     });
-  } else {
-    h += '<p class="muted">Circles and the people features arrive in a later phase \u2014 in v1, nothing shared leaves this phone. You can still put a person you trust on this rung.</p>';
+    if(ladder.clinician && ladder.clinician.phone){
+      h += '<p><strong>'+esc(ladder.clinician.name || "My clinician")+'</strong><br>'
+        + '<a class="call-link" href="tel:'+esc(ladder.clinician.phone)+'">Call '+esc(ladder.clinician.phone)+'</a></p>';
+    }
+    if(!ladder.contacts.length && !(ladder.clinician && ladder.clinician.phone)){
+      h += '<p class="muted">You can still put a person you trust on this rung.</p>';
+    }
+    h += '<p><strong>988 Suicide and Crisis Lifeline</strong> (US)<br>'
+      + '<a class="call-link far" href="tel:988">Call 988</a>'
+      + '<a class="call-link far" href="sms:988">Text 988</a></p>';
+    h += '<p><strong>Crisis Text Line</strong><br>'
+      + '<a class="call-link far" href="sms:741741?&amp;body=HOME">Text HOME to 741741</a></p>';
+    h += '</div>';
   }
-  h += '<div class="btnrow"><button class="btn secondary small" id="helpArrange" type="button">Arrange my ladder</button></div>';
-  h += '</div>';
 
-  /* rung 3 — a professional: live from first open, no setup, never removable */
-  h += '<div class="rung far"><h3>Speak with a professional</h3>';
-  h += '<p><strong>988 Suicide and Crisis Lifeline</strong> (US)<br>'
-    + '<a class="call-link far" href="tel:988">Call 988</a>'
-    + '<a class="call-link far" href="sms:988">Text 988</a></p>';
-  h += '<p><strong>Crisis Text Line</strong><br>'
-    + '<a class="call-link far" href="sms:741741?&amp;body=HOME">Text HOME to 741741</a></p>';
-  if(ladder.clinician && ladder.clinician.phone){
-    h += '<p><strong>'+esc(ladder.clinician.name || "My clinician")+'</strong><br>'
-      + '<a class="call-link far" href="tel:'+esc(ladder.clinician.phone)+'">Call '+esc(ladder.clinician.phone)+'</a></p>';
-  }
-  h += '<p class="muted small">These standard routes stay on your ladder and can\u2019t be removed by accident. Stepping up from any rung is one tap \u2014 no gates, no \u201care you sure.\u201d</p>';
-  h += '</div></div>';
+  /* the one quiet line: the ladder stays owner-arranged,
+     in calm times, in the editor */
+  h += '<p class="arrange-row"><button class="btn quiet small" id="helpArrange" type="button">Arrange these</button></p>';
+  h += '</div>';
   return h;
 }
 function bindHelp(){
   el("helpBack").addEventListener("click", function(){ go(helpReturn || "home"); });
-  var sg = el("helpSong"); if(sg) sg.addEventListener("click", function(){ helpSongShown = true; render(); });
+  document.querySelectorAll("[data-helpbar]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var k = b.getAttribute("data-helpbar");
+      helpBar = (helpBar === k) ? "" : k;
+      render();
+    });
+  });
   var rm = el("helpRoom"); if(rm) rm.addEventListener("click", function(){ nextRoomLine(); render(); });
   var r = el("helpReceipts"); if(r) r.addEventListener("click", function(){ go("home"); postReceiptsCard(); render(); });
-  var n = el("helpNote"); if(n) n.addEventListener("click", function(){ ladderReturn = "help"; go("ladder"); });
   el("helpArrange").addEventListener("click", function(){ ladderReturn = "help"; go("ladder"); });
 }
 
@@ -7049,6 +7183,7 @@ function bindLadder(){
 /* ================= boot ================= */
 el("helpBtn").addEventListener("click", function(){
   if(view !== "help"){ helpReturn = view; }
+  helpBar = ""; /* a fresh press of Help starts at the three bars */
   view = "help";
   render(); window.scrollTo(0,0);
 });
