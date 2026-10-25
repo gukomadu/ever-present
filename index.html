@@ -579,6 +579,28 @@
     background:color-mix(in srgb, var(--send) 20%, transparent);
     border-color:transparent; color:var(--ink);
   }
+  /* the attach sign (v1.25, the founder's words: "add an
+     attached sign. It doesn't have to be a +. You can try
+     something else") — a PHOTO glyph: a small landscape in a
+     rounded frame (mountains + a sun dot), not a plus, not a
+     paperclip. A quiet ghost square at the composer's start;
+     pressed, it takes the cornflower tint, like Record's */
+  .composer .attach-btn{
+    width:48px; min-width:48px; padding:0; flex:none;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:transparent; border-color:transparent; color:var(--ink-soft);
+    box-shadow:none;
+  }
+  .composer .attach-btn:active{
+    background:color-mix(in srgb, var(--send) 20%, transparent);
+    border-color:transparent; color:var(--ink);
+  }
+  .composer .attach-btn svg{display:block}
+  /* his photo in the thread: the image IS the message — the
+     bubble keeps its 20px radius and 78% cap, a thin frame of
+     plum around the picture */
+  .msg .bubble.photo{padding:6px}
+  .msg .bubble.photo img{display:block; max-width:100%; border-radius:14px}
   .jmedia{width:100%; margin:6px 0; border-radius:12px}
   video.jmedia{max-height:340px; background:#000}
   .record-dot{color:var(--help); font-weight:700}
@@ -2994,6 +3016,16 @@ function threadMsgHTML(m){
   if(m.type === "person"){
     return '<div class="msg me"><div class="bubble">'+esc(m.text)+'</div></div>';
   }
+  if(m.type === "photo"){
+    /* his photo, in the talk (v1.25): the image itself is the
+       message — no caption machinery, no words around it. The
+       element renders bare and is pointed at its stored blob
+       once the thread binds (hydrateMediaElements, the same
+       path as the day-page players). If the photo was taken
+       off the day's page, the bubble goes with it. */
+    if(!mediaClipById(m.clipId) && !mediaURLCache[m.clipId]) return "";
+    return '<div class="msg me"><div class="bubble photo"><img data-media-src="'+m.clipId+'" alt="A photo you attached"></div></div>';
+  }
   if(m.type === "typing"){
     /* transient: the live voice is answering. Never persisted past a boot. */
     return '<div class="msg them"><div class="bubble"><span class="tdots" aria-label="Your companion is thinking"><span></span><span></span><span></span></span></div></div>';
@@ -3465,6 +3497,95 @@ function hydrateMediaElements(){
   });
 }
 
+/* ---- attaching a photo, in the talk (v1.25) ----
+   The founder's words: "add an attached sign. It doesn't
+   have to be a +. You can try something else." The sign is a
+   photo glyph in the composer; the photo itself joins the
+   talk as his message and files on today's page in the media
+   family, exactly like a self-recording: same IndexedDB
+   store, same told-day filing, same keeper's answer. It is
+   received, never analyzed, never captioned — and it never
+   goes near the claims machinery. */
+var ATTACH_NOT_PHOTO_LINE = "That one's not a photo — I can only keep photos here.";
+var ATTACH_MAX_EDGE = 1600; /* the long edge, px — bigger photos are scaled down before they are kept */
+var ATTACH_GLYPH = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="8.6" cy="9.6" r="1.5"/><path d="M4 17.2 9.8 11.6 13.4 14.6 16.4 12.2 20 15.4"/></svg>';
+var EPPhoto = {
+  /* decode the picked file and scale it to the cap, as JPEG.
+     Resolves {blob, mime}; rejects when the file cannot be
+     decoded as an image at all. The seam exists so the flow
+     around it is testable, the way capture sits behind
+     EPMedia.capture. */
+  prepare: function(file){
+    return new Promise(function(resolve, reject){
+      var url;
+      try{ url = URL.createObjectURL(file); }catch(e){ reject(e); return; }
+      var img = new Image();
+      img.onload = function(){
+        try{
+          var w = img.naturalWidth || img.width || 0;
+          var h = img.naturalHeight || img.height || 0;
+          if(!w || !h) throw new Error("no dimensions");
+          var scale = Math.min(1, ATTACH_MAX_EDGE / Math.max(w, h));
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(w * scale));
+          canvas.height = Math.max(1, Math.round(h * scale));
+          var ctx = canvas.getContext("2d");
+          if(!ctx) throw new Error("canvas unavailable");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          try{ URL.revokeObjectURL(url); }catch(e){}
+          if(typeof canvas.toBlob === "function"){
+            canvas.toBlob(function(blob){
+              if(blob) resolve({blob:blob, mime:"image/jpeg"});
+              else reject(new Error("encode failed"));
+            }, "image/jpeg", 0.85);
+          } else {
+            var bin = atob((canvas.toDataURL("image/jpeg", 0.85).split(",")[1] || ""));
+            var bytes = new Uint8Array(bin.length);
+            for(var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+            resolve({blob:new Blob([bytes], {type:"image/jpeg"}), mime:"image/jpeg"});
+          }
+        }catch(e){ reject(e); }
+      };
+      img.onerror = function(){
+        try{ URL.revokeObjectURL(url); }catch(e){}
+        reject(new Error("decode failed"));
+      };
+      img.src = url;
+    });
+  }
+};
+function handleAttachFile(file){
+  if(!file) return; /* the picker was cancelled — nothing happens, nothing posts */
+  if(!file.type || file.type.indexOf("image/") !== 0){
+    pushMsg({type:"companion", text:ATTACH_NOT_PHOTO_LINE});
+    render();
+    return;
+  }
+  var prep;
+  try{ prep = EPPhoto.prepare(file); }catch(e){ prep = Promise.reject(e); }
+  Promise.resolve(prep).then(function(out){
+    if(!out || !out.blob) throw new Error("no photo came back");
+    fileAttachedPhoto(out.blob, out.mime);
+  }).catch(function(){
+    pushMsg({type:"companion", text:ATTACH_NOT_PHOTO_LINE});
+    render();
+  });
+}
+function fileAttachedPhoto(blob, mime){
+  var photo = {id:uid(), kind:"photo", ts:Date.now(), label:""};
+  media.clips.push(photo);
+  saveMedia();
+  try{ mediaURLCache[photo.id] = URL.createObjectURL(blob); }catch(e){}
+  var rec = {id:photo.id, kind:"photo", mime:mime || (blob && blob.type) || "image/jpeg", ts:photo.ts, label:""};
+  try{
+    var p = EPMedia.put(rec, blob);
+    if(p && typeof p.catch === "function") p.catch(function(){});
+  }catch(e){}
+  pushMsg({type:"photo", clipId:photo.id});
+  pushMsg({type:"companion", text:"Kept. It's on today's page."});
+  render();
+}
+
 function composerHTML(){
   var ph = "Say it here…";
   if(writeMode) ph = "Writing in your journal…";
@@ -3472,6 +3593,8 @@ function composerHTML(){
   else if(textAsk) ph = "Say it here — it lands where you aimed it…";
   else if(detail && detail.textField) ph = "In your own words…";
   return '<div class="composer"><div class="composer-row">'
+    + '<button type="button" class="btn secondary attach-btn" id="threadAttach" aria-label="Attach a photo">'+ATTACH_GLYPH+'</button>'
+    + '<input type="file" id="threadAttachFile" accept="image/*" hidden>'
     + '<textarea id="threadInput" rows="1" placeholder="'+ph+'" aria-label="Talk with your companion" enterkeyhint="send"></textarea>'
     + '<button type="button" class="btn secondary record-btn" id="threadRecord" aria-label="Record yourself">🎙 Record</button></div></div>';
 }
@@ -4447,6 +4570,19 @@ function bindThread(){
     postRecordCard();
     render();
   });
+  /* the attach sign (v1.25): opens the system photo picker;
+     one photo per pick, and a cancelled picker posts nothing */
+  var attBtn = el("threadAttach");
+  if(attBtn) attBtn.addEventListener("click", function(){
+    var fi = el("threadAttachFile");
+    if(fi) fi.click();
+  });
+  var attFile = el("threadAttachFile");
+  if(attFile) attFile.addEventListener("change", function(){
+    var f = (attFile.files && attFile.files.length) ? attFile.files[0] : null;
+    try{ attFile.value = ""; }catch(e){} /* so picking the same photo again still fires */
+    if(f) handleAttachFile(f);
+  });
   var ta = el("threadInput");
   if(ta) ta.addEventListener("keydown", function(ev){
     if(ev.key === "Enter" && !ev.shiftKey){ ev.preventDefault(); sendThreadText(); }
@@ -4805,7 +4941,8 @@ function bindThread(){
         render();
       }
       else if(act === "mediadelask"){
-        pushMsg({type:"confirmact", kind:"media", clipId:parts[2], done:""});
+        var delClip = mediaClipById(parts[2]);
+        pushMsg({type:"confirmact", kind:"media", clipId:parts[2], mediaKind:(delClip ? delClip.kind : ""), done:""});
         render();
       }
       else if(act === "more" && m){ m.expanded = true; saveThread(); render(); }
@@ -5413,6 +5550,14 @@ function journalCardHTML(m){
    so it plays the same after a reload. Taking it off goes through
    the standard confirm, and removes blob + metadata together. */
 function mediaClipHTML(cardMsg, c){
+  if(c.kind === "photo"){
+    /* an attached photo on the day's page (v1.25): the picture
+       under its day, viewable in place — same hydrate path,
+       same take-it-off, no label, no caption */
+    return '<div class="jitem"><p class="small muted" style="margin:4px 0 0">Photo · ' + esc(fmtTime(c.ts)) + '</p>'
+      + '<img class="jmedia" data-media-src="'+c.id+'" alt="A photo you kept">'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+cardMsg.id+':mediadelask:'+c.id+'">Take it off</button></div></div>';
+  }
   var tag = c.kind === "video"
     ? '<video class="jmedia" controls playsinline preload="metadata" data-media-src="'+c.id+'" aria-label="Your video recording"></video>'
     : '<audio class="jmedia" controls preload="metadata" data-media-src="'+c.id+'" aria-label="Your voice recording"></audio>';
@@ -5752,7 +5897,7 @@ function settingsCardHTML(m){
   if(ladder.clinician && (ladder.clinician.name || ladder.clinician.phone))
     h += '<p class="small" style="margin:4px 0">Your clinician on the ladder: '+esc(ladder.clinician.name || "My clinician")+(ladder.clinician.phone ? ' — '+esc(ladder.clinician.phone) : '')+'</p>';
   h += '<p class="small muted" style="margin:4px 0">Your whole record lives on this phone. Export gives you a copy to keep, and import brings a copy back onto this phone; erase removes it all, here, for good. The export includes everything except your live-companion API key — that never leaves this phone.</p>';
-  h += '<p class="small muted" style="margin:4px 0">Recordings stay on this phone and aren\'t in the export yet.</p>';
+  h += '<p class="small muted" style="margin:4px 0">Recordings and photos stay on this phone and aren\'t in the export yet.</p>';
   h += '<div class="chiprow">'
     + '<button type="button" class="chip" data-tchip="'+m.id+':reshape">Reshape companion</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':ladder">Arrange my ladder</button>'
@@ -5928,7 +6073,7 @@ function confirmActHTML(m){
   if(m.done === "done"){
     if(m.kind === "piece") return '<div class="msg them"><div class="bubble"><p class="muted small">Removed from the map.</p></div></div>';
     if(m.kind === "song") return '<div class="msg them"><div class="bubble"><p class="muted small">Off your playlist.</p></div></div>';
-    if(m.kind === "media") return '<div class="msg them"><div class="bubble"><p class="muted small">The recording is gone.</p></div></div>';
+    if(m.kind === "media") return '<div class="msg them"><div class="bubble"><p class="muted small">'+(m.mediaKind === "photo" ? "The photo is gone." : "The recording is gone.")+'</p></div></div>';
     return '<div class="msg them"><div class="bubble"><p class="muted small">Done.</p></div></div>';
   }
   if(m.kind === "erase1"){
@@ -5964,7 +6109,8 @@ function confirmActHTML(m){
   }
   if(m.kind === "media"){
     var mc = mediaClipById(m.clipId);
-    return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">Take this recording off today’s page? The recording itself goes too — it only lives on this phone.</p>'
+    var mNoun = (m.mediaKind === "photo" || (mc && mc.kind === "photo")) ? "photo" : "recording";
+    return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">Take this '+mNoun+' off today’s page? The '+mNoun+' itself goes too — it only lives on this phone.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Take it off</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep it</button></div></div></div>';
   }
@@ -6650,6 +6796,25 @@ render();
 
 <script>
 if ("serviceWorker" in navigator) {
+  /* the update path (v1.25): the worker skips waiting and
+     claims its clients the moment a new build activates
+     (sw.js). When that takeover lands on a page that was
+     ALREADY controlled — an update arriving, not a first
+     install — refresh onto the new build exactly once, so
+     an open app never sits on a stale build. The session
+     flag is set before the reload and cleared on every
+     normal load, so this can fire once per update and can
+     never loop. */
+  var epWasControlled = !!navigator.serviceWorker.controller;
+  try{ sessionStorage.removeItem("ep_sw_reloaded"); }catch(e){}
+  navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if(!epWasControlled) return; /* first install — this page already runs this build */
+    try{
+      if(sessionStorage.getItem("ep_sw_reloaded")) return;
+      sessionStorage.setItem("ep_sw_reloaded", "1");
+    }catch(e){}
+    location.reload();
+  });
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").catch(function () {});
   });
