@@ -2860,7 +2860,7 @@ function detectIntent(text){
   if(w("receipts") || w("claims") || low.indexOf(" track record ") !== -1
      || (pieceHit && (w("record") || w("claims") || w("receipts"))))
     return {kind:"receipts"};
-  if(w("settings") || w("export") || w("erase") || w("reshape") || low.indexOf(" my data ") !== -1)
+  if(w("settings") || w("export") || w("import") || w("erase") || w("reshape") || low.indexOf(" my data ") !== -1)
     return {kind:"settings"};
   if(w("journal")) return {kind:"journal"};
   if((w("today") || low.indexOf(" my day ") !== -1 || low.indexOf(" this week ") !== -1) && req)
@@ -3097,6 +3097,9 @@ function bindThread(){
         pushMsg({type:"companion", text:"Your record is on its way to you — from this phone, and nowhere else."});
         render();
       }
+      else if(act === "import"){
+        pickImportFile();
+      }
       else if(act === "eraseask"){
         pushMsg({type:"confirmact", kind:"erase1", done:""});
         render();
@@ -3114,6 +3117,15 @@ function bindThread(){
           saveAtlas();
           pushMsg({type:"companion", text:(dp ? dp.name : "That piece") + " is out of the map. Its captures stay in your record."});
           render();
+        } else if(m.kind === "import"){
+          if(pendingImport){
+            var pi = pendingImport;
+            pendingImport = null;
+            applyImport(pi); /* replaces the record, then reloads */
+          } else {
+            pushMsg({type:"companion", text:"That import isn’t waiting anymore — pick the file again in Settings and it will ask you fresh."});
+            render();
+          }
         }
       }
       else if(act === "cfno" && m){ m.done = "kept"; saveThread(); render(); }
@@ -4070,11 +4082,12 @@ function settingsCardHTML(m){
   }
   if(ladder.clinician && (ladder.clinician.name || ladder.clinician.phone))
     h += '<p class="small" style="margin:4px 0">Your clinician on the ladder: '+esc(ladder.clinician.name || "My clinician")+(ladder.clinician.phone ? ' — '+esc(ladder.clinician.phone) : '')+'</p>';
-  h += '<p class="small muted" style="margin:4px 0">Your whole record lives on this phone. Export gives you a copy to keep; erase removes it all, here, for good. The export includes everything except your live-companion API key — that never leaves this phone.</p>';
+  h += '<p class="small muted" style="margin:4px 0">Your whole record lives on this phone. Export gives you a copy to keep, and import brings a copy back onto this phone; erase removes it all, here, for good. The export includes everything except your live-companion API key — that never leaves this phone.</p>';
   h += '<div class="chiprow">'
     + '<button type="button" class="chip" data-tchip="'+m.id+':reshape">Reshape companion</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':ladder">Arrange my ladder</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':export">Export my record</button>'
+    + '<button type="button" class="chip" data-tchip="'+m.id+':import">Import a record</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':eraseask">Erase everything</button></div>';
   h += liveSettingsHTML(m);
   return cardBubble("Settings", h);
@@ -4106,12 +4119,23 @@ function liveSettingsHTML(m){
   return h;
 }
 function exportRecord(){
-  var data = {
-    exportedAt: new Date().toISOString(),
-    companion: companion, atlas: atlas, ledger: ledger, journal: journal, ladder: ladder, thread: thread, djournal: djournal, connections: connections,
-    /* the live-companion settings travel with the record — the key itself never does */
-    liveai: {provider: liveai.provider, model: liveai.model, on: liveai.on}
-  };
+  /* The export is the record itself: a flat map of store names to
+     their values, exactly what Import reads back — so a record that
+     leaves this phone can come home to any phone, whole. */
+  var data = {};
+  Object.keys(K).forEach(function(name){
+    var key = K[name];
+    var raw = null;
+    try{ raw = localStorage.getItem(key); }catch(e){}
+    if(raw === null || raw === undefined) return;
+    var val;
+    try{ val = JSON.parse(raw); }catch(e){ val = raw; }
+    if(key === K.liveai && val && typeof val === "object"){
+      /* the live-companion settings travel with the record — the key itself never does */
+      val = {provider: val.provider, model: val.model, on: !!val.on};
+    }
+    data[key] = val;
+  });
   var blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   var a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -4119,6 +4143,92 @@ function exportRecord(){
   document.body.appendChild(a);
   a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+
+/* ---- import: bring a record home from an export file ----
+   The file must be what Export writes — an object keyed by store
+   names. Anything else is refused, plainly, and nothing changes.
+   The live-companion key is never read out of a file and never
+   overwritten by one: it lives on this device only, so the device's
+   own key survives an import untouched. */
+var pendingImport = null;
+var IMPORT_KEYS = Object.keys(K).map(function(name){ return K[name]; });
+function importParse(text){
+  var data;
+  try{ data = JSON.parse(text); }catch(e){ return null; }
+  if(!data || typeof data !== "object" || Array.isArray(data)) return null;
+  var stores = {}, found = 0, bad = false;
+  Object.keys(data).forEach(function(key){
+    if(bad || IMPORT_KEYS.indexOf(key) === -1) return; /* keys that aren't stores are simply not part of the record */
+    var val = data[key];
+    if(typeof val === "string"){
+      try{ JSON.parse(val); }catch(e){ bad = true; return; } /* a store's value must itself be readable */
+    }
+    stores[key] = val; found++;
+  });
+  if(bad || !found) return null;
+  return stores;
+}
+function importRejected(){
+  pendingImport = null;
+  pushMsg({type:"companion", text:"That file doesn’t look like an Ever Present export. Nothing was changed."});
+  render();
+}
+function handleImportFile(file){
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    var stores = importParse(String(reader.result || ""));
+    if(!stores){ importRejected(); return; }
+    pendingImport = stores;
+    pushMsg({type:"confirmact", kind:"import", done:""});
+    render();
+  };
+  reader.onerror = function(){ importRejected(); };
+  try{ reader.readAsText(file); }catch(e){ importRejected(); }
+}
+function pickImportFile(){
+  var inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".json,application/json";
+  inp.style.display = "none";
+  inp.addEventListener("change", function(){
+    var f = inp.files && inp.files[0];
+    if(inp.parentNode) inp.parentNode.removeChild(inp);
+    if(f) handleImportFile(f);
+  });
+  document.body.appendChild(inp);
+  inp.click();
+}
+function applyImport(stores){
+  var deviceKey = "";
+  try{
+    var cur = storeLoad(K.liveai, liveaiBlank);
+    if(cur && typeof cur.key === "string") deviceKey = cur.key;
+  }catch(e){}
+  var kill = [];
+  for(var i=0;i<localStorage.length;i++){
+    var k = localStorage.key(i);
+    if(k && k.indexOf("ever_present") === 0) kill.push(k);
+  }
+  kill.forEach(function(k){ localStorage.removeItem(k); });
+  Object.keys(stores).forEach(function(key){
+    var val = stores[key];
+    if(key === K.liveai){
+      var lv = val;
+      if(typeof lv === "string"){ try{ lv = JSON.parse(lv); }catch(e){ lv = null; } }
+      if(!lv || typeof lv !== "object") lv = {};
+      var clean = {};
+      Object.keys(lv).forEach(function(p){ if(p !== "key") clean[p] = lv[p]; });
+      clean.key = deviceKey; /* this device's key stays this device's */
+      localStorage.setItem(key, JSON.stringify(clean));
+    } else if(typeof val === "string"){
+      localStorage.setItem(key, val);
+    } else {
+      localStorage.setItem(key, JSON.stringify(val));
+    }
+  });
+  location.reload();
 }
 function eraseEverything(){
   var kill = [];
@@ -4149,6 +4259,12 @@ function confirmActHTML(m){
       + '<p style="margin:4px 0">So it’s really your call: erase it all?</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Yes — erase it all</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep my record</button></div></div></div>';
+  }
+  if(m.kind === "import"){
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Import a record</p>'
+      + '<p style="margin:4px 0">Importing replaces what’s on this device now with the file’s record.</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Import it</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Cancel</button></div></div></div>';
   }
   if(m.kind === "piece"){
     var p = pieceById(m.pieceId);
