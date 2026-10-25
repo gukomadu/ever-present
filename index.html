@@ -836,6 +836,7 @@ if(thread.lifeFactDay == null) thread.lifeFactDay = ""; /* last day a life-topic
    conversation, never back at the arrival gate (v1.12) */
 if(!companion && view === "arrival" && (thread.messages.length || thread.talkStarted)) view = "home";
 var sessionHold = false;
+var sessionOpenerId = ""; /* the plain opener posted at this open, if any — the welcome greeting (v1.16) retires it when HE greets first */
 function saveThread(){
   if(thread.messages.length > 300) thread.messages = thread.messages.slice(thread.messages.length - 300);
   storeSave(K.thread, thread);
@@ -2402,7 +2403,7 @@ function ensureThread(){
   if(!thread.messages.length){
     /* the companion speaks first and carries the opening — a new
        person is never faced with an empty thread (v1.12) */
-    pushMsg({type:"companion", text:greetingText()});
+    sessionOpenerId = pushMsg({type:"companion", text:greetingText()}).id;
     var metArrival = thread.proofDue && !thread.roomShown;
     if(thread.proofDue && !thread.roomShown){
       /* the arrival law: the showing comes with the saying — the
@@ -2437,7 +2438,7 @@ function ensureThread(){
     saveThread();
   }
   if(thread.lastDay < today){
-    pushMsg({type:"companion", text:greetingText()});
+    sessionOpenerId = pushMsg({type:"companion", text:greetingText()}).id;
     thread.lastDay = today;
     bootInterruptChecked = true;
     var didInt = maybePostInterruption();
@@ -2731,6 +2732,7 @@ function threadMsgHTML(m){
   }
   if(m.type === "journalcard"){ return journalCardHTML(m); }
   if(m.type === "playlistcard"){ return playlistCardHTML(m); }
+  if(m.type === "welcome"){ return welcomeHTML(m); }
   if(m.type === "mapcard"){ return mapCardHTML(m); }
   if(m.type === "piececard"){ return pieceCardHTML(m); }
   if(m.type === "receiptscard"){ return receiptsCardHTML(m); }
@@ -2750,6 +2752,23 @@ function threadMsgHTML(m){
     return understandingChoiceHTML(m);
   }
   return "";
+}
+
+/* the welcome greeting (v1.16): hello, one line from the room,
+   the playlist standing beside it — doors as chips on the one
+   message; once a door is answered the words stay, the chips rest */
+function welcomeHTML(m){
+  var h = '<div class="msg them"><div class="bubble"><p class="hub-label">Welcome</p>'
+    + '<p style="margin:4px 0">'+esc(m.text)+'</p>';
+  if(m.roomLine) h += '<p style="margin:4px 0"><span class="muted small">From the room:</span> '+esc(m.roomLine)+'</p>';
+  if(m.playlistLine) h += '<p style="margin:4px 0">'+esc(m.playlistLine)+'</p>';
+  if(!m.dismissed && m.plState === "seed"){
+    h += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seedstart">Start my playlist</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':seedlater">Later</button></div>';
+  } else if(!m.dismissed && m.plState === "started"){
+    h += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':buildplaylist">Build my playlist</button></div>';
+  }
+  return h + '</div></div>';
 }
 
 function composerHTML(){
@@ -3007,13 +3026,17 @@ function socialKind(text){
     if(SOCIAL_FORMS[kinds[i]].indexOf(t) !== -1) return kinds[i];
   return "";
 }
+function greetLead(text){
+  var low = String(text || "").toLowerCase();
+  return /morning/.test(low) ? "Morning" : (/evening/.test(low) ? "Evening"
+       : (/afternoon/.test(low) ? "Afternoon" : "Hey"));
+}
 function socialReply(kind, text){
   var np = addressOf() ? ", " + addressOf() : "";
   var pick = function(arr){ return arr[thread.messages.length % arr.length]; };
   var low = String(text || "").toLowerCase();
   if(kind === "greeting"){
-    var lead = /morning/.test(low) ? "Morning" : (/evening/.test(low) ? "Evening"
-             : (/afternoon/.test(low) ? "Afternoon" : "Hey"));
+    var lead = greetLead(text);
     return pick([
       lead + np + ". What's the day looking like?",
       lead + np + ". I'm here — where do we start?",
@@ -3051,7 +3074,71 @@ function socialReply(kind, text){
 function noteSocialMessage(kind, text){
   sessionAckStreak = false; /* a person answered — no ack bookkeeping rides on it */
   if(liveOn()){ requestLiveReply(); return; } /* the model converses; nothing piles on */
+  if(kind === "greeting" && isFirstUserMsgToday()){ postWelcomeGreeting(text); return; }
   pushMsg({type:"companion", social:true, text:socialReply(kind, text)});
+}
+/* ---- the welcome greeting (v1.16, founder addition) ----
+   His words: "Hey should receive the welcome + playlist thing we
+   talked about." A greeting is a re-entry into the room: the first
+   greeting he sends in a day is answered with the WELCOME — his
+   name, one line from the room (the recognition, rotating on the
+   same state as Help's room rung, so the room never repeats itself
+   back-to-back anywhere), and the playlist standing beside it:
+   the seed door if it hasn't started, where it stands if it has.
+   One message, doors as chips on it, nothing stacked after. Later
+   greetings the same day keep the short social form. This is
+   template machinery — it works before any API key; the key buys
+   fluency, never the design. If the plain opener for this open is
+   still standing in the thread when he greets, it steps aside:
+   one welcome, not two. */
+function isFirstUserMsgToday(){
+  var k = dayKeyOf(Date.now()), n = 0;
+  for(var i = 0; i < thread.messages.length; i++){
+    var m = thread.messages[i];
+    if(m.type === "person" && dayKeyOf(m.ts) === k) n++;
+  }
+  return n <= 1; /* the greeting just pushed is the only word of his today */
+}
+function welcomePlaylistBeat(){
+  /* if the seed card is already standing in the thread — arrival
+     planted it at this same open — its door is already his; the
+     beat steps aside rather than stacking a second one */
+  var seedStanding = thread.messages.some(function(m){ return m.type === "playlistseed" && !m.dismissed; });
+  if(seedStanding) return null;
+  var songs = (typeof playlist === "object" && playlist && playlist.songs) ? playlist.songs : [];
+  if(songs.length){
+    var line;
+    if(songs.length > 4) line = "Your playlist: " + songs.length + " songs.";
+    else line = "Your playlist: " + songs.slice(-2).map(function(s){ return s.title; }).join(" · ") + ".";
+    return {line:line, state:"started"};
+  }
+  if(typeof playlist === "object" && playlist){
+    if(playlist.seed === "done") /* begun, mid-first-song: the start is his already */
+      return {line:"Your playlist is started — no songs yet.", state:"started"};
+    if(!playlistSeedDue()) return null; /* resting, at his word — the rest is honored here too */
+  }
+  return {line:"Music is core here. Your playlist hasn’t started yet.", state:"seed"};
+}
+function postWelcomeGreeting(text){
+  /* the plain opener for this open retires — the welcome he asked
+     for replaces it, so he is never welcomed twice */
+  if(sessionOpenerId){
+    var ix = -1;
+    thread.messages.forEach(function(m, i){ if(m.id === sessionOpenerId) ix = i; });
+    if(ix !== -1){
+      var after = thread.messages.slice(ix + 1).filter(function(m){ return m.type === "person"; });
+      if(after.length <= 1) thread.messages.splice(ix, 1);
+    }
+    sessionOpenerId = "";
+  }
+  nextRoomLine(); /* the shared rotation advances — the same state Help's room rung reads */
+  var beat = welcomePlaylistBeat();
+  pushMsg({type:"welcome", social:true, welcome:true,
+    text: greetLead(text) + (addressOf() ? ", " + addressOf() : "") + ".",
+    roomLine: roomLineText(),
+    playlistLine: beat ? beat.line : "",
+    plState: beat ? beat.state : ""});
+  saveThread();
 }
 /* ---- protest / lament (v1.14) ----
    "Sometimes you need to express that it's not fair that you
@@ -3368,6 +3455,7 @@ function liveHistoryNote(m){
   if(m.type === "piececard"){ var p = pieceById(m.pieceId); return br("You brought the card for " + (p ? p.name : "a piece")); }
   if(m.type === "receiptscard") return br("You brought the receipts card — the figured picture and the open claims");
   if(m.type === "playlistcard") return br("You brought their playlist card — the songs they are building with you, one at a time");
+  if(m.type === "welcome") return br("You welcomed them back — one line from the room" + (m.roomLine ? ": " + m.roomLine : "") + (m.playlistLine ? " " + m.playlistLine : ""));
   if(m.type === "wordless") return br("The words were hard to find, and you offered the wordless channel: a song can hold what words can't");
   if(m.type === "settingscard") return br("You brought the settings card");
   if(m.type === "moveask"){ var me = ledgerEntryById(m.claimId); return br("You asked whether they want to note their move on the claim “" + (me ? shortWords(me.claim, 80) : "") + "”"); }
@@ -3936,6 +4024,13 @@ function bindThread(){
       }
       else if(act === "songadd"){
         askText("songtitle", {}, "Say the song — its title, and who it’s by if you know.");
+        render();
+      }
+      else if(act === "buildplaylist" && m){
+        /* the welcome's playlist door: the card is the build —
+           his songs, and adding the next one, in one place */
+        m.dismissed = true; saveThread();
+        postPlaylistCard();
         render();
       }
       else if(act === "growadd" && m){
