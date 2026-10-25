@@ -86,10 +86,27 @@
   /* ---- persistent help button ---- */
   #helpBtn{
     position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:80;
-    background:var(--help); color:#fff; border:none; border-radius:999px;
-    padding:11px 20px; font-size:1rem; font-weight:700; cursor:pointer; min-height:46px;
-    box-shadow:0 2px 10px rgba(43,38,32,.25); font-family:inherit;
+    background:var(--help); color:#fff; border:2px solid rgba(255,255,255,.9); border-radius:999px;
+    padding:12px 22px; font-size:1.02rem; font-weight:700; cursor:pointer; min-height:48px;
+    box-shadow:0 5px 16px rgba(43,38,32,.4), 0 2px 5px rgba(43,38,32,.3), inset 0 1px 0 rgba(255,255,255,.35);
+    font-family:inherit;
   }
+  #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(43,38,32,.35)}
+
+  /* ---- fragment button: one tap, from anywhere ---- */
+  #fragBtn{
+    position:fixed; right:16px; z-index:75;
+    bottom:calc(92px + env(safe-area-inset-bottom));
+    width:72px; height:72px; border-radius:50%;
+    background:var(--accent); color:#fff; border:none; cursor:pointer;
+    box-shadow:0 10px 26px rgba(43,38,32,.35), 0 3px 8px rgba(43,38,32,.25);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:inherit;
+  }
+  #fragBtn:active{transform:translateY(2px)}
+  #fragBtn .frag-gly{font-size:1.55rem; line-height:1; font-weight:300}
+  #fragBtn .frag-lab{font-size:.6rem; font-weight:700; letter-spacing:.4px; margin-top:2px}
+  .chip.big{font-size:1.05rem; padding:14px 18px}
 
   /* ---- floating pill dock ---- */
   nav.bottom{
@@ -234,6 +251,7 @@
 </head>
 <body>
 <button id="helpBtn" type="button" aria-label="Help">Help</button>
+<button id="fragBtn" type="button" aria-label="Catch a fragment" style="display:none"><span class="frag-gly">＋</span><span class="frag-lab">Fragment</span></button>
 <main class="wrap" id="app" aria-live="polite"></main>
 <nav class="bottom" id="bottomNav" style="display:none"></nav>
 
@@ -380,6 +398,10 @@ var sessionDismissed = {}; /* in-memory only: dismissing an offer writes nothing
 var pieceDetailId = null;
 var journalReadId = null;
 var journalPrompt = "";
+var frag = null;
+var fragReturn = "home";
+var FRAG_CHANNELS = ["Speaking","Noise","Body","Pain","Seeing","Presence"];
+var FRAG_VIEWS = ["home","map","piece","receipts","journal","journalRead"];
 
 /* ================= render root + nav ================= */
 function navItems(){
@@ -395,14 +417,12 @@ function renderNav(){
   var nav = el("bottomNav");
   if(!companion){ nav.style.display = "none"; nav.innerHTML = ""; return; }
   nav.style.display = "flex";
-  var base = view;
-  if(view === "piece" || view === "capture") base = "map";
-  if(view === "quick") base = "home";
-  if(view === "proposals") base = "pour";
-  if(view === "confirm") base = (cap && cap.mode === "pour") ? "pour" : "map";
-  if(view === "journalWrite" || view === "journalRead") base = "journal";
-  if(view === "create") base = "home";
-  if(view === "settings" || view === "help" || view === "ladder") base = "home";
+  var base = (view === "fragment") ? fragReturn : view;
+  if(base === "piece" || base === "capture") base = "map";
+  if(base === "quick" || base === "create" || base === "settings" || base === "help" || base === "ladder" || base === "fragment") base = "home";
+  if(base === "proposals") base = "pour";
+  if(base === "confirm") base = (cap && cap.mode === "pour") ? "pour" : "map";
+  if(base === "journalWrite" || base === "journalRead") base = "journal";
   nav.innerHTML = navItems().map(function(n){
     return '<button type="button" data-nav="'+n[0]+'" class="'+(base===n[0] ? "active" : "")+'">'
       + '<span class="gly">'+n[1]+'</span><span class="navlab">'+esc(n[2])+'</span></button>';
@@ -423,7 +443,7 @@ function go(v){
 function headerHTML(){
   var h = '<h1 class="appname">Ever Present</h1>';
   if(companion){
-    h += '<p class="companion-line">'+esc(companion.name)+' keeps your record, in your words.</p>';
+    h += '<p class="companion-line">'+esc(companion.name)+' keeps your record.</p>';
   }
   return h;
 }
@@ -438,6 +458,7 @@ function render(){
   else if(view === "pour"){ v.innerHTML = headerHTML() + h + viewPour(); bindPour(); }
   else if(view === "proposals"){ v.innerHTML = headerHTML() + h + viewProposals(); bindProposals(); }
   else if(view === "quick"){ v.innerHTML = headerHTML() + h + viewQuick(); bindQuick(); }
+  else if(view === "fragment"){ v.innerHTML = headerHTML() + h + viewFragment(); bindFragment(); }
   else if(view === "confirm"){ v.innerHTML = headerHTML() + h + viewConfirm(); bindConfirm(); }
   else if(view === "map"){ v.innerHTML = headerHTML() + h + viewMap(); bindMap(); }
   else if(view === "piece"){ v.innerHTML = headerHTML() + h + viewPiece(); bindPiece(); }
@@ -449,6 +470,8 @@ function render(){
   else if(view === "ladder"){ v.innerHTML = headerHTML() + h + viewLadder(); bindLadder(); }
   else if(view === "settings"){ v.innerHTML = headerHTML() + h + viewSettings(); bindSettings(); }
   renderNav();
+  var fb = el("fragBtn");
+  if(fb) fb.style.display = (companion && FRAG_VIEWS.indexOf(view) !== -1) ? "flex" : "none";
 }
 
 /* ================= Screen 1 — Arrival / first open ================= */
@@ -471,12 +494,12 @@ function contractHTML(){
 function viewArrival(){
   var h = '<div class="card" style="margin-top:26px">';
   h += '<h2>Ever Present</h2>';
-  h += '<p class="lede">This is a place to pour out what the voices do and say \u2014 in your words, at your pace \u2014 and to keep the record yourself.</p>';
-  h += '<p class="lede muted">Before anything is asked of you, here is the deal, in plain words. The companion who keeps this record is yours to create.</p>';
+  h += '<p class="lede">Pour out what the voices do and say \u2014 in your words. Keep the record yourself.</p>';
+  h += '<p class="lede muted">The deal, in plain words:</p>';
   h += contractHTML();
   h += '<div class="btnrow"><button class="btn" id="goCreate" type="button">Create your companion</button></div>';
   h += '</div>';
-  h += '<p class="muted small">No account. No forms. No diagnosis questions. The Help button at the top right works right now, before anything is set up.</p>';
+  h += '<p class="muted small">No account. The Help button works right now.</p>';
   return h;
 }
 function bindArrival(){
@@ -523,14 +546,14 @@ function viewCreate(){
   h += '<p class="stepdots">Step '+(createStep+1)+' of '+steps.length+' \u2014 '+esc(steps[createStep])+'</p>';
   if(createStep === 0){
     h += '<h2>Name your companion</h2>';
-    h += '<p class="muted">This one keeps your record. You made it, it works for you, and you can rename it any time. Take one of these, or write your own.</p>';
+    h += '<p class="muted">You made it; it works for you. Rename it any time.</p>';
     h += chipsHTML("cname", NAME_IDEAS, d.name, false);
     h += '<p class="field-label">Its name</p>';
     h += '<input type="text" class="txt" id="cNameInput" value="'+esc(d.name)+'" placeholder="Write a name" aria-label="Companion name">';
   }
   if(createStep === 1){
     h += '<h2>How it talks with you</h2>';
-    h += '<p class="muted">Its register, and your cultural language \u2014 your tongue, your idioms, your world. Pick any that fit; add your own words if you like.</p>';
+    h += '<p class="muted">Your tongue, your idioms, your world. Pick what fits.</p>';
     h += '<p class="field-label">Register</p>';
     h += chipsHTML("creg", REGISTER_OPTS, d.register, true);
     h += '<input type="text" class="txt" id="cRegOwn" value="'+esc(d.registerOwn)+'" placeholder="In my own words (optional)" aria-label="Register in my own words">';
@@ -548,7 +571,7 @@ function viewCreate(){
   }
   if(createStep === 3){
     h += '<h2>How much it offers</h2>';
-    h += '<p class="muted">Your companion can offer doors \u2014 a topic to explore, a note for a hard day, material in your map you haven\u2019t poured yet. Offers are always yours to pass on. This sets how often doors appear, never whether you walk through one.</p>';
+    h += '<p class="muted">Doors it can offer: a topic, a prompt, a hard-day note. Passing is always fine.</p>';
     h += chipsHTML("coffer", OFFER_OPTS, d.offerFreq, false);
   }
   if(createStep === 4){
@@ -608,7 +631,7 @@ function bindCreate(){
       created: companion && companion.created ? companion.created : Date.now()
     };
     saveCompanion();
-    if(isNew){ toast = companion.name + " is here. Your record starts now \u2014 nothing in it but what you put there."; }
+    if(isNew){ toast = companion.name + " is here. Your record starts now."; }
     else { toast = "Companion updated. Your map and receipts are untouched."; }
     go(createMode === "edit" ? "settings" : "home");
   });
@@ -646,23 +669,23 @@ function companionOpener(){
     var ids = evs[i].whoIds || [];
     if(ids.length){
       var p0 = pieceById(ids[0]);
-      if(p0){ cands.push(p0.name + " was around " + relDay(evs[i].ts) + ". It\u2019s in the record \u2014 I keep it so you don\u2019t have to carry it."); break; }
+      if(p0){ cands.push(p0.name + " was around " + relDay(evs[i].ts) + ". It\u2019s in the record."); break; }
     }
   }
   /* an open claim, waiting on its outcome */
   var open = openClaims();
   if(open.length === 1){
     var ct = open[0].claim.length > 60 ? open[0].claim.slice(0,60) + "\u2026" : open[0].claim;
-    cands.push("One claim is still open \u2014 \u201c" + ct + "\u201d It keeps until you know how it went.");
+    cands.push("One claim still open \u2014 \u201c" + ct + "\u201d");
   } else if(open.length > 1){
-    cands.push(open.length + " claims are still open in the ledger. They keep until you know how they went.");
+    cands.push(open.length + " claims still open.");
   }
   /* days since the last pour */
   var lastPour = null;
   for(var j=0;j<evs.length;j++){ if(evs[j].mode === "pour" && evs[j].pourText){ lastPour = evs[j]; break; } }
   if(lastPour){
     var dp = daysSince(lastPour.ts);
-    if(dp >= 2) cands.push("It\u2019s been " + dp + " days since your last pour. The door\u2019s open whenever \u2014 there\u2019s no schedule here.");
+    if(dp >= 2) cands.push("Last pour: " + dp + " days ago. The door\u2019s open.");
   }
   /* a piece that hasn't been visited in a while */
   if(atlas.pieces.length > 1){
@@ -676,12 +699,12 @@ function companionOpener(){
       if(t < quietTs){ quietTs = t; quietP = p; }
     });
     if(quietP && Date.now() - quietTs > 4 * 86400000)
-      cands.push(quietP.name + " hasn\u2019t been in the record since " + relDay(quietTs) + ". Quiet is part of the record too.");
+      cands.push(quietP.name + " \u2014 quiet since " + relDay(quietTs) + ".");
   }
   if(!cands.length){
     if(atlas.pieces.length)
-      return "Your map holds " + atlas.pieces.length + (atlas.pieces.length === 1 ? " piece" : " pieces") + " so far, in your words. I\u2019m keeping them.";
-    return "I\u2019m here, and your record is a blank page \u2014 a fine place to start. When something happens, or when you just need to get it out, pour it here and I\u2019ll keep it.";
+      return "Your map holds " + atlas.pieces.length + (atlas.pieces.length === 1 ? " piece" : " pieces") + ", in your words.";
+    return "I\u2019m here. Your record is a blank page \u2014 a fine place to start.";
   }
   var dayIdx = Math.floor(Date.now() / 86400000);
   return cands[dayIdx % cands.length];
@@ -714,7 +737,7 @@ function hubTopPick(){
   var cands = [];
   if(!atlas.pieces.length && !ledger.entries.length && !atlas.events.length){
     cands.push({key:"firstdoor", title:"A first door",
-      body:"When you\u2019re ready, the first pour can be small: who was around, or just how it landed. There\u2019s no form to fill \u2014 you pour, I keep it.",
+      body:"First pour, when you\u2019re ready: who was around, or just how it landed.",
       goLabel:"Pour", act:"pour"});
     var pr0 = journalPrompts()[0];
     cands.push({key:"prompt", title:"A prompt for a calm moment",
@@ -722,14 +745,22 @@ function hubTopPick(){
   } else {
     if(!ladder.noteForHardDay){
       cands.push({key:"note", title:"A door, if you want it",
-        body:companion.name + " can keep a note you write on a calm day, saved for a hard one. It lives on your help ladder, on the reassurance rung.",
+        body:"A note from a calm day, saved for a hard one. It lives on your help ladder.",
         goLabel:"Write the note", act:"note"});
+    }
+    for(var fi=atlas.events.length-1; fi>=0; fi--){
+      if(atlas.events[fi].mode === "fragment"){
+        cands.push({key:"frag", title:"A door, if you want it",
+          body:"A fragment from " + relDay(atlas.events[fi].ts) + " sits as it landed. Detail can wait \u2014 or never come.",
+          goLabel:"See it in your map", act:"map"});
+        break;
+      }
     }
     var unseen = null;
     for(var i=0;i<atlas.pieces.length;i++){ if(!atlas.pieces[i].seeing){ unseen = atlas.pieces[i]; break; } }
     if(unseen){
       cands.push({key:"seeing", title:"A door, if you want it",
-        body:"You haven\u2019t said how you see " + unseen.name + " yet. How you see them is the top layer of your map \u2014 the door\u2019s open whenever.",
+        body:unseen.name + " \u2014 you haven\u2019t said how you see them yet. That\u2019s the top layer.",
         goLabel:"Open " + unseen.name, act:"piece", pieceId:unseen.id});
     }
     var seen = {};
@@ -743,7 +774,7 @@ function hubTopPick(){
     });
     if(quietP && Date.now() - quietTs > 4 * 86400000){
       cands.push({key:"visit", title:"From your map",
-        body:quietP.name + " hasn\u2019t been in the record since " + relDay(quietTs) + ". Quiet is part of the record too \u2014 visit the piece if you like.",
+        body:quietP.name + " \u2014 quiet since " + relDay(quietTs) + ".",
         goLabel:"Open " + quietP.name, act:"piece", pieceId:quietP.id});
     }
     var pr = journalPrompts()[0];
@@ -758,7 +789,7 @@ function hubTopPick(){
 var hubPick = null;
 function heroInviteLine(){
   var lines = [
-    "Pour it out here \u2014 deeply, in your words. I\u2019ll keep every word.",
+    "Pour it out here, in your words. I\u2019ll keep every word.",
     "This is the room where it gets said. Pour it out; I\u2019ll hold the record.",
     "Whatever they\u2019ve been doing, it can go here. Pour it out."
   ];
@@ -783,7 +814,8 @@ function viewHome(){
   h += '<div class="hero-label">'+esc(companion.name)+' \u00b7 your companion</div>';
   h += '<p class="hero-line">'+esc(heroInviteLine())+'</p>';
   h += '<button class="hero-main" id="hPourMain" type="button">Pour it out</button>';
-  h += '<button class="hero-quick" id="hQuickNote" type="button">Quick note instead</button>';
+  h += '<button class="hero-quick" id="hQuickNote" type="button">Quick note</button>';
+  h += '<button class="hero-quick" id="hFragment" type="button">Fragment</button>';
   h += '</section>';
 
   /* receipts card: only while a claim is still open */
@@ -799,8 +831,8 @@ function viewHome(){
       + '<button type="button" class="chip" data-hout="'+e0.id+':partly">Partly</button>'
       + '<button type="button" class="chip" data-hout="'+e0.id+':notyet">Not yet</button></div>';
     if(open.length > 1)
-      h += '<p class="muted small">'+open.length+' claims still open in all. They keep until you know how they went.</p>';
-    h += '<div class="btnrow"><button class="btn secondary small" id="hReceipts" type="button">See all receipts</button></div>';
+      h += '<p class="muted small">'+open.length+' still open.</p>';
+    h += '<div class="btnrow"><button class="btn secondary small" id="hReceipts" type="button">All receipts</button></div>';
     h += '</section>';
   }
 
@@ -821,8 +853,8 @@ function viewHome(){
     h += '<div class="chiprow">' + atlas.pieces.slice(0,10).map(function(p){
       return '<button type="button" class="chip" data-hubpiece="'+p.id+'">'+esc(p.name)+'</button>';
     }).join("") + '</div>';
-    h += '<div class="btnrow"><button class="btn secondary small" id="hMap" type="button">Open your map</button>'
-      + '<button class="btn quiet small" id="hAddMap" type="button">Add to the map</button></div>';
+    h += '<div class="btnrow"><button class="btn secondary small" id="hMap" type="button">Open map</button>'
+      + '<button class="btn quiet small" id="hAddMap" type="button">Add</button></div>';
     h += '</section>';
   }
 
@@ -833,15 +865,9 @@ function viewHome(){
   h += '<section class="hub-card"><p class="hub-label">Journal</p>';
   h += '<p class="lede">'+esc(todayPrompt)+'</p>';
   h += '<div class="btnrow"><button class="btn secondary small" id="hWrite" data-prompt-text="'+esc(todayPrompt)+'" type="button">Write</button>'
-    + '<button class="btn quiet small" id="hJournal" type="button">All prompts &amp; past entries</button></div>';
+    + '<button class="btn quiet small" id="hJournal" type="button">All entries</button></div>';
   h += '</section>';
 
-  /* help card: constant and calm */
-  h += '<section class="hub-card"><p class="hub-label">Help</p>';
-  h += '<p class="lede">Sometimes you just need help.</p>';
-  h += '<p class="muted small">Reassurance from your own record, a person you trust, or a professional \u2014 your ladder, one tap, no gates.</p>';
-  h += '<div class="btnrow"><button class="btn secondary small" id="hHelp" type="button">Open my help ladder</button></div>';
-  h += '</section>';
 
   h += '<div class="btnrow" style="justify-content:center"><button class="btn quiet small" id="hSettings" type="button">Settings</button></div>';
   return h;
@@ -862,6 +888,7 @@ function bindHome(){
     else if(p.act === "note"){ ladderReturn = "home"; go("ladder"); }
     else if(p.act === "piece"){ pieceDetailId = p.pieceId; go("piece"); }
     else if(p.act === "prompt"){ journalPrompt = p.prompt || ""; go("journalWrite"); }
+    else if(p.act === "map"){ go("map"); }
   });
   var pn = el("pickNo");
   if(pn && hubPick) pn.addEventListener("click", function(){
@@ -876,14 +903,14 @@ function bindHome(){
   var hw = el("hWrite");
   if(hw) hw.addEventListener("click", function(){ journalPrompt = hw.getAttribute("data-prompt-text") || ""; go("journalWrite"); });
   var hj = el("hJournal"); if(hj) hj.addEventListener("click", function(){ go("journal"); });
-  var hh = el("hHelp");
-  if(hh) hh.addEventListener("click", function(){ helpReturn = "home"; go("help"); });
+  var hf = el("hFragment");
+  if(hf) hf.addEventListener("click", function(){ startFragment(); });
   el("hSettings").addEventListener("click", function(){ go("settings"); });
   document.querySelectorAll("[data-hout]").forEach(function(b){
     b.addEventListener("click", function(){
       var parts = b.getAttribute("data-hout").split(":");
       setOutcome(parts[0], parts[1], "");
-      toast = "Written down. The record is updated.";
+      toast = "Written down.";
       render();
     });
   });
@@ -998,15 +1025,15 @@ function viewCapture(){
   var h = "";
   if(d.mode === "pour" && !d.editEventId){
     h += '<div class="card"><h2>Filing the pour</h2>'
-      + '<p class="muted">Your pour is kept whole, exactly as it came out. Anything below is optional filing \u2014 pieces for your map, a claim for the ledger. Skip any of it, or all of it.</p>'
+      + '<p class="muted">Your pour stays whole. Filing below is optional.</p>'
       + '<div class="btnrow"><button class="btn" id="capJustPour" type="button">File just the pour</button></div></div>';
   } else if(d.editEventId){
     h += '<div class="card"><h2>Add detail</h2>'
-      + '<p class="muted">Adding to an entry that\u2019s already filed. Change anything below \u2014 saving updates the record, and the entry keeps its place in it.</p>'
+      + '<p class="muted">Change anything. The entry keeps its place.</p>'
       + '<div class="btnrow"><button class="btn" id="capDoneTop" type="button">Done</button></div></div>';
   } else {
     h += '<div class="card"><h2>Add to the map</h2>'
-      + '<p class="muted">The full filing, at your pace. Tap what fits, skip what doesn\u2019t. Done is available from the first tap \u2014 a capture with only \u201cwho\u201d filled is a valid record.</p>'
+      + '<p class="muted">Tap what fits. Done works from the first tap.</p>'
       + '<div class="btnrow"><button class="btn" id="capDoneTop" type="button">Done</button></div></div>';
   }
 
@@ -1038,7 +1065,7 @@ function viewCapture(){
 
   /* 2 — What came through (channels combine into one event) */
   h += '<div class="card"><h3>2. What came through</h3>';
-  h += '<p class="muted small">More than one is normal \u2014 they combine into one event.</p>';
+
   h += capChips("channels", CHANNEL_OPTS, d.channels, true);
   h += '</div>';
 
@@ -1064,14 +1091,14 @@ function viewCapture(){
   /* 4 — Voices among themselves */
   if(amongShown){
     h += '<div class="card"><h3>'+(hasPresence() ? 4 : 3)+'. Among themselves</h3>';
-    h += '<p class="muted small">Not everything is addressed to you. The record can say so.</p>';
+  
     h += capChips("among", AMONG_OPTS, d.among, true);
     h += '</div>';
   }
 
   /* 5 — What they're doing: claims log to the ledger from here (Path F) */
   h += '<div class="card"><h3>'+claimsNo+'. What they\u2019re doing \u2014 claims</h3>';
-  h += '<p class="muted small">If a claim was made, picking its kind here logs it in Check the receipts, already sorted.</p>';
+
   h += capChips("claimKind", [["prediction","A prediction \u2014 something would happen"],["now","A claim about right now"],["commentary","Running commentary"],["instruction","Not a claim \u2014 an instruction"]], d.claimKind, false);
   if(d.claimKind){
     h += capChips("claimChips", CLAIM_SUBS[d.claimKind], d.claimChips, true);
@@ -1087,7 +1114,7 @@ function viewCapture(){
 
   /* 6 — How they presented (Path G) */
   h += '<div class="card"><h3>How they presented</h3>';
-  h += '<p class="muted small">Their move, as it came across.</p>';
+
   h += '<div class="chiprow">' + REGISTER_OPTS_CAP.map(function(o){
     var on = d.register.indexOf(o[0]) !== -1;
     return '<button type="button" class="chip'+(on ? " on" : "")+'" data-capchip="register" data-val="'+esc(o[0])+'">'+esc(o[0])+(o[1] ? '<small>'+esc(o[1])+'</small>' : '')+'</button>';
@@ -1096,14 +1123,14 @@ function viewCapture(){
 
   /* 7 — How you see them (Path H — the top layer; own words lead) */
   h += '<div class="card"><h3>How you see them</h3>';
-  h += '<p class="muted small">No matter how they present, how you see them is the top layer of the record.</p>';
+  h += '<p class="muted small">Your seeing is the top layer.</p>';
   h += '<textarea class="big short" id="capSeeingOwn" placeholder="In my own words (optional)" aria-label="How I see them, in my own words">'+esc(d.seeingOwn)+'</textarea>';
   h += capChips("seeingChip", SEEING_OPTS, d.seeingChip, false);
   h += '</div>';
 
   /* 8 — Optional filings: their own words (Path I) */
   h += '<div class="card"><h3>File a word they use <span class="muted" style="font-weight:400">(optional)</span></h3>';
-  h += '<p class="muted small">Their language, documented \u2014 the word, and what it does.</p>';
+
   h += '<input type="text" class="txt" id="capGlossTerm" value="'+esc(d.glossTerm)+'" placeholder="The word \u2014 e.g. biscuit" aria-label="A word they use">';
   if(d.glossTerm){
     h += '<p class="field-label">What it means / what it does</p>';
@@ -1112,7 +1139,7 @@ function viewCapture(){
   }
   h += '<p class="field-label">Anything else, in my own words <span class="muted" style="font-weight:400">(optional)</span></p>';
   h += '<textarea class="big short" id="capEventOwn" placeholder="Whatever else belongs in the record" aria-label="Anything else">'+esc(d.eventOwn)+'</textarea>';
-  h += '<div class="btnrow"><button class="btn" id="capDone" type="button">Done \u2014 show me what will be filed</button>'
+  h += '<div class="btnrow"><button class="btn" id="capDone" type="button">Done \u2014 review</button>'
     + '<button class="btn quiet" id="capDiscard" type="button">'+(d.editEventId ? "Cancel \u2014 keep it as it was" : "Don\u2019t file this")+'</button></div>';
   h += '</div>';
   return h;
@@ -1167,15 +1194,15 @@ function bindCapture(){
   el("capDone").addEventListener("click", function(){ harvestCap(); go("confirm"); });
   el("capDiscard").addEventListener("click", function(){
     if(cap && cap.editEventId){ cap = null; toast = "Left as it was."; go("map"); }
-    else { cap = null; toast = "Not filed. Nothing was written down."; go("home"); }
+    else { cap = null; toast = "Not filed."; go("home"); }
   });
 }
 function viewPour(){
   var h = '<div class="card quiet-screen"><h2>Pour it out</h2>'
     + '<p class="lede">'+esc(companion.name)+' is listening. Take your time.</p>'
-    + '<p class="muted">Nothing here is summarized, fixed, or filed while you pour. Type it out \u2014 or use your keyboard\u2019s microphone and speak it. When you say you\u2019re done, and only then, '+esc(companion.name)+' will show you what it can file from it. All of it is your call.</p>';
+    + '<p class="muted">Nothing is filed while you pour.</p>';
   if(atlas.pieces.length){
-    h += '<p class="field-label">Who\u2019s in it \u2014 tap if you like, or just write</p>';
+    h += '<p class="field-label">Who\u2019s in it (optional)</p>';
     h += '<div class="chiprow">' + atlas.pieces.map(function(p){
       var on = cap.pourWhoIds.indexOf(p.id) !== -1;
       return '<button type="button" class="chip'+(on ? " on" : "")+'" data-pourwho="'+p.id+'">'+esc(p.name)+'</button>';
@@ -1229,10 +1256,10 @@ function startProposals(){
 }
 function viewProposals(){
   var h = '<div class="card"><h2>Before it files</h2>'
-    + '<p class="muted">'+esc(companion.name)+' kept your pour whole. Here\u2019s what it can file from it \u2014 every part optional, every part yours to change or skip.</p>'
+    + '<p class="muted">Your pour stays whole. All of this is optional.</p>'
     + '<div class="btnrow"><button class="btn" id="propJustTop" type="button">Just file the pour</button></div></div>';
 
-  h += '<div class="card"><h3>Who this seems to be about</h3>';
+  h += '<div class="card"><h3>Who it\u2019s about</h3>';
   if(atlas.pieces.length){
     h += '<div class="chiprow">' + atlas.pieces.map(function(p){
       var on = prop.whoIds.indexOf(p.id) !== -1;
@@ -1250,13 +1277,13 @@ function viewProposals(){
   h += '<div class="card"><h3>A claim</h3>';
   h += '<div class="chiprow"><button type="button" class="chip'+(prop.claimOn ? " on" : "")+'" id="propClaimToggle">A claim was made in this pour</button></div>';
   if(prop.claimOn){
-    h += '<p class="field-label">The kind</p>';
+    h += '<p class="field-label">Kind</p>';
     h += '<div class="chiprow">' + [["prediction","A prediction"],["now","A claim about right now"],["commentary","Running commentary"],["instruction","An instruction"]].map(function(o){
       return '<button type="button" class="chip'+(prop.claimKind === o[0] ? " on" : "")+'" data-propkind="'+o[0]+'">'+o[1]+'</button>';
     }).join("") + '</div>';
     h += '<p class="field-label">The claim, in your words <span class="muted" style="font-weight:400">(optional)</span></p>';
     h += '<textarea class="big short" id="propClaimOwn" placeholder="What was claimed" aria-label="The claim, in your words">'+esc(prop.claimOwn)+'</textarea>';
-    h += '<p class="muted small">It goes in Check the receipts, where its outcome can be checked later.</p>';
+
   }
   h += '</div>';
 
@@ -1268,7 +1295,7 @@ function viewProposals(){
   h += '</div>';
 
   h += '<div class="card"><h3>How you see them</h3>';
-  h += '<p class="muted small">No matter how they presented, your seeing is the top layer.</p>';
+
   h += '<textarea class="big short" id="propSeeingOwn" placeholder="In my own words (optional)" aria-label="How I see them, in my own words">'+esc(prop.seeingOwn)+'</textarea>';
   h += '<div class="chiprow">' + SEEING_OPTS.map(function(o){
     return '<button type="button" class="chip'+(prop.seeingChip === o ? " on" : "")+'" data-propseeing="'+esc(o)+'">'+esc(o)+'</button>';
@@ -1308,7 +1335,7 @@ function bindProposals(){
   var jt = el("propJustTop"); if(jt) jt.addEventListener("click", jf);
   var jb = el("propJust"); if(jb) jb.addEventListener("click", jf);
   el("propFile").addEventListener("click", function(){ fileFromProposals(true); });
-  el("propDrop").addEventListener("click", function(){ cap = null; prop = null; toast = "Not filed. Nothing was written down."; go("home"); });
+  el("propDrop").addEventListener("click", function(){ cap = null; prop = null; toast = "Not filed."; go("home"); });
 }
 function fileFromProposals(withOrg){
   harvestProp();
@@ -1350,7 +1377,7 @@ function startQuickNote(){
 }
 function viewQuick(){
   var h = '<div class="card"><h2>Quick note</h2>'
-    + '<p class="muted">'+esc(companion.name)+' is listening. One screen, in the moment \u2014 Done files it. Detail can be added later, from your map.</p></div>';
+    + '<p class="muted">One screen. Done files it.</p></div>';
   h += '<div class="card"><h3>Who\u2019s around</h3>';
   if(atlas.pieces.length){
     h += '<div class="chiprow">' + atlas.pieces.map(function(p){
@@ -1405,7 +1432,7 @@ function bindQuick(){
     b.addEventListener("click", function(){ harvestQuick(); qn.claimKind = b.getAttribute("data-qnkind"); render(); });
   });
   el("qnDone").addEventListener("click", function(){ fileQuickNote(); });
-  el("qnDrop").addEventListener("click", function(){ qn = null; toast = "Not filed. Nothing was written down."; go("home"); });
+  el("qnDrop").addEventListener("click", function(){ qn = null; toast = "Not filed."; go("home"); });
 }
 function fileQuickNote(){
   harvestQuick();
@@ -1445,8 +1472,66 @@ function fileQuickNote(){
   });
   saveAtlas();
   qn = null;
-  toast = "Filed. It\u2019s in your map \u2014 detail can be added any time.";
+  toast = "Filed.";
   go("map");
+}
+
+/* ================= Fragment — one tap, raw, filed =================
+   The fast door: catch the fragment before the current does its work
+   on it. Nothing is required but the fragment itself. Detail, if it
+   ever comes, comes later through Add detail on the Map. */
+function startFragment(){
+  fragReturn = view;
+  frag = {text:"", whoIds:[], channels:[]};
+  view = "fragment";
+  render(); window.scrollTo(0,0);
+  var ta = el("fragText"); if(ta) ta.focus();
+}
+function viewFragment(){
+  var h = '<div class="card"><h2>Fragment</h2>';
+  h += '<textarea class="big" id="fragText" style="min-height:22vh" placeholder="Whatever is happening \u2014 raw" aria-label="The fragment">'+esc(frag.text)+'</textarea>';
+  if(atlas.pieces.length){
+    h += '<div class="chiprow" style="margin-top:12px">' + atlas.pieces.map(function(p){
+      var on = frag.whoIds.indexOf(p.id) !== -1;
+      return '<button type="button" class="chip big'+(on ? " on" : "")+'" data-fragwho="'+p.id+'">'+esc(p.name)+'</button>';
+    }).join("") + '</div>';
+  }
+  h += '<div class="chiprow">' + FRAG_CHANNELS.map(function(c){
+    var on = frag.channels.indexOf(c) !== -1;
+    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-fragchan="'+c+'">'+c+'</button>';
+  }).join("") + '</div>';
+  h += '<div class="btnrow"><button class="btn" id="fragFile" type="button">File it</button>'
+    + '<button class="btn quiet" id="fragDrop" type="button">Never mind</button></div>';
+  h += '</div>';
+  return h;
+}
+function harvestFrag(){ if(!frag) return; var t = el("fragText"); if(t) frag.text = t.value; }
+function bindFragment(){
+  document.querySelectorAll("[data-fragwho]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestFrag(); toggleIn(frag.whoIds, b.getAttribute("data-fragwho")); render(); });
+  });
+  document.querySelectorAll("[data-fragchan]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestFrag(); toggleIn(frag.channels, b.getAttribute("data-fragchan")); render(); });
+  });
+  el("fragFile").addEventListener("click", function(){ fileFragment(); });
+  el("fragDrop").addEventListener("click", function(){ frag = null; go(fragReturn || "home"); });
+}
+function fileFragment(){
+  harvestFrag();
+  if(!frag.text.trim() && !frag.whoIds.length && !frag.channels.length){
+    var ta = el("fragText"); if(ta) ta.focus(); return;
+  }
+  atlas.events.push({
+    id:uid(), ts:Date.now(), mode:"fragment", type:"fragment", filed:false,
+    pourText:"", fragmentText:frag.text.trim(),
+    whoIds: frag.whoIds.slice(), whoFlags:[], whoOwn:"",
+    channels: frag.channels.slice(), mannerWhere:[], mannerHow:[], bodySpots:[], among:[],
+    claimLedgerId:"", register:[], seeing:"", response:[], glossaryId:"", eventOwn:""
+  });
+  saveAtlas();
+  frag = null;
+  toast = "Filed.";
+  go(fragReturn || "home");
 }
 
 /* ================= Confirm / file the capture ================= */
@@ -1475,9 +1560,7 @@ function summaryList(items){
 function viewConfirm(){
   var d = cap;
   var h = '<div class="card"><h2>'+(d.editEventId ? "Here\u2019s what will change" : "Here\u2019s what will be filed")+'</h2>';
-  h += '<p class="muted">'+(d.editEventId
-    ? "The entry isn\u2019t changed yet. Check it, fix it, or leave it exactly as it was."
-    : "Nothing is in the record yet. Check it, fix it, or don\u2019t file it at all.")+'</p>';
+  h += '<p class="muted">'+(d.editEventId ? "Nothing changes until you file." : "Nothing is filed yet.")+'</p>';
   if(d.mode === "pour" && d.pourText){
     h += '<h3>Your pour, kept whole</h3><p>'+esc(d.pourText.length > 280 ? d.pourText.slice(0,280) + "\u2026" : d.pourText)+'</p>';
   }
@@ -1509,7 +1592,7 @@ function viewConfirm(){
   if(d.glossTerm) h += '<h3>A word they use</h3>' + summaryList([esc(d.glossTerm), esc(d.glossDoes || d.glossDoesOwn || "")].filter(Boolean));
   if(d.eventOwn) h += '<h3>In your words</h3><p>'+esc(d.eventOwn)+'</p>';
   if(!whoNames.length && !d.channels.length && !d.claimKind && !d.pourText && !d.eventOwn && !d.glossTerm)
-    h += '<p class="empty">Nothing was picked. That\u2019s allowed \u2014 but there\u2019s nothing to file. Go back and tap what fits, or don\u2019t file this.</p>';
+    h += '<p class="empty">Nothing picked. Nothing to file.</p>';
   h += '<div class="btnrow"><button class="btn" id="cfFile" type="button">File it</button>'
     + '<button class="btn secondary" id="cfFix" type="button">Fix it</button>'
     + '<button class="btn quiet" id="cfDrop" type="button">Don\u2019t file this</button></div>';
@@ -1536,7 +1619,7 @@ function startEditCapture(ev){
   cap.register = (ev.register || []).slice();
   cap.response = (ev.response || []).slice();
   cap.seeingOwn = ev.seeing || "";
-  cap.eventOwn = ev.eventOwn || "";
+  cap.eventOwn = ev.eventOwn || ev.fragmentText || "";
   if(ev.claimLedgerId){
     for(var i=0;i<ledger.entries.length;i++){
       if(ledger.entries[i].id === ev.claimLedgerId){
@@ -1572,7 +1655,7 @@ function adjustPiecesForEvent(ev, dir){
 function bindConfirm(){
   el("cfFile").addEventListener("click", function(){ fileCapture(); });
   el("cfFix").addEventListener("click", function(){ go("capture"); });
-  el("cfDrop").addEventListener("click", function(){ cap = null; toast = "Not filed. Nothing was written down."; go("home"); });
+  el("cfDrop").addEventListener("click", function(){ cap = null; toast = "Not filed."; go("home"); });
 }
 function fileCapture(){
   var d = cap;
@@ -1663,15 +1746,15 @@ function fileCapture(){
   };
   if(editingEv){
     Object.keys(evFields).forEach(function(k){ editingEv[k] = evFields[k]; });
+    /* enriched: a fragment that gains detail becomes a full entry */
+    delete editingEv.type; delete editingEv.fragmentText; delete editingEv.filed;
   } else {
     evFields.id = uid(); evFields.ts = ts;
     atlas.events.push(evFields);
   }
   saveAtlas();
   cap = null;
-  toast = editingEv
-    ? "Updated. The record reflects the change."
-    : "Filed. It\u2019s in your map \u2014 and anything in it can be fixed or erased, any time.";
+  toast = editingEv ? "Updated." : "Filed.";
   go("map");
 }
 
@@ -1693,9 +1776,9 @@ function receiptsLine(p){
 }
 function viewMap(){
   var h = '<div class="card"><h2>Your map</h2>'
-    + '<p class="lede muted">Built from what you\u2019ve captured, in your words. They present; you see; the map holds your seeing on top. Rebrands are first-class here \u2014 a new name is the name.</p></div>';
+    + '<p class="lede muted">Built from what you\u2019ve captured, in your words. Your seeing sits on top.</p></div>';
   if(!atlas.pieces.length){
-    h += '<div class="card"><p class="empty">No pieces yet. The first capture \u2014 even just who was present \u2014 lays the first piece.</p>'
+    h += '<div class="card"><p class="empty">No pieces yet.</p>'
       + '<div class="btnrow"><button class="btn" id="mStart" type="button">Add to the map</button></div></div>';
   }
   atlas.pieces.forEach(function(p){
@@ -1708,12 +1791,12 @@ function viewMap(){
     if(chans.length) h += '<p class="small" style="margin-bottom:2px"><strong>Usual channels:</strong></p>' + miniChips(chans);
     if(p.bodySpots && p.bodySpots.length) h += '<p class="small" style="margin-bottom:2px"><strong>Body spots:</strong></p>' + miniChips(p.bodySpots);
     h += receiptsLine(p);
-    h += '<p class="muted small">Tap to open \u2014 rename, add how you see them, file a word they use.</p>';
+
     h += '</div>';
   });
   if(atlas.glossary.length){
     h += '<div class="card"><h2>Their own words</h2>'
-      + '<p class="muted small">The ops\u2019 language, documented the way an anthropologist would: their terms, and what each one does.</p>';
+      + '<p class="muted small">Their terms \u2014 and what each one does.</p>';
     atlas.glossary.forEach(function(g){
       h += '<div class="ledger-entry"><div class="claim-text">&ldquo;'+esc(g.term)+'&rdquo;</div>'
         + '<div class="small">'+esc(g.does || "")+(g.doesOwn ? (g.does ? " \u2014 " : "") + esc(g.doesOwn) : "")+'</div>'
@@ -1726,9 +1809,11 @@ function viewMap(){
     h += '<div class="card"><h2>Recent captures</h2>';
     atlas.events.slice().sort(function(a,b){ return b.ts - a.ts; }).slice(0,5).forEach(function(ev){
       var names = (ev.whoIds||[]).map(function(id){ return pieceName(id); }).filter(Boolean).join(", ");
+      var isFrag = ev.mode === "fragment" || ev.type === "fragment";
+      var evText = ev.fragmentText || ev.pourText || "";
       h += '<div class="ledger-entry"><div class="small"><strong>'+esc(fmtDate(ev.ts))+'</strong>'
-        + (names ? ' \u2014 ' + esc(names) : '') + (ev.mode === "pour" ? ' \u2014 a pour' : '') + '</div>'
-        + (ev.pourText ? '<div class="small muted">'+esc(ev.pourText.length > 140 ? ev.pourText.slice(0,140)+"\u2026" : ev.pourText)+'</div>' : "")
+        + (names ? ' \u2014 ' + esc(names) : '') + (ev.mode === "pour" ? ' \u2014 a pour' : '') + (isFrag ? ' \u2014 <strong>Fragment</strong>' : '') + '</div>'
+        + (evText ? '<div class="small muted">'+esc(evText.length > 140 ? evText.slice(0,140)+"\u2026" : evText)+'</div>' : "")
         + (ev.channels && ev.channels.length ? '<div class="small muted">'+esc(ev.channels.join(" \u00b7 "))+'</div>' : "")
         + '<div style="margin-top:4px"><button type="button" class="btn quiet small" data-detail="'+ev.id+'">Add detail</button></div>'
         + '</div>';
@@ -1761,16 +1846,16 @@ function viewPiece(){
   h += '<button class="btn quiet small" id="pBack" type="button">\u2190 Your map</button>';
   h += '<h2 style="margin-top:8px">'+esc(p.name)+'<span class="type-tag">'+esc(TYPE_LABELS[p.type] || "Voice")+'</span></h2>';
   if(p.likeness) h += '<p class="muted small">Who it is like: '+esc(p.likeness)+(p.status ? ' \u00b7 ' + esc(p.status === "new" ? "New \u2014 first time" : "Met before it was in the map") : '')+'</p>';
-  if(p.standing) h += '<p class="muted small">You\u2019ve marked: it stands for something that happened. The link is yours; the app doesn\u2019t press it.</p>';
+  if(p.standing) h += '<p class="muted small">Stands for something that happened.</p>';
 
   /* the top layer: how the person sees them */
   h += '<div class="seeing-box"><span class="lab">How I see them \u2014 the top layer</span>';
   if(p.seeing) h += '<p style="margin:6px 0 0">'+esc(p.seeing)+'</p>';
-  else h += '<p class="muted" style="margin:6px 0 0">Not said yet. This layer is yours alone to write.</p>';
+  else h += '<p class="muted" style="margin:6px 0 0">Not said yet.</p>';
   h += '</div>';
   h += '<textarea class="big short" id="pSeeing" placeholder="How I see them \u2014 in my words" aria-label="How I see them">'+esc(p.seeing || "")+'</textarea>';
   h += capChips("pSeeingChip", SEEING_OPTS, "", false);
-  h += '<div class="btnrow"><button class="btn small" id="pSeeingSave" type="button">Save how I see them</button></div>';
+  h += '<div class="btnrow"><button class="btn small" id="pSeeingSave" type="button">Save</button></div>';
 
   h += '<hr class="divider"><h3>How they present</h3>';
   var regs = topKeys(p.registers, 8);
@@ -1795,7 +1880,7 @@ function viewPiece(){
     h += '<div class="btnrow"><button class="btn small" id="pGlossSave" type="button">File the word</button></div>';
   }
 
-  h += '<hr class="divider"><h3>Rename \u2014 a rebrand is an act, not an edit</h3>';
+  h += '<hr class="divider"><h3>Rename</h3>';
   h += '<input type="text" class="txt" id="pRename" placeholder="The new name" aria-label="New name">';
   h += '<div class="btnrow"><button class="btn secondary small" id="pRenameBtn" type="button">Rename</button></div>';
   if(p.nameHistory && p.nameHistory.length > 1){
@@ -1824,7 +1909,7 @@ function bindPiece(){
   el("pSeeingSave").addEventListener("click", function(){
     var val = el("pSeeing").value.trim();
     p.seeing = val; p.seeingTs = Date.now(); saveAtlas();
-    toast = "Saved. Your seeing sits on top of this piece.";
+    toast = "Saved.";
     render();
   });
   var gt = el("pGlossToggle");
@@ -1846,7 +1931,7 @@ function bindPiece(){
     p.nameHistory = p.nameHistory || [];
     p.nameHistory.push({name:val, ts:Date.now()});
     saveAtlas();
-    toast = "Renamed. The new name is the name \u2014 the old one stays in the history.";
+    toast = "Renamed. History kept.";
     render();
   });
   el("pDelete").addEventListener("click", function(){
@@ -1901,7 +1986,7 @@ function trackRecordHTML(){
   var names = Object.keys(byWho);
   if(!names.length) return "";
   var h = '<div class="card"><h2>Track records</h2>'
-    + '<p class="muted small">The app counts; you conclude. These are tallies from your own outcome taps \u2014 the record\u2019s arithmetic, never a verdict about what to believe.</p>';
+    + '<p class="muted small">The app counts. You conclude.</p>';
   names.sort().forEach(function(name){
     var mine = byWho[name];
     var checked = mine.filter(isChecked);
@@ -1932,9 +2017,7 @@ function viewReceipts(){
   var closed = entries.filter(isChecked);
   var h = '<div class="card">';
   h += '<h2>Check the receipts</h2>';
-  h += '<p class="lede">Voices make claims &mdash; about what will happen, and about what&rsquo;s happening right now. They define the moment: what something means, what someone&rsquo;s really doing, what you just did &mdash; narrating it, grading it live, announcing it back to you.</p>';
-  h += '<p class="lede">Write the claim down when you hear it. Later, write down what actually happened. Over time this becomes your own evidence about which claims hold up and which don&rsquo;t.</p>';
-  h += '<p class="lede muted">The ledger doesn&rsquo;t decide anything. It just keeps the record &mdash; you draw your own conclusions.</p>';
+  h += '<p class="lede">Claims get written down. Outcomes get checked. The record speaks.</p>';
   h += '</div>';
   if(entries.length){
     h += '<div class="tally">';
@@ -1944,18 +2027,18 @@ function viewReceipts(){
     h += '</div>';
   }
   h += '<div class="card"><h2>Log a claim</h2>';
-  h += '<p class="muted small" style="margin-top:-6px">What did a voice say? A prediction, what&rsquo;s happening now, what you just did, a grade on it &mdash; your words.</p>';
-  h += '<p class="field-label">The kind</p>';
+
+  h += '<p class="field-label">Kind</p>';
   h += capChips("rkind", [["prediction","A prediction"],["now","Happening right now"],["commentary","Running commentary"],["instruction","An instruction"]], receiptKindSel, false);
   h += '<textarea class="big" id="fClaim" style="min-height:12vh" placeholder="e.g. They said I&rsquo;d freeze up in the meeting" aria-label="What was claimed"></textarea>';
-  h += '<p class="field-label">Who said it? <span class="muted" style="font-weight:400">(optional)</span></p>';
+  h += '<p class="field-label">Who <span class="muted" style="font-weight:400">(optional)</span></p>';
   if(atlas.pieces.length){
     h += '<div class="chiprow">' + atlas.pieces.map(function(p){
       return '<button type="button" class="chip" data-rwho="'+esc(p.name)+'">'+esc(p.name)+'</button>';
     }).join("") + '</div>';
   }
   h += '<input type="text" class="txt" id="fWho" placeholder="one word (optional)" aria-label="Who said it">';
-  h += '<div class="btnrow"><button class="btn" id="fAdd" type="button">Log the claim</button></div>';
+  h += '<div class="btnrow"><button class="btn" id="fAdd" type="button">Log it</button></div>';
   h += '</div>';
   h += trackRecordHTML();
   if(open.length){
@@ -1969,7 +2052,7 @@ function viewReceipts(){
     h += '</div>';
   }
   if(!entries.length){
-    h += '<div class="card"><p class="empty">Nothing logged yet. When a voice makes a claim &mdash; a prediction, a running commentary, a live grade, an announcement of what you just did &mdash; put it here, then come back and write what actually happened.</p></div>';
+    h += '<div class="card"><p class="empty">Nothing logged yet.</p></div>';
   }
   return h;
 }
@@ -1990,7 +2073,7 @@ function bindReceipts(){
     var whoId = "";
     atlas.pieces.forEach(function(p){ if(p.name === whoName) whoId = p.id; });
     ledger.entries.push({id:uid(), claim:val, kind:receiptKindSel, who:whoName, whoId:whoId, ts:Date.now(), outcome:"", outcomeChip:"", tsOutcome:0, encoded:false});
-    saveLedger(); toast = "Logged. The ledger keeps it from here.";
+    saveLedger(); toast = "Logged.";
     render(); window.scrollTo(0,0);
   });
   document.querySelectorAll("[data-rout]").forEach(function(b){
@@ -2052,12 +2135,12 @@ function journalPrompts(){
 }
 function viewJournal(){
   var h = '<div class="card"><h2>Journal</h2>'
-    + '<p class="lede muted">For calm times \u2014 mornings, quiet evenings, steady weeks. Prompts point at the ops\u2019 record, never at grading you. Your entries are yours alone: the app never summarizes, analyzes, or files them anywhere.</p></div>';
-  h += '<div class="card"><h3>Pick a prompt \u2014 or pass them all</h3>';
+    + '<p class="lede muted">For calm times. Entries are never summarized or filed anywhere else.</p></div>';
+  h += '<div class="card"><h3>Prompts</h3>';
   journalPrompts().forEach(function(pr, i){
     h += '<button type="button" class="card prompt-card" data-prompt="'+i+'">'+esc(pr)+'</button>';
   });
-  h += '<div class="btnrow"><button class="btn" id="jBlank" type="button">Write without a prompt</button></div></div>';
+  h += '<div class="btnrow"><button class="btn" id="jBlank" type="button">Blank page</button></div></div>';
   if(journal.entries.length){
     h += '<div class="card"><h2>Past entries</h2>';
     journal.entries.slice().sort(function(a,b){ return b.ts - a.ts; }).forEach(function(en){
@@ -2098,7 +2181,7 @@ function bindJournalWrite(){
     if(!t){ el("jwText").focus(); return; }
     journal.entries.push({id:uid(), ts:Date.now(), prompt:journalPrompt, text:t});
     saveJournal(); journalPrompt = "";
-    toast = "Saved. It stays exactly as you wrote it.";
+    toast = "Saved.";
     go("journal");
   });
 }
@@ -2195,11 +2278,11 @@ function viewLadder(){
   var h = '<div class="card" style="margin-top:10px">';
   h += '<button class="btn quiet small" id="ladBack" type="button">\u2190 Back</button>';
   h += '<h2 style="margin-top:8px">Arrange your help ladder</h2>';
-  h += '<p class="lede muted">Yours to arrange, in a calm moment, rung by rung. Everything here is stored on this phone and can be changed or removed any time.</p>';
+  h += '<p class="lede muted">Yours to arrange. Stored on this phone only.</p>';
   h += '<h3>A note for a hard day</h3>';
-  h += '<p class="muted small">Written by you, on a calm day, in your words. It waits on the reassurance rung.</p>';
+  h += '<p class="muted small">From a calm day, for a hard one.</p>';
   h += '<textarea class="big" id="ladNote" style="min-height:14vh" placeholder="What a hard day needs to hear from you\u2026" aria-label="A note for a hard day">'+esc(ladder.noteForHardDay)+'</textarea>';
-  h += '<div class="btnrow"><button class="btn small" id="ladNoteSave" type="button">Save the note</button></div>';
+  h += '<div class="btnrow"><button class="btn small" id="ladNoteSave" type="button">Save note</button></div>';
   h += '<hr class="divider"><h3>A person</h3>';
   if(ladder.contacts.length){
     ladder.contacts.forEach(function(c, i){
@@ -2209,7 +2292,7 @@ function viewLadder(){
   }
   h += '<input type="text" class="txt" id="ladCName" placeholder="Their name" aria-label="Contact name" style="margin-bottom:8px">';
   h += '<input type="tel" class="txt" id="ladCPhone" placeholder="Their number" aria-label="Contact number">';
-  h += '<div class="btnrow"><button class="btn secondary small" id="ladCAdd" type="button">Add this person</button></div>';
+  h += '<div class="btnrow"><button class="btn secondary small" id="ladCAdd" type="button">Add</button></div>';
   h += '<hr class="divider"><h3>My clinician or clinic</h3>';
   h += '<input type="text" class="txt" id="ladClinName" placeholder="Name (e.g. my clinic)" value="'+esc(ladder.clinician.name || "")+'" aria-label="Clinician name" style="margin-bottom:8px">';
   h += '<input type="tel" class="txt" id="ladClinPhone" placeholder="Number" value="'+esc(ladder.clinician.phone || "")+'" aria-label="Clinician number">';
@@ -2221,7 +2304,7 @@ function bindLadder(){
   el("ladBack").addEventListener("click", function(){ go(ladderReturn || "help"); });
   el("ladNoteSave").addEventListener("click", function(){
     ladder.noteForHardDay = el("ladNote").value.trim();
-    saveLadder(); toast = "Saved. It\u2019ll be there on the reassurance rung.";
+    saveLadder(); toast = "Saved.";
     render();
   });
   el("ladCAdd").addEventListener("click", function(){
@@ -2246,8 +2329,7 @@ function bindLadder(){
 /* ================= Screen 9 — Settings ================= */
 function viewSettings(){
   var c = companion;
-  var h = '<div class="card"><h2>Settings</h2>'
-    + '<p class="lede muted">Your control room. Everything this app holds can be seen, taken, or erased here.</p></div>';
+  var h = '<div class="card"><h2>Settings</h2></div>';
   h += '<div class="card"><h2>Your companion</h2>';
   if(c){
     h += '<p><strong>'+esc(c.name)+'</strong></p>';
@@ -2256,21 +2338,21 @@ function viewSettings(){
       + '<br>Addresses you: '+esc(c.addressType === "none" ? "no name \u2014 just talks to you" : (c.addressValue || c.addressType))
       + '<br>Offers: '+esc(c.offerFreq === "freely" ? "freely" : c.offerFreq === "asked" ? "only when you ask" : "sometimes")+'</p>';
   }
-  h += '<div class="btnrow"><button class="btn secondary" id="setCompanion" type="button">Reshape your companion</button></div>';
+  h += '<div class="btnrow"><button class="btn secondary" id="setCompanion" type="button">Reshape companion</button></div>';
   h += '<p class="muted small">Renaming or reshaping your companion never touches your map or your receipts.</p></div>';
   h += '<div class="card"><h2>The contract</h2>' + contractHTML() + '</div>';
   h += '<div class="card"><h2>Your help ladder</h2>'
-    + '<p class="small muted">Reassurance from your own record, a person you name, your professional routes. Pressing Help writes nothing down \u2014 no log of help-seeking is kept.</p>'
-    + '<div class="btnrow"><button class="btn secondary" id="setLadder" type="button">Arrange my ladder</button></div></div>';
+    + '<p class="small muted">Your rungs: reassurance, a person, a professional.</p>'
+    + '<div class="btnrow"><button class="btn secondary" id="setLadder" type="button">My ladder</button></div></div>';
   h += '<div class="card"><h2>Your clinician</h2>'
     + '<input type="text" class="txt" id="setClinName" placeholder="Name (e.g. my clinic)" value="'+esc(ladder.clinician.name || "")+'" aria-label="Clinician name" style="margin-bottom:8px">'
     + '<input type="tel" class="txt" id="setClinPhone" placeholder="Number" value="'+esc(ladder.clinician.phone || "")+'" aria-label="Clinician number">'
     + '<div class="btnrow"><button class="btn small" id="setClinSave" type="button">Save</button></div></div>';
   h += '<div class="card"><h2>Export your record</h2>'
-    + '<p class="muted small">Your whole map, ledger, glossary, and journal, as one file \u2014 to keep, or to carry to a care professional. You assemble it; you share it. The app sends nothing anywhere.</p>'
-    + '<div class="btnrow"><button class="btn secondary" id="setExport" type="button">Download my record (JSON)</button></div></div>';
+    + '<p class="muted small">Your whole record as one file. The app sends nothing anywhere.</p>'
+    + '<div class="btnrow"><button class="btn secondary" id="setExport" type="button">Download record</button></div></div>';
   h += '<div class="card"><h2>Erase</h2>'
-    + '<p class="muted small">Deleting one thing lives with the thing itself \u2014 a ledger entry, a journal entry, a map piece. Erasing everything is here. Data posture: everything is on this phone. v1 has no account and no sync. If any future feature needs data to leave the device, it will be stated plainly before it happens.</p>'
+    + '<p class="muted small">Everything is on this phone. No account, no sync.</p>'
     + '<div class="btnrow"><button class="btn danger" id="setErase" type="button">Erase everything</button></div></div>';
   return h;
 }
@@ -2308,6 +2390,7 @@ function bindSettings(){
 }
 
 /* ================= boot ================= */
+el("fragBtn").addEventListener("click", function(){ startFragment(); });
 el("helpBtn").addEventListener("click", function(){
   if(view !== "help"){ helpReturn = view; }
   view = "help";
