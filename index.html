@@ -247,6 +247,33 @@
     background:var(--accent-soft); border:1px solid var(--accent); color:var(--ink);
     border-radius:8px; padding:10px 14px; margin:0 0 14px; font-size:.95rem;
   }
+
+  /* ---- the thread (Home is a conversation) ---- */
+  .thread{display:flex; flex-direction:column; gap:10px; padding-top:4px}
+  .msg{display:flex}
+  .msg.me{justify-content:flex-end}
+  .msg .bubble{
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:12px 16px; max-width:88%; white-space:pre-wrap; line-height:1.5;
+  }
+  .msg.me .bubble{background:var(--accent); border-color:var(--accent); color:#fff}
+  .msg .bubble .chiprow{margin-top:8px}
+  .msg .bubble p{margin:0}
+  .thread-spacer{height:158px}
+  .composer{
+    position:fixed; left:50%; transform:translateX(-50%); z-index:65;
+    width:min(680px, 100%);
+    bottom:calc(84px + env(safe-area-inset-bottom));
+    background:var(--paper); border-top:1px solid var(--line);
+    padding:8px 12px 6px;
+  }
+  .composer-row{display:flex; gap:8px; align-items:flex-end}
+  .composer textarea{
+    flex:1; border:1px solid var(--line); border-radius:12px; background:#fff;
+    padding:12px 14px; font-size:1rem; font-family:inherit; color:var(--ink);
+    min-height:48px; max-height:20vh; resize:none; line-height:1.4;
+  }
+  .composer .btn{min-height:48px}
 </style>
 </head>
 <body>
@@ -298,7 +325,8 @@ var K = {
   atlas:     "ever_present_v1_atlas",
   journal:   "ever_present_v1_journal",
   ladder:    "ever_present_v1_ladder",
-  ledger:    "ever_present_ledger_v1"
+  ledger:    "ever_present_ledger_v1",
+  thread:    "ever_present_v1_thread"
 };
 function storeLoad(key, blank){
   try{
@@ -350,6 +378,7 @@ var KIND_LABELS = {
   prediction:"Prediction",
   now:"Claim about right now",
   commentary:"Running commentary",
+  announcement:"Announcement",
   instruction:"Instruction"
 };
 function outcomeLabel(e){
@@ -402,6 +431,7 @@ var frag = null;
 var fragReturn = "home";
 var FRAG_CHANNELS = ["Speaking","Noise","Body","Pain","Seeing","Presence"];
 var FRAG_VIEWS = ["home","map","piece","receipts","journal","journalRead"];
+var threadDoor = false; /* set when a flow was entered from the thread */
 
 /* ================= render root + nav ================= */
 function navItems(){
@@ -430,7 +460,7 @@ function renderNav(){
   nav.querySelectorAll("[data-nav]").forEach(function(b){
     b.addEventListener("click", function(){
       var target = b.getAttribute("data-nav");
-      if(target === "pour"){ startPour(); }
+      if(target === "pour"){ threadDoor = false; startPour(); }
       else go(target);
     });
   });
@@ -453,7 +483,7 @@ function render(){
   if(toast){ h += '<div class="toast">'+esc(toast)+'</div>'; toast = ""; }
   if(view === "arrival"){ v.innerHTML = h + viewArrival(); bindArrival(); }
   else if(view === "create"){ v.innerHTML = h + viewCreate(); bindCreate(); }
-  else if(view === "home"){ v.innerHTML = headerHTML() + h + viewHome(); bindHome(); }
+  else if(view === "home"){ v.innerHTML = headerHTML() + h + viewThread(); bindThread(); }
   else if(view === "capture"){ v.innerHTML = headerHTML() + h + viewCapture(); bindCapture(); }
   else if(view === "pour"){ v.innerHTML = headerHTML() + h + viewPour(); bindPour(); }
   else if(view === "proposals"){ v.innerHTML = headerHTML() + h + viewProposals(); bindProposals(); }
@@ -472,6 +502,7 @@ function render(){
   renderNav();
   var fb = el("fragBtn");
   if(fb) fb.style.display = (companion && FRAG_VIEWS.indexOf(view) !== -1) ? "flex" : "none";
+  if(fb) fb.style.bottom = (view === "home") ? "calc(224px + env(safe-area-inset-bottom))" : "";
 }
 
 /* ================= Screen 1 — Arrival / first open ================= */
@@ -515,9 +546,10 @@ var REGISTER_OPTS = ["Plain and warm","Plain and dry","Playful \u2014 laughs wit
 var LANGUAGE_OPTS = ["My own tongue or dialect","Family sayings","Faith language, if it\u2019s mine","Slang from my world","Simple, standard words"];
 var ADDRESS_OPTS = [["name","My name"],["nickname","A nickname I choose"],["none","No name \u2014 just talk to me"]];
 var OFFER_OPTS = [["freely","Offer freely"],["sometimes","Offer sometimes"],["asked","Only when I ask"]];
+var VIBE_OPTS = [["straight","Straight up"],["gentle","Gentle"],["humor","With humor"],["asked","Only when I ask"]];
 function blankCompanionDraft(){
   return {name:"", register:[], language:[], registerOwn:"", languageOwn:"",
-          addressType:"none", addressValue:"", offerFreq:"sometimes"};
+          addressType:"none", addressValue:"", offerFreq:"sometimes", vibe:"gentle"};
 }
 function startCreate(editing){
   createMode = editing ? "edit" : "new";
@@ -541,7 +573,7 @@ function chipsHTML(group, opts, selected, multi){
 }
 function viewCreate(){
   var d = createDraft;
-  var steps = ["Name it","Its language","How it addresses you","How much it offers","The contract"];
+  var steps = ["Name it","Its language","How it addresses you","How much it offers","How it brings things up","The contract"];
   var h = '<div class="card" style="margin-top:10px">';
   h += '<p class="stepdots">Step '+(createStep+1)+' of '+steps.length+' \u2014 '+esc(steps[createStep])+'</p>';
   if(createStep === 0){
@@ -575,16 +607,21 @@ function viewCreate(){
     h += chipsHTML("coffer", OFFER_OPTS, d.offerFreq, false);
   }
   if(createStep === 4){
+    h += '<h2>How should '+esc(d.name || "it")+' bring things up?</h2>';
+    h += '<p class="muted">Tone, timing, which doors first. Change it any time.</p>';
+    h += chipsHTML("cvibe", VIBE_OPTS, d.vibe || "gentle", false);
+  }
+  if(createStep === 5){
     h += '<h2>'+esc(d.name || "Your companion")+'</h2>';
     h += '<p class="lede muted">In its own voice, the deal stays the same:</p>';
     h += contractHTML();
     h += '<div class="btnrow"><button class="btn" id="cConfirm" type="button">That\u2019s right</button>'
       + '<button class="btn secondary" id="cRestart" type="button">Change something</button></div>';
   }
-  if(createStep < 4){
+  if(createStep < 5){
     h += '<div class="btnrow">';
     if(createStep > 0) h += '<button class="btn secondary" id="cBack" type="button">Back</button>';
-    h += '<button class="btn" id="cNext" type="button">'+(createStep === 3 ? "See the contract" : "Next")+'</button>';
+    h += '<button class="btn" id="cNext" type="button">'+(createStep === 4 ? "See the contract" : "Next")+'</button>';
     h += '</div>';
   }
   h += '</div>';
@@ -609,6 +646,7 @@ function bindCreate(){
       if(g === "clang"){ var j = d.language.indexOf(val); if(j === -1) d.language.push(val); else d.language.splice(j,1); }
       if(g === "caddr"){ d.addressType = val; }
       if(g === "coffer"){ d.offerFreq = val; }
+      if(g === "cvibe"){ d.vibe = val; }
       render();
     });
   });
@@ -627,7 +665,7 @@ function bindCreate(){
       name: createDraft.name, register: createDraft.register, language: createDraft.language,
       registerOwn: createDraft.registerOwn, languageOwn: createDraft.languageOwn,
       addressType: createDraft.addressType, addressValue: createDraft.addressValue,
-      offerFreq: createDraft.offerFreq,
+      offerFreq: createDraft.offerFreq, vibe: createDraft.vibe || "gentle",
       created: companion && companion.created ? companion.created : Date.now()
     };
     saveCompanion();
@@ -712,27 +750,6 @@ function companionOpener(){
 /* ================= the Hub (Home) =================
    The companion speaks first; the record shows itself as cards.
    Status chips and tallies describe the record, never the person. */
-function hubStatusChips(){
-  var chips = [];
-  var open = openClaims();
-  if(open.length) chips.push(open.length + (open.length === 1 ? " claim still open" : " claims still open"));
-  var evs = atlas.events.slice().sort(function(a,b){ return b.ts - a.ts; });
-  for(var i=0;i<evs.length;i++){
-    if(evs[i].mode === "pour" && evs[i].pourText){
-      var d = daysSince(evs[i].ts);
-      var when = d <= 0 ? "today" : d === 1 ? "yesterday"
-        : new Date(evs[i].ts).toLocaleDateString(undefined,{weekday:"short"});
-      chips.push("Last pour \u00b7 " + when);
-      break;
-    }
-  }
-  if(atlas.pieces.length)
-    chips.push(atlas.pieces.length + (atlas.pieces.length === 1 ? " piece" : " pieces") + " on your map");
-  return chips.slice(0,3);
-}
-/* The companion's one suggestion for today. Candidates come from the
-   person's own record; one shows at a time, chosen by day. Passing on
-   one writes nothing about the person. */
 function hubTopPick(){
   var cands = [];
   if(!atlas.pieces.length && !ledger.entries.length && !atlas.events.length){
@@ -786,136 +803,772 @@ function hubTopPick(){
   var dayIdx = Math.floor(Date.now() / 86400000);
   return cands[dayIdx % cands.length];
 }
-var hubPick = null;
-function heroInviteLine(){
-  var lines = [
-    "Pour it out here, in your words. I\u2019ll keep every word.",
-    "This is the room where it gets said. Pour it out; I\u2019ll hold the record.",
-    "Whatever they\u2019ve been doing, it can go here. Pour it out."
-  ];
-  var dayIdx = Math.floor(Date.now() / 86400000);
-  return lines[dayIdx % lines.length];
+/* ================= the thread (Home is a conversation) =================
+   The companion speaks first; the person's words are pours; the
+   record's surfaces arrive as messages in the thread. The thread is
+   persisted on-device and capped at the last 300 messages. */
+function threadBlank(){ return {messages:[], lastDay:-1, surfaceDay:-1, figSignature:""}; }
+var thread = storeLoad(K.thread, threadBlank);
+if(!thread.messages) thread.messages = [];
+if(thread.lastDay == null) thread.lastDay = -1;
+if(thread.surfaceDay == null) thread.surfaceDay = -1;
+if(thread.figSignature == null) thread.figSignature = "";
+if(thread.interruptionKey == null) thread.interruptionKey = "";
+if(thread.interruptionHandledAt == null) thread.interruptionHandledAt = 0;
+var bootInterruptChecked = false;
+if(!thread.doorCounts) thread.doorCounts = {};
+if(!thread.knowledge) thread.knowledge = {shown:{}, dismissed:{}};
+var sessionHold = false;
+function saveThread(){
+  if(thread.messages.length > 300) thread.messages = thread.messages.slice(thread.messages.length - 300);
+  storeSave(K.thread, thread);
 }
-function viewHome(){
-  var h = "";
-  /* ambient zone: the companion's opener is the headline */
-  h += '<section class="hub-top">';
-  h += '<p class="hub-opener">'+esc(companionOpener())+'</p>';
-  var chips = hubStatusChips();
-  if(chips.length){
-    h += '<div class="status-chips">' + chips.map(function(c){
-      return '<span>'+esc(c)+'</span>';
-    }).join("") + '</div>';
+function pushMsg(m){
+  m.id = m.id || uid();
+  m.ts = m.ts || Date.now();
+  thread.messages.push(m);
+  saveThread();
+  return m;
+}
+function threadMsgById(id){
+  for(var i=0;i<thread.messages.length;i++) if(thread.messages[i].id === id) return thread.messages[i];
+  return null;
+}
+function eventById(id){
+  for(var i=0;i<atlas.events.length;i++) if(atlas.events[i].id === id) return atlas.events[i];
+  return null;
+}
+function greetingText(){
+  var addr = addressOf();
+  return greetingWord() + (addr ? ", " + addr : "") + ". " + companionOpener();
+}
+function offerMsg(){
+  var chips = orderByDoors([
+      {label:"Pour", act:"pour"},
+      {label:"Quick note", act:"quick"},
+      {label:"Fragment", act:"fragment"},
+      {label:"Write", act:"write"},
+      {label:"Receipts", act:"figreceipts"}
+    ], function(c){ return c.act; });
+  return {type:"offer", text:"", chips:chips};
+}
+/* ---- the receipts, figured by the companion ----
+   Tallies and track records are counted by the companion and brought
+   into the thread. The companion counts; the person concludes. */
+function figuredReceipts(){
+  var byWho = {};
+  ledger.entries.forEach(function(e){
+    var key = e.who || "";
+    if(!byWho[key]) byWho[key] = [];
+    byWho[key].push(e);
+  });
+  function figLine(label, mine){
+    var checked = mine.filter(isChecked);
+    var held = checked.filter(heldUp).length;
+    var didnt = checked.filter(function(e){ return e.outcomeChip === "didnt"; }).length;
+    var line = label + ": " + mine.length + (mine.length === 1 ? " claim" : " claims") + ".";
+    if(checked.length) line += " " + checked.length + " checked — " + held + " held up, " + didnt + " didn’t.";
+    var openN = mine.length - checked.length;
+    if(openN) line += " " + openN + " still open.";
+    return line;
   }
-  h += '</section>';
-
-  /* hero card: the pour invitation */
-  h += '<section class="hero-card" id="heroCard">';
-  h += '<div class="hero-label">'+esc(companion.name)+' \u00b7 your companion</div>';
-  h += '<p class="hero-line">'+esc(heroInviteLine())+'</p>';
-  h += '<button class="hero-main" id="hPourMain" type="button">Pour it out</button>';
-  h += '<button class="hero-quick" id="hQuickNote" type="button">Quick note</button>';
-  h += '<button class="hero-quick" id="hFragment" type="button">Fragment</button>';
-  h += '</section>';
-
-  /* receipts card: only while a claim is still open */
-  var open = openClaims().slice().sort(function(a,b){ return a.ts - b.ts; });
-  if(open.length){
-    var e0 = open[0];
-    h += '<section class="hub-card"><p class="hub-label">Check the receipts</p>';
-    h += '<div class="claim-text">&ldquo;'+esc(e0.claim)+'&rdquo;</div>';
-    h += '<div class="muted small" style="margin-top:4px">'+esc(fmtDate(e0.ts))+(e0.who ? ' &mdash; '+esc(e0.who) : '')+'</div>';
-    h += '<div class="chiprow">'
-      + '<button type="button" class="chip" data-hout="'+e0.id+':happened">It happened</button>'
-      + '<button type="button" class="chip" data-hout="'+e0.id+':didnt">It didn\u2019t</button>'
-      + '<button type="button" class="chip" data-hout="'+e0.id+':partly">Partly</button>'
-      + '<button type="button" class="chip" data-hout="'+e0.id+':notyet">Not yet</button></div>';
-    if(open.length > 1)
-      h += '<p class="muted small">'+open.length+' still open.</p>';
-    h += '<div class="btnrow"><button class="btn secondary small" id="hReceipts" type="button">All receipts</button></div>';
-    h += '</section>';
+  var lines = [];
+  Object.keys(byWho).filter(function(k){ return k; }).sort().forEach(function(name){
+    lines.push(figLine(name, byWho[name]));
+  });
+  if(byWho[""] && byWho[""].length) lines.push(figLine("No one specific", byWho[""]));
+  var byKind = {};
+  ledger.entries.forEach(function(e){
+    if(e.kind){ if(!byKind[e.kind]) byKind[e.kind] = []; byKind[e.kind].push(e); }
+  });
+  var kinds = Object.keys(byKind);
+  if(kinds.length > 1){
+    lines.push(kinds.map(function(k){
+      var mine = byKind[k];
+      var checked = mine.filter(isChecked);
+      return (KIND_LABELS[k] || k) + ": " + mine.length + " logged, " + checked.length + " checked";
+    }).join(" · "));
   }
-
-  /* top pick: the companion's one suggestion for today */
-  hubPick = (companion.offerFreq === "asked") ? null : hubTopPick();
-  if(hubPick){
-    h += '<section class="hub-card"><p class="hub-label">Top pick</p>';
-    h += '<h2>'+esc(hubPick.title)+'</h2>';
-    h += '<p>'+esc(hubPick.body)+'</p>';
-    h += '<div class="btnrow"><button class="btn small" id="pickGo" type="button">'+esc(hubPick.goLabel)+'</button>'
-      + '<button class="btn quiet small" id="pickNo" type="button">Not now</button></div>';
-    h += '</section>';
+  var withMove = ledger.entries.filter(function(e){ return e.move && e.move.trim(); }).length;
+  if(withMove) lines.push((withMove === 1 ? "1 time" : withMove + " times") + " they announced and you moved anyway.");
+  var checkedAll = ledger.entries.filter(isChecked).length;
+  return {lines:lines, total:ledger.entries.length, checked:checkedAll};
+}
+/* A signature over the figured facts only (checked / held / didn't per
+   voice). It changes when a claim is checked — never when one is merely
+   logged — so the figured picture is news exactly when the figuring is. */
+function figSignature(){
+  var sig = {};
+  ledger.entries.forEach(function(e){
+    if(!isChecked(e)) return;
+    var k = e.who || "";
+    if(!sig[k]) sig[k] = [0,0,0];
+    sig[k][0]++;
+    if(heldUp(e)) sig[k][1]++;
+    if(e.outcomeChip === "didnt") sig[k][2]++;
+  });
+  return JSON.stringify(sig);
+}
+function figNew(){
+  return figuredReceipts().checked >= 1 && figSignature() !== thread.figSignature;
+}
+function postFiguredReceipts(){
+  var fig = figuredReceipts();
+  if(!fig.total){
+    pushMsg({type:"companion", text:"No claims in the ledger yet. When they claim something, log it — I’ll keep the count."});
+  } else {
+    pushMsg({type:"receiptsFig", lines:fig.lines, dismissed:false});
   }
-
-  /* map snapshot: their pieces, named as they named them */
-  if(atlas.pieces.length){
-    h += '<section class="hub-card"><p class="hub-label">Your map</p>';
-    h += '<div class="chiprow">' + atlas.pieces.slice(0,10).map(function(p){
-      return '<button type="button" class="chip" data-hubpiece="'+p.id+'">'+esc(p.name)+'</button>';
-    }).join("") + '</div>';
-    h += '<div class="btnrow"><button class="btn secondary small" id="hMap" type="button">Open map</button>'
-      + '<button class="btn quiet small" id="hAddMap" type="button">Add</button></div>';
-    h += '</section>';
+  thread.figSignature = figSignature();
+  saveThread();
+}
+/* At most one surface a day beyond the greeting: the figured receipts
+   when the figuring is new, else a rotation of what's live — the
+   oldest open claim (its outcome proposed, never decided), the top
+   pick, a glimpse of the map. */
+/* ---- vibe: the companion tuned to the person's personality ----
+   Tone, timing, and which doors it leads with. "Only when I ask"
+   silences every proactive surface; the person's own chips and
+   requests always work. Humor never enters safety surfaces: the
+   interruption's first line and the help ladder are vibe-free. */
+function vibeOf(){ return (companion && companion.vibe) || "gentle"; }
+function doorsLine(){
+  var v = vibeOf();
+  if(v === "straight") return "This claim is still open.";
+  if(v === "humor") return "This one is still loitering.";
+  return "This one’s still hanging there.";
+}
+function interruptLine1(){
+  var v = vibeOf();
+  if(v === "straight") return "I’m here.";
+  if(v === "gentle") return "I’m here. This is a lot landing at once. No rush.";
+  return "I’m here. This is a lot landing at once.";
+}
+/* Leading doors learn: counters of the doors the person actually
+   taps, kept on-device like everything else, exported and erased
+   with the rest of the record. Offer rows compose most-taken first. */
+var DOOR_KEY = {pour:"pour", quick:"quick", figreceipts:"receipts", write:"write", playbook:"moves", helpdoor:"help"};
+function bumpDoor(act){
+  var k = DOOR_KEY[act];
+  if(!k) return;
+  thread.doorCounts[k] = (thread.doorCounts[k] || 0) + 1;
+  saveThread();
+}
+function doorCount(act){
+  var k = DOOR_KEY[act];
+  return k ? ((thread.doorCounts || {})[k] || 0) : 0;
+}
+function orderByDoors(items, actOf){
+  return items.map(function(it, i){ return {it:it, i:i}; })
+    .sort(function(a, b){
+      var d = doorCount(actOf(b.it)) - doorCount(actOf(a.it));
+      return d !== 0 ? d : a.i - b.i;
+    })
+    .map(function(x){ return x.it; });
+}
+/* ---- helping make the move ----
+   When a claim sits in the record unanswered — the blast is the only
+   thing written — the companion can help the person make their move.
+   Once per claim, on a later open (never in the moment of logging),
+   or at once when they tap "Doors?" on the claim in Receipts. The
+   doors are his own recorded moves and the app's doors. Nothing here
+   is advice, and dismissal is forever. */
+function postDoors(entry){
+  pushMsg({type:"doors", claimId:entry.id, dismissed:false});
+  entry.doorsPosted = true;
+  saveLedger();
+}
+function postDoorsIfDue(){
+  var cands = ledger.entries.filter(function(e){
+    return !isChecked(e) && !(e.move && e.move.trim()) && !e.doorsDismissed && !e.doorsPosted;
+  }).sort(function(a,b){
+    var ka = a.kind === "announcement" ? 0 : 1;
+    var kb = b.kind === "announcement" ? 0 : 1;
+    if(ka !== kb) return ka - kb;
+    return a.ts - b.ts;
+  });
+  if(!cands.length) return false;
+  postDoors(cands[0]);
+  return true;
+}
+function pastMoves(){
+  return ledger.entries.filter(function(e){
+    return isChecked(e) && e.move && e.move.trim();
+  }).sort(function(a,b){ return b.ts - a.ts; }).slice(0,3);
+}
+/* ---- the interruption ----
+   From the record only: verdicts landing in a short window with
+   nothing answering them — no moves, no pours. The companion holds
+   space and hands back the person's own authorship evidence: their
+   moves, counted and quoted. Once per signature episode, never
+   repeated for the same window, dismissible. It never names a
+   state, never claims it detected anything, never escalates. */
+function interruptionSignature(){
+  var now = Date.now(), W = 48 * 3600 * 1000;
+  var blasts = ledger.entries.filter(function(e){
+    return e.kind === "announcement" && e.ts <= now && (now - e.ts) <= W;
+  });
+  if(blasts.length < 2) return null;
+  var answered = false;
+  ledger.entries.forEach(function(e){
+    if(e.move && e.move.trim() && e.tsOutcome && e.tsOutcome <= now && (now - e.tsOutcome) <= W) answered = true;
+  });
+  if(!answered) atlas.events.forEach(function(ev){
+    if((ev.type === "pour" || ev.mode === "pour") && ev.ts <= now && (now - ev.ts) <= W) answered = true;
+  });
+  if(answered) return null;
+  return blasts.map(function(e){ return e.id; }).sort().join(",");
+}
+function maybePostInterruption(){
+  var key = interruptionSignature();
+  if(!key) return false;
+  if(vibeOf() === "asked") return false;
+  if(thread.interruptionKey === key) return false;
+  if(thread.interruptionHandledAt && (Date.now() - thread.interruptionHandledAt) < 48 * 3600 * 1000) return false;
+  var moves = ledger.entries.filter(function(e){ return e.move && e.move.trim(); })
+    .sort(function(a,b){ return (b.tsOutcome || b.ts) - (a.tsOutcome || a.ts); });
+  var line = "";
+  if(moves.length){
+    line = "Your record says you move: " + moves.length + (moves.length === 1 ? " move" : " moves")
+      + " logged. Last one: \u201C" + moves[0].move.trim() + "\u201D";
   }
-
-  /* journal card: today's prompt */
-  var prompts = journalPrompts();
+  pushMsg({type:"interrupt", key:key, hasMoves:moves.length > 0, line:line, dismissed:false});
+  thread.interruptionKey = key;
+  saveThread();
+  return true;
+}
+/* ---- posture timing: HOLD and OFFER ----
+   HOLD: during pours, during blast bursts, right after hard
+   entries — reception only, no knowledge, no new doors.
+   OFFER: calm returns only — a later open, no fresh blast in the
+   last ~6 hours, no burst window open. Then the companion may bring
+   ONE knowledge item, matched to the person's recent record.
+   Knowledge is information about what others have described —
+   never advice, never a statement about the person's own state. */
+var KNOWLEDGE = [
+  {theme:"singing-together", tags:["singing","sing","choir","together","arguing","harmony"],
+   l1:"Others describe voices that sing together, argue, or answer each other — a group, not a single voice.",
+   l2:"It is less studied than single voices, but people report it often enough that researchers list it as its own pattern."},
+  {theme:"body-feelings", tags:["body","pain","touch","pressure","tingling"],
+   l1:"In one diary study, bodily feelings came with every hallucination people recorded — not just sound.",
+   l2:"Tightness, pressure, pain, a sense of being touched — others log these as part of the same event, not separate symptoms."},
+  {theme:"whisper-close", tags:["whisper","close","ear","breath"],
+   l1:"Others describe whispers that feel close — right at the ear, nearer than any real voice could be.",
+   l2:"How a voice says it — whisper, shout, mutter — is part of how people tell them apart."},
+  {theme:"noises-only", tags:["noise","hiss","buzz","hum","knock","static"],
+   l1:"Some voices never use words at all — others describe only noises: hissing, humming, knocking.",
+   l2:"In the surveys, experiences like these still count as voice-hearing experiences, words or not."},
+  {theme:"commands-rare", tags:["told me to","ordered","command","do it"],
+   l1:"Strictly harmful commands turn out to be rare in the research — about 1 in 20 of what voices say.",
+   l2:"Most of what others report is commentary, claims, and conversation — not orders."},
+  {theme:"multimodal-norm", tags:["seeing","saw","smell","taste","shadow"],
+   l1:"Only about half of voice experiences are purely sound — seeing or sensing something at the same time is the norm.",
+   l2:"In one large study, just 46% were hearing-only. The rest mixed channels together."},
+  {theme:"several-at-once", tags:["at once","same time","while","both at"],
+   l1:"Others describe channels combining at once — a voice speaking while the body feels something too.",
+   l2:"People log these as one event, not two. The combination itself is part of the pattern."},
+  {theme:"position-in-body", tags:["inside my head","outside","chest","stomach","behind me","shoulder"],
+   l1:"Where a voice sits matters to people — inside the head, outside it, in the chest, behind the shoulder.",
+   l2:"Researchers mostly recorded inside-or-outside. People's own accounts name many more places."},
+  {theme:"their-own-language", tags:["word for","called","means","their word","nickname"],
+   l1:"Others describe the voices having their own words — a private vocabulary with its own meanings.",
+   l2:"People who map those words say the glossary itself is evidence: a system with rules, not random noise."},
+  {theme:"track-records", tags:["will","said","announced","claim","never","always"],
+   l1:"Nobody in the research was tracking whether the voices' claims came true — people who keep their own tallies say the record changes the relationship.",
+   l2:"A claim written down can be checked later. A claim that only echoes cannot."}
+];
+function knowledgeHaystack(){
+  var parts = [];
+  var now = Date.now(), W = 14 * 86400000;
+  atlas.events.slice(-20).forEach(function(ev){
+    if(ev.ts > now || (now - ev.ts) > W) return;
+    parts.push(ev.pourText || "", ev.fragmentText || "",
+      (ev.channels || []).join(" "), (ev.among || []).join(" "),
+      (ev.register || []).join(" "), ev.seeing || "");
+  });
+  ledger.entries.slice(-10).forEach(function(e){
+    if(e.ts <= now && (now - e.ts) <= W) parts.push(e.claim || "");
+  });
+  return parts.join(" ").toLowerCase();
+}
+function calmForKnowledge(){
+  if(vibeOf() === "asked") return false;
+  if(sessionHold) return false;
+  var now = Date.now();
+  for(var i=0;i<ledger.entries.length;i++){
+    var e = ledger.entries[i];
+    if(e.kind === "announcement" && e.ts <= now && (now - e.ts) < 6 * 3600 * 1000) return false;
+  }
+  if(interruptionSignature()) return false; /* burst window = HOLD */
+  return true;
+}
+function postKnowledgeIfCalm(){
+  if(!calmForKnowledge()) return false;
+  var hay = knowledgeHaystack();
+  if(!hay.trim()) return false;
+  var now = Date.now(), M = 30 * 86400000;
+  for(var i=0;i<KNOWLEDGE.length;i++){
+    var it = KNOWLEDGE[i];
+    var dis = thread.knowledge.dismissed[it.theme] || 0;
+    if(dis && (now - dis) < M) continue;
+    var sh = thread.knowledge.shown[it.theme] || 0;
+    if(sh && (now - sh) < M) continue;
+    var hit = false;
+    for(var j=0;j<it.tags.length;j++){
+      if(hay.indexOf(it.tags[j].toLowerCase()) !== -1){ hit = true; break; }
+    }
+    if(!hit) continue;
+    pushMsg({type:"knowledge", theme:it.theme, l1:it.l1, l2:it.l2, expanded:false, dismissed:false});
+    thread.knowledge.shown[it.theme] = now;
+    saveThread();
+    return true;
+  }
+  return false;
+}
+function postDailySurface(){
+  if(vibeOf() === "asked") return;
+  if(postDoorsIfDue()) return;
+  if(figNew()){ postFiguredReceipts(); return; }
+  if(postKnowledgeIfCalm()) return;
+  var surfaces = [];
+  if(openClaims().length) surfaces.push("receipt");
+  var pick = (companion && companion.offerFreq !== "asked") ? hubTopPick() : null;
+  if(pick) surfaces.push("pick");
+  if(atlas.pieces.length) surfaces.push("map");
+  if(!surfaces.length) return;
   var dayIdx = Math.floor(Date.now() / 86400000);
-  var todayPrompt = prompts[dayIdx % prompts.length];
-  h += '<section class="hub-card"><p class="hub-label">Journal</p>';
-  h += '<p class="lede">'+esc(todayPrompt)+'</p>';
-  h += '<div class="btnrow"><button class="btn secondary small" id="hWrite" data-prompt-text="'+esc(todayPrompt)+'" type="button">Write</button>'
-    + '<button class="btn quiet small" id="hJournal" type="button">All entries</button></div>';
-  h += '</section>';
-
-
-  h += '<div class="btnrow" style="justify-content:center"><button class="btn quiet small" id="hSettings" type="button">Settings</button></div>';
+  var which = surfaces[dayIdx % surfaces.length];
+  if(which === "receipt"){
+    var open = openClaims().slice().sort(function(a,b){ return a.ts - b.ts; });
+    pushMsg({type:"receipt", claimId:open[0].id});
+  } else if(which === "pick" && pick){
+    pushMsg({type:"pick", title:pick.title, body:pick.body, goLabel:pick.goLabel,
+             act:pick.act, pieceId:pick.pieceId || "", prompt:pick.prompt || "", dismissed:false});
+  } else if(which === "map"){
+    pushMsg({type:"mapGlimpse"});
+  }
+}
+/* ---- dynamic claims: the companion works the record ----
+   When a claim is logged and an older CHECKED claim in the person's
+   own record shares real words with it, the companion brings the
+   precedent into the thread: the claim, their move, how it ended.
+   Verbatim from the record — the companion invents nothing. */
+var CLAIM_STOPWORDS = {};
+("that this with from will would they them then than what when were have been your yours about going said says into over just like there here being").split(" ").forEach(function(w){ CLAIM_STOPWORDS[w] = 1; });
+function claimWords(text){
+  var out = {};
+  String(text || "").toLowerCase().replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).forEach(function(w){
+    w = w.replace(/^'+|'+$/g, "");
+    if(w.length >= 4 && !CLAIM_STOPWORDS[w]) out[w] = 1;
+  });
+  return out;
+}
+function findPrecedent(entry){
+  var mine = claimWords(entry.claim);
+  var keys = Object.keys(mine);
+  if(keys.length < 2) return null;
+  var best = null, bestShared = 0;
+  ledger.entries.forEach(function(e){
+    if(e.id === entry.id || !isChecked(e)) return;
+    if(entry.ts && e.ts > entry.ts) return;
+    var theirs = claimWords(e.claim);
+    var shared = 0;
+    keys.forEach(function(w){ if(theirs[w]) shared++; });
+    if(shared >= 2 && (shared > bestShared || (shared === bestShared && best && e.ts > best.entry.ts))){
+      best = {entry:e, shared:shared};
+      bestShared = shared;
+    }
+  });
+  return best;
+}
+function outcomeShort(e){
+  if(e.outcome && e.outcome.trim()) return outcomeLabel(e);
+  if(e.outcomeChip === "happened") return "It happened";
+  if(e.outcomeChip === "didnt") return "It didn’t happen";
+  if(e.outcomeChip === "partly") return "Partly";
+  return "Checked";
+}
+function maybePostPrecedent(entry){
+  if(!entry) return;
+  var hit = findPrecedent(entry);
+  if(!hit) return;
+  var old = hit.entry;
+  var text = (hit.shared <= 2 ? "This sounds like one from your record: " : "Announced before. ")
+    + fmtDate(old.ts) + ": “" + old.claim + "”."
+    + (old.move && old.move.trim() ? " My move: " + old.move.trim() + "." : "")
+    + " It ended: " + outcomeShort(old) + ".";
+  pushMsg({type:"precedent", text:text, claimId:old.id});
+}
+function ensureThread(){
+  var today = Math.floor(Date.now() / 86400000);
+  if(!thread.messages.length){
+    pushMsg({type:"companion", text:greetingText()});
+    pushMsg(offerMsg());
+    thread.lastDay = today;
+    thread.surfaceDay = today;
+    saveThread();
+    bootInterruptChecked = true;
+    maybePostInterruption();
+    return;
+  }
+  if(thread.lastDay < today){
+    pushMsg({type:"companion", text:greetingText()});
+    thread.lastDay = today;
+    bootInterruptChecked = true;
+    var didInt = maybePostInterruption();
+    if(thread.surfaceDay < today){
+      if(!didInt) postDailySurface();
+      thread.surfaceDay = today;
+    }
+    saveThread();
+  }
+  if(!bootInterruptChecked){
+    bootInterruptChecked = true;
+    maybePostInterruption();
+  }
+}
+function threadMsgHTML(m){
+  if(m.type === "person"){
+    return '<div class="msg me"><div class="bubble">'+esc(m.text)+'</div></div>';
+  }
+  if(m.type === "companion"){
+    return '<div class="msg them"><div class="bubble">'+esc(m.text)+'</div></div>';
+  }
+  if(m.type === "offer"){
+    var oc = orderByDoors((m.chips || []).slice(), function(c){ return c.act; }).map(function(c){
+      return '<button type="button" class="chip" data-tchip="'+m.id+':'+c.act+'">'+esc(c.label)+'</button>';
+    }).join("");
+    return '<div class="msg them"><div class="bubble">'
+      + (m.text ? '<div>'+esc(m.text)+'</div>' : '')
+      + '<div class="chiprow">'+oc+'</div></div></div>';
+  }
+  if(m.type === "receipt"){
+    var e = null;
+    ledger.entries.forEach(function(x){ if(x.id === m.claimId) e = x; });
+    if(!e) return "";
+    var rh = '<div class="msg them"><div class="bubble"><p class="hub-label">Check the receipts</p>'
+      + '<div class="claim-text">&ldquo;'+esc(e.claim)+'&rdquo;</div>'
+      + '<div class="muted small" style="margin-top:4px">'+esc(fmtDate(e.ts))+(e.who ? ' &mdash; '+esc(e.who) : '')+'</div>';
+    if(isChecked(e)){
+      if(e.move) rh += '<p class="small" style="margin:8px 0 0"><strong>My move:</strong> '+esc(e.move)+'</p>';
+      rh += '<div class="ledger-outcome"><strong>What actually happened:</strong> '+esc(outcomeLabel(e))+'</div>';
+    } else {
+      if(e.kind === "prediction") rh += '<p class="small" style="margin:8px 0 0">Did it happen?</p>';
+      rh += '<div class="chiprow">'
+        + '<button type="button" class="chip" data-tout="'+e.id+':happened">It happened</button>'
+        + '<button type="button" class="chip" data-tout="'+e.id+':didnt">It didn’t</button>'
+        + '<button type="button" class="chip" data-tout="'+e.id+':partly">Partly</button>'
+        + '<button type="button" class="chip" data-tout="'+e.id+':notyet">Not yet</button></div>';
+      if(e.outcomeChip === "notyet") rh += '<p class="muted small">Marked &ldquo;not yet&rdquo; — still open.</p>';
+    }
+    return rh + '</div></div>';
+  }
+  if(m.type === "receiptsFig"){
+    if(m.dismissed) return "";
+    var fl = (m.lines || []).map(function(l){ return '<p style="margin:4px 0">'+esc(l)+'</p>'; }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">The receipts, figured</p>'
+      + fl
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seereceipts">See the receipts</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
+  }
+  if(m.type === "pick"){
+    if(m.dismissed) return "";
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Top pick</p>'
+      + '<p style="margin:4px 0"><strong>'+esc(m.title)+'</strong></p>'
+      + '<p style="margin:4px 0">'+esc(m.body)+'</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':pickgo">'+esc(m.goLabel)+'</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
+  }
+  if(m.type === "mapGlimpse"){
+    var pc = atlas.pieces.slice(0,10).map(function(p){
+      return '<button type="button" class="chip" data-tpiece="'+p.id+'">'+esc(p.name)+'</button>';
+    }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Your map</p>'
+      + '<div class="chiprow">'+pc+'</div>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':openmap">Open map</button></div></div></div>';
+  }
+  if(m.type === "doors"){
+    if(m.dismissed) return "";
+    var de = null;
+    ledger.entries.forEach(function(x){ if(x.id === m.claimId) de = x; });
+    if(!de || isChecked(de) || (de.move && de.move.trim())) return "";
+    var dchips = "";
+    if(pastMoves().length)
+      dchips += '<button type="button" class="chip" data-tchip="'+m.id+':playbook">Moves that worked before</button>';
+    if(findPrecedent(de))
+      dchips += '<button type="button" class="chip" data-tchip="'+m.id+':seeprec">See the precedent</button>';
+    dchips += '<button type="button" class="chip" data-tchip="'+m.id+':pourclaim">Pour about it</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':helpdoor">Help</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':justlog">Just log it</button>';
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Still open</p>'
+      + '<p style="margin:4px 0">'+esc(doorsLine())+'</p>'
+      + '<p class="small muted" style="margin:4px 0">&ldquo;'+esc(de.claim)+'&rdquo;</p>'
+      + '<div class="chiprow">'+dchips+'</div></div></div>';
+  }
+  if(m.type === "playbook"){
+    var pl = (m.lines || []).map(function(l){ return '<p style="margin:4px 0">&ldquo;'+esc(l)+'&rdquo;</p>'; }).join("");
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">Moves that worked before</p>'
+      + pl + '</div></div>';
+  }
+  if(m.type === "knowledge"){
+    if(m.dismissed) return "";
+    var kc = "";
+    if(!m.expanded) kc += '<button type="button" class="chip" data-tchip="'+m.id+':more">Tell me more</button>';
+    kc += '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button>';
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">From the record of others</p>'
+      + '<p style="margin:4px 0">'+esc(m.l1)+'</p>'
+      + (m.expanded ? '<p style="margin:4px 0">'+esc(m.l2)+'</p>' : '')
+      + '<div class="chiprow">'+kc+'</div></div></div>';
+  }
+  if(m.type === "interrupt"){
+    if(m.dismissed) return "";
+    var ic = '<button type="button" class="chip" data-tchip="'+m.id+':pour">Pour it out</button>';
+    if(m.hasMoves) ic += '<button type="button" class="chip" data-tchip="'+m.id+':playbook">My moves</button>';
+    ic += '<button type="button" class="chip" data-tchip="'+m.id+':helpdoor">Help</button>';
+    if(!m.hasMoves) ic += '<button type="button" class="chip" data-tchip="'+m.id+':hardnote">Write a note for a hard day</button>';
+    ic += '<button type="button" class="chip" data-tchip="'+m.id+':alright">I’m alright</button>';
+    return '<div class="msg them"><div class="bubble">'
+      + '<p style="margin:4px 0">'+esc(interruptLine1())+'</p>'
+      + (m.line ? '<p style="margin:4px 0">'+esc(m.line)+'</p>'
+                 : '<p style="margin:4px 0">Nothing in your record answers these yet. The doors are here when you want one.</p>')
+      + '<div class="chiprow">'+ic+'</div></div></div>';
+  }
+  if(m.type === "precedent"){
+    return '<div class="msg them"><div class="bubble"><p class="hub-label">From your record</p>'
+      + '<p style="margin:4px 0">'+esc(m.text)+'</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seeclaim">See it</button></div></div></div>';
+  }
+  if(m.type === "proposal"){
+    return threadProposalHTML(m);
+  }
+  return "";
+}
+function threadProposalHTML(m){
+  var ev = eventById(m.eventId);
+  var h = '<div class="msg them"><div class="bubble"><p class="hub-label">From that pour</p>';
+  if(m.quiet){
+    return h + '<p style="margin:4px 0">Kept as a pour.</p></div></div>';
+  }
+  var sug = (m.suggestIds || []).map(function(id){ return pieceById(id); }).filter(Boolean);
+  if(sug.length && ev){
+    h += '<p class="small" style="margin:4px 0">Who it’s about:</p><div class="chiprow">'
+      + sug.map(function(p){
+          var on = (ev.whoIds || []).indexOf(p.id) !== -1;
+          return '<button type="button" class="chip'+(on ? " on" : "")+'" data-tprop="'+m.id+':piece:'+p.id+'">'+esc(p.name)+'</button>';
+        }).join("") + '</div>';
+  }
+  if(m.claimId){
+    var le = null;
+    ledger.entries.forEach(function(x){ if(x.id === m.claimId) le = x; });
+    h += '<p class="small" style="margin:6px 0 0">Filed to the ledger'+(le ? ' — ' + esc(KIND_LABELS[le.kind] || le.kind) : '')+'.</p>';
+  } else if(m.claimPrompt){
+    h += '<p class="small" style="margin:6px 0 0">A claim in that?</p><div class="chiprow">'
+      + [["prediction","A prediction"],["now","Right now"],["commentary","Commentary"],["announcement","An announcement"],["instruction","An instruction"]].map(function(o){
+          return '<button type="button" class="chip" data-tprop="'+m.id+':kind:'+o[0]+'">'+o[1]+'</button>';
+        }).join("") + '</div>';
+  }
+  if(!m.claimId){
+    h += '<div class="chiprow"><button type="button" class="chip" data-tprop="'+m.id+':keep">Just keep it as a pour</button></div>';
+  }
+  return h + '</div></div>';
+}
+function composerHTML(){
+  var doors = orderByDoors([
+      {act:"fragment", label:"Fragment"},
+      {act:"quick", label:"Quick note"},
+      {act:"pour", label:"Pour (long)"},
+      {act:"figreceipts", label:"Receipts"}
+    ], function(d){ return d.act; });
+  var h = '<div class="composer"><div class="chiprow" style="margin:0 0 6px">'
+    + doors.map(function(d){
+        return '<button type="button" class="chip" data-tdoor="'+d.act+'">'+d.label+'</button>';
+      }).join("") + '</div>';
+  h += '<div class="composer-row"><textarea id="threadInput" rows="1" placeholder="Say it here…" aria-label="Talk with your companion"></textarea>'
+    + '<button type="button" class="btn" id="threadSend">Send</button></div></div>';
   return h;
 }
-function bindHome(){
-  var hero = el("heroCard");
-  if(hero) hero.addEventListener("click", function(ev){
-    if(ev.target && ev.target.closest && ev.target.closest("button")) return;
-    startPour();
+function viewThread(){
+  ensureThread();
+  var h = '<div style="display:flex;justify-content:flex-end;margin-top:6px">'
+    + '<button type="button" class="btn quiet small" id="toSettings">Settings</button></div>';
+  h += '<div class="thread">';
+  thread.messages.forEach(function(m){ h += threadMsgHTML(m); });
+  h += '<div class="thread-spacer"></div></div>';
+  h += composerHTML();
+  return h;
+}
+var ACK_LINES = ["Got it. It’s in the record.","Written down, word for word.","Kept.","In the record, as you said it.","Heard — filed as a pour."];
+function companionAfterPour(text, ev){
+  sessionHold = true; /* a pour's aftermath is HOLD posture */
+  pushMsg({type:"companion", text:ACK_LINES[thread.messages.length % ACK_LINES.length]});
+  var low = text.toLowerCase();
+  var sug = [];
+  atlas.pieces.forEach(function(p){
+    var names = [p.name].concat((p.nameHistory || []).map(function(n){ return n.name; }));
+    names.forEach(function(nm){
+      if(nm && low.indexOf(nm.toLowerCase()) !== -1 && sug.indexOf(p.id) === -1) sug.push(p.id);
+    });
   });
-  el("hPourMain").addEventListener("click", function(){ startPour(); });
-  el("hQuickNote").addEventListener("click", function(){ startQuickNote(); });
-  var hr = el("hReceipts"); if(hr) hr.addEventListener("click", function(){ go("receipts"); });
-  var pg = el("pickGo");
-  if(pg && hubPick) pg.addEventListener("click", function(){
-    var p = hubPick;
-    if(p.act === "pour") startPour();
-    else if(p.act === "note"){ ladderReturn = "home"; go("ladder"); }
-    else if(p.act === "piece"){ pieceDetailId = p.pieceId; go("piece"); }
-    else if(p.act === "prompt"){ journalPrompt = p.prompt || ""; go("journalWrite"); }
-    else if(p.act === "map"){ go("map"); }
+  var claimPat = /\b(will|won’t|going to|gonna|never|always|tomorrow|tonight|said|told me|threaten|threatened|promise|promised)\b/i.test(text);
+  if(sug.length || claimPat){
+    pushMsg({type:"proposal", eventId:ev.id, suggestIds:sug, claimPrompt:true, claimId:"", quiet:false});
+  }
+}
+function sendThreadText(){
+  var ta = el("threadInput");
+  if(!ta) return;
+  var text = ta.value.trim();
+  if(!text){ ta.focus(); return; }
+  var ev = {
+    id:uid(), ts:Date.now(), mode:"pour", pourText:text,
+    whoIds:[], whoFlags:[], whoOwn:"", channels:[], mannerWhere:[], mannerHow:[],
+    bodySpots:[], among:[], claimLedgerId:"", register:[], seeing:"",
+    response:[], glossaryId:"", eventOwn:""
+  };
+  atlas.events.push(ev);
+  saveAtlas();
+  pushMsg({type:"person", text:text, eventId:ev.id});
+  companionAfterPour(text, ev);
+  render();
+}
+function bindThread(){
+  var st = el("toSettings");
+  if(st) st.addEventListener("click", function(){ go("settings"); });
+  var send = el("threadSend");
+  if(send) send.addEventListener("click", sendThreadText);
+  var ta = el("threadInput");
+  if(ta) ta.addEventListener("keydown", function(ev){
+    if(ev.key === "Enter" && !ev.shiftKey){ ev.preventDefault(); sendThreadText(); }
   });
-  var pn = el("pickNo");
-  if(pn && hubPick) pn.addEventListener("click", function(){
-    sessionDismissed["pick_" + hubPick.key] = true;
-    render();
-  });
-  document.querySelectorAll("[data-hubpiece]").forEach(function(b){
-    b.addEventListener("click", function(){ pieceDetailId = b.getAttribute("data-hubpiece"); go("piece"); });
-  });
-  var hm = el("hMap"); if(hm) hm.addEventListener("click", function(){ go("map"); });
-  var ham = el("hAddMap"); if(ham) ham.addEventListener("click", function(){ startCapture("quick"); });
-  var hw = el("hWrite");
-  if(hw) hw.addEventListener("click", function(){ journalPrompt = hw.getAttribute("data-prompt-text") || ""; go("journalWrite"); });
-  var hj = el("hJournal"); if(hj) hj.addEventListener("click", function(){ go("journal"); });
-  var hf = el("hFragment");
-  if(hf) hf.addEventListener("click", function(){ startFragment(); });
-  el("hSettings").addEventListener("click", function(){ go("settings"); });
-  document.querySelectorAll("[data-hout]").forEach(function(b){
+  document.querySelectorAll("[data-tdoor]").forEach(function(b){
     b.addEventListener("click", function(){
-      var parts = b.getAttribute("data-hout").split(":");
+      var act = b.getAttribute("data-tdoor");
+      bumpDoor(act);
+      if(act === "fragment"){ startFragment(); }
+      else if(act === "quick"){ startQuickNote(); threadDoor = true; }
+      else if(act === "pour"){ startPour(); threadDoor = true; }
+      else if(act === "figreceipts"){ postFiguredReceipts(); render(); }
+    });
+  });
+  document.querySelectorAll("[data-tchip]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var parts = b.getAttribute("data-tchip").split(":");
+      var m = threadMsgById(parts[0]);
+      var act = parts[1];
+      bumpDoor(act);
+      if(act === "pour"){ startPour(); threadDoor = true; }
+      else if(act === "quick"){ startQuickNote(); threadDoor = true; }
+      else if(act === "fragment"){ startFragment(); }
+      else if(act === "write"){ journalPrompt = ""; go("journalWrite"); }
+      else if(act === "figreceipts"){ postFiguredReceipts(); render(); }
+      else if(act === "seereceipts"){ go("receipts"); }
+      else if(act === "seeclaim"){ go("receipts"); }
+      else if(act === "playbook"){
+        var pm2 = pastMoves();
+        pushMsg({type:"playbook", lines: pm2.map(function(x){ return x.move.trim(); })});
+        saveThread(); render();
+      }
+      else if(act === "seeprec" && m){
+        var sce = null;
+        ledger.entries.forEach(function(x){ if(x.id === m.claimId) sce = x; });
+        if(sce){ maybePostPrecedent(sce); saveThread(); }
+        render();
+      }
+      else if(act === "pourclaim" && m){
+        var pce = null;
+        ledger.entries.forEach(function(x){ if(x.id === m.claimId) pce = x; });
+        threadDoor = true;
+        startPour();
+        if(pce){ cap.pourText = "About the claim: \u201C" + pce.claim + "\u201D\n\n"; }
+        render();
+      }
+      else if(act === "helpdoor"){ helpReturn = "home"; view = "help"; window.scrollTo(0,0); render(); }
+      else if(act === "justlog" && m){
+        ledger.entries.forEach(function(x){
+          if(x.id === m.claimId) x.doorsDismissed = true;
+        });
+        saveLedger();
+        m.dismissed = true; saveThread(); render();
+      }
+      else if(act === "more" && m){ m.expanded = true; saveThread(); render(); }
+      else if(act === "hardnote"){ ladderReturn = "home"; go("ladder"); }
+      else if(act === "alright" && m){
+        m.dismissed = true;
+        thread.interruptionHandledAt = Date.now();
+        saveThread(); render();
+      }
+      else if(act === "openmap"){ go("map"); }
+      else if(act === "dismiss"){
+        if(m){
+          m.dismissed = true;
+          if(m.type === "knowledge"){
+            thread.knowledge.dismissed[m.theme] = Date.now();
+          }
+          saveThread();
+        }
+        render();
+      }
+      else if(act === "pickgo" && m){
+        if(m.act === "pour"){ startPour(); threadDoor = true; }
+        else if(m.act === "note"){ ladderReturn = "home"; go("ladder"); }
+        else if(m.act === "piece"){ pieceDetailId = m.pieceId; go("piece"); }
+        else if(m.act === "prompt"){ journalPrompt = m.prompt || ""; go("journalWrite"); }
+        else if(m.act === "map"){ go("map"); }
+      }
+    });
+  });
+  document.querySelectorAll("[data-tout]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var parts = b.getAttribute("data-tout").split(":");
       setOutcome(parts[0], parts[1], "");
       toast = "Written down.";
       render();
     });
   });
+  document.querySelectorAll("[data-tpiece]").forEach(function(b){
+    b.addEventListener("click", function(){ pieceDetailId = b.getAttribute("data-tpiece"); go("piece"); });
+  });
+  document.querySelectorAll("[data-tprop]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var parts = b.getAttribute("data-tprop").split(":");
+      var m = threadMsgById(parts[0]);
+      if(!m) return;
+      var sub = parts[1];
+      if(sub === "piece"){
+        var ev = eventById(m.eventId);
+        if(ev){ toggleIn(ev.whoIds, parts[2]); saveAtlas(); }
+        render();
+      } else if(sub === "kind"){
+        var ev2 = eventById(m.eventId);
+        var lid = uid();
+        var whoId = (ev2 && ev2.whoIds && ev2.whoIds[0]) || "";
+        var newClaim = {
+          id:lid, claim: ev2 ? (ev2.pourText || "") : "", kind: parts[2],
+          who: whoId ? pieceName(whoId) : "", whoId: whoId,
+          ts:Date.now(), outcome:"", outcomeChip:"", tsOutcome:0, encoded:false, move:""
+        };
+        ledger.entries.push(newClaim);
+        saveLedger();
+        if(ev2){ ev2.claimLedgerId = lid; saveAtlas(); }
+        m.claimId = lid;
+        saveThread();
+        toast = "Filed to the ledger.";
+        maybePostPrecedent(newClaim);
+        render();
+      } else if(sub === "keep"){
+        m.quiet = true;
+        saveThread();
+        render();
+      }
+    });
+  });
+  window.scrollTo(0, document.body && document.body.scrollHeight ? document.body.scrollHeight : 0);
 }
-
+var moveEditId = "";
+function saveMove(id, text){
+  ledger.entries.forEach(function(e){ if(e.id === id) e.move = text; });
+  saveLedger();
+}
 function setOutcome(id, chip, text){
   ledger.entries.forEach(function(e){
     if(e.id === id){
@@ -965,6 +1618,7 @@ var CLAIM_SUBS = {
   prediction:["It said something would happen","It threatened something","It promised something","It said I\u2019d be responsible if I didn\u2019t listen"],
   now:["It said what this means","It said what someone is really doing","It said I did something wrong","It blamed me","It said someone else is at fault","It charged me with something it won\u2019t say plainly"],
   commentary:["It described what I was doing","It graded what I just did","It announced something I did wrong, back to me","It reacted to what I was thinking","It narrated like a sportscaster","It commented, but nothing was said out loud"],
+  announcement:["It announced what I am","It announced what would happen to me","It delivered a verdict","It blasted it like news"],
   instruction:["It told me to do something","It gave advice, strongly"]
 };
 var REGISTER_OPTS_CAP = [
@@ -1099,7 +1753,7 @@ function viewCapture(){
   /* 5 — What they're doing: claims log to the ledger from here (Path F) */
   h += '<div class="card"><h3>'+claimsNo+'. What they\u2019re doing \u2014 claims</h3>';
 
-  h += capChips("claimKind", [["prediction","A prediction \u2014 something would happen"],["now","A claim about right now"],["commentary","Running commentary"],["instruction","Not a claim \u2014 an instruction"]], d.claimKind, false);
+  h += capChips("claimKind", [["prediction","A prediction \u2014 something would happen"],["now","A claim about right now"],["commentary","Running commentary"],["announcement","An announcement"], ["instruction","Not a claim \u2014 an instruction"]], d.claimKind, false);
   if(d.claimKind){
     h += capChips("claimChips", CLAIM_SUBS[d.claimKind], d.claimChips, true);
     if(d.claimKind === "now") h += '<p class="muted small">If it charged you with something it won\u2019t say plainly, the record holds the question open: <strong>not yet understandable</strong>. It is never marked nonsense, and the app never closes it.</p>';
@@ -1278,7 +1932,7 @@ function viewProposals(){
   h += '<div class="chiprow"><button type="button" class="chip'+(prop.claimOn ? " on" : "")+'" id="propClaimToggle">A claim was made in this pour</button></div>';
   if(prop.claimOn){
     h += '<p class="field-label">Kind</p>';
-    h += '<div class="chiprow">' + [["prediction","A prediction"],["now","A claim about right now"],["commentary","Running commentary"],["instruction","An instruction"]].map(function(o){
+    h += '<div class="chiprow">' + [["prediction","A prediction"],["now","A claim about right now"],["commentary","Running commentary"],["announcement","An announcement"],["instruction","An instruction"]].map(function(o){
       return '<button type="button" class="chip'+(prop.claimKind === o[0] ? " on" : "")+'" data-propkind="'+o[0]+'">'+o[1]+'</button>';
     }).join("") + '</div>';
     h += '<p class="field-label">The claim, in your words <span class="muted" style="font-weight:400">(optional)</span></p>';
@@ -1401,7 +2055,7 @@ function viewQuick(){
   if(qn.claimOn){
     h += '<p class="field-label">The claim, in one line</p>';
     h += '<textarea class="big short" id="qnClaimText" placeholder="What was claimed" aria-label="The claim, in one line">'+esc(qn.claimText)+'</textarea>';
-    h += '<div class="chiprow">' + [["prediction","A prediction"],["now","About right now"],["commentary","Running commentary"],["instruction","An instruction"]].map(function(o){
+    h += '<div class="chiprow">' + [["prediction","A prediction"],["now","About right now"],["commentary","Running commentary"],["announcement","An announcement"],["instruction","An instruction"]].map(function(o){
       return '<button type="button" class="chip'+(qn.claimKind === o[0] ? " on" : "")+'" data-qnkind="'+o[0]+'">'+o[1]+'</button>';
     }).join("") + '</div>';
   }
@@ -1461,7 +2115,7 @@ function fileQuickNote(){
       who: involved.length ? pieceName(involved[0]) : "", whoId: involved.length ? involved[0] : "",
       ts:ts, outcome:"", outcomeChip:"", tsOutcome:0, encoded:false
     });
-    saveLedger();
+    saveLedger(); maybePostPrecedent(ledger.entries[ledger.entries.length - 1]);
   }
   atlas.events.push({
     id:uid(), ts:ts, mode:"quick", pourText:"",
@@ -1473,7 +2127,7 @@ function fileQuickNote(){
   saveAtlas();
   qn = null;
   toast = "Filed.";
-  go("map");
+  if(threadDoor){ threadDoor = false; go("home"); } else { go("map"); }
 }
 
 /* ================= Fragment — one tap, raw, filed =================
@@ -1701,6 +2355,7 @@ function fileCapture(){
       encoded: d.claimChips.indexOf("It charged me with something it won\u2019t say plainly") !== -1
     };
     var updatedOld = false;
+    var newClaimEntry = null;
     if(editingOldLedgerId){
       ledger.entries.forEach(function(e){
         if(e.id === editingOldLedgerId){
@@ -1718,8 +2373,10 @@ function fileCapture(){
         ts:ts, outcome:"", outcomeChip:"", tsOutcome:0,
         encoded: claimFields.encoded
       });
+      newClaimEntry = ledger.entries[ledger.entries.length - 1];
     }
     saveLedger();
+    if(newClaimEntry) maybePostPrecedent(newClaimEntry);
   } else if(editingOldLedgerId){
     /* the claim was removed in Add detail — its ledger entry goes with it */
     ledger.entries = ledger.entries.filter(function(e){ return e.id !== editingOldLedgerId; });
@@ -1755,7 +2412,7 @@ function fileCapture(){
   saveAtlas();
   cap = null;
   toast = editingEv ? "Updated." : "Filed.";
-  go("map");
+  if(threadDoor && d.mode === "pour" && !editingEv){ threadDoor = false; go("home"); } else { go("map"); }
 }
 
 /* ================= Screen 5 — Map (your atlas) ================= */
@@ -1964,10 +2621,16 @@ function ledgerEntryHTML(e, isOpen){
       + '<button type="button" class="chip" data-rout="'+e.id+':partly">Partly</button>'
       + '<button type="button" class="chip" data-rout="'+e.id+':notyet">Not yet</button></div>';
     if(e.outcomeChip === "notyet") h += '<p class="muted small">Marked \u201cnot yet&rdquo; '+esc(fmtDate(e.tsOutcome))+' \u2014 still open.</p>';
+    h += '<textarea class="big" id="move_'+e.id+'" style="min-height:9vh;margin-top:6px" placeholder="My move — what I did (optional)" aria-label="My move">'+esc(e.move || "")+'</textarea>';
     h += '<textarea class="big" id="out_'+e.id+'" style="min-height:9vh;margin-top:6px" placeholder="What actually happened? (in my own words)" aria-label="What actually happened"></textarea>';
     h += '<div class="btnrow"><button class="btn secondary small" data-close="'+e.id+'" type="button">Add the outcome</button>'
-      + '<button class="btn quiet small" data-del="'+e.id+'" type="button">Delete</button></div>';
+      + '<button class="btn quiet small" data-del="'+e.id+'" type="button">Delete</button>'
+      + ((!e.doorsPosted && !e.doorsDismissed && !(e.move && e.move.trim())) ? '<button class="btn quiet small" data-doors="'+e.id+'" type="button">Doors?</button>' : '') + '</div>';
   } else {
+    if(e.move) h += '<p class="small" style="margin:8px 0 0"><strong>My move:</strong> '+esc(e.move)+'</p>';
+    else if(moveEditId === e.id) h += '<textarea class="big" id="moveedit_'+e.id+'" style="min-height:9vh;margin-top:6px" placeholder="My move — what I did" aria-label="My move"></textarea><div class="btnrow"><button class="btn secondary small" data-movesave="'+e.id+'" type="button">Save my move</button></div>';
+    else if(!e.moveAsked) h += '<p class="small" style="margin:8px 0 0">Note your move?</p><div class="chiprow"><button type="button" class="chip" data-moveask="'+e.id+'">Write it</button><button type="button" class="chip" data-moveskip="'+e.id+'">Skip</button></div>';
+    else h += '<div class="btnrow"><button class="btn quiet small" data-moveadd="'+e.id+'" type="button">Add my move</button></div>';
     h += '<div class="ledger-outcome"><strong>What actually happened:</strong> '+esc(outcomeLabel(e))
       + '<div class="muted small">'+esc(fmtDate(e.tsOutcome))+'</div></div>';
     h += '<div class="btnrow"><button class="btn quiet small" data-del="'+e.id+'" type="button">Delete</button></div>';
@@ -2029,7 +2692,7 @@ function viewReceipts(){
   h += '<div class="card"><h2>Log a claim</h2>';
 
   h += '<p class="field-label">Kind</p>';
-  h += capChips("rkind", [["prediction","A prediction"],["now","Happening right now"],["commentary","Running commentary"],["instruction","An instruction"]], receiptKindSel, false);
+  h += capChips("rkind", [["prediction","A prediction"],["now","Happening right now"],["commentary","Running commentary"],["announcement","An announcement"],["instruction","An instruction"]], receiptKindSel, false);
   h += '<textarea class="big" id="fClaim" style="min-height:12vh" placeholder="e.g. They said I&rsquo;d freeze up in the meeting" aria-label="What was claimed"></textarea>';
   h += '<p class="field-label">Who <span class="muted" style="font-weight:400">(optional)</span></p>';
   if(atlas.pieces.length){
@@ -2072,8 +2735,9 @@ function bindReceipts(){
     var whoName = w.value.trim();
     var whoId = "";
     atlas.pieces.forEach(function(p){ if(p.name === whoName) whoId = p.id; });
-    ledger.entries.push({id:uid(), claim:val, kind:receiptKindSel, who:whoName, whoId:whoId, ts:Date.now(), outcome:"", outcomeChip:"", tsOutcome:0, encoded:false});
-    saveLedger(); toast = "Logged.";
+    var newEntry = {id:uid(), claim:val, kind:receiptKindSel, who:whoName, whoId:whoId, ts:Date.now(), outcome:"", outcomeChip:"", tsOutcome:0, encoded:false, move:""};
+    ledger.entries.push(newEntry);
+    saveLedger(); maybePostPrecedent(newEntry); toast = "Logged.";
     render(); window.scrollTo(0,0);
   });
   document.querySelectorAll("[data-rout]").forEach(function(b){
@@ -2088,9 +2752,50 @@ function bindReceipts(){
       var id = b.getAttribute("data-close");
       var ta = el("out_" + id);
       var val = ta ? ta.value.trim() : "";
-      if(!val){ if(ta) ta.focus(); return; }
-      setOutcome(id, "", val);
+      var mvEl = el("move_" + id);
+      var mv = mvEl ? mvEl.value.trim() : "";
+      if(!val && !mv){ if(ta) ta.focus(); return; }
+      if(mv) saveMove(id, mv);
+      if(val) setOutcome(id, "", val);
       render(); window.scrollTo(0,0);
+    });
+  });
+  document.querySelectorAll("[data-doors]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var id = b.getAttribute("data-doors");
+      ledger.entries.forEach(function(x){
+        if(x.id === id && !x.doorsPosted && !x.doorsDismissed) postDoors(x);
+      });
+      go("home");
+    });
+  });
+  document.querySelectorAll("[data-moveask]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var id = b.getAttribute("data-moveask");
+      ledger.entries.forEach(function(x){ if(x.id === id) x.moveAsked = true; });
+      saveLedger();
+      moveEditId = id;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-moveskip]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var id = b.getAttribute("data-moveskip");
+      ledger.entries.forEach(function(x){ if(x.id === id) x.moveAsked = true; });
+      saveLedger();
+      render();
+    });
+  });
+  document.querySelectorAll("[data-moveadd]").forEach(function(b){
+    b.addEventListener("click", function(){ moveEditId = b.getAttribute("data-moveadd"); render(); });
+  });
+  document.querySelectorAll("[data-movesave]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var id = b.getAttribute("data-movesave");
+      var ta = el("moveedit_" + id);
+      var mv = ta ? ta.value.trim() : "";
+      if(mv){ saveMove(id, mv); moveEditId = ""; toast = "Saved."; }
+      render();
     });
   });
   document.querySelectorAll("[data-del]").forEach(function(b){
@@ -2367,7 +3072,7 @@ function bindSettings(){
   el("setExport").addEventListener("click", function(){
     var data = {
       exportedAt: new Date().toISOString(),
-      companion: companion, atlas: atlas, ledger: ledger, journal: journal, ladder: ladder
+      companion: companion, atlas: atlas, ledger: ledger, journal: journal, ladder: ladder, thread: thread
     };
     var blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
     var a = document.createElement("a");
