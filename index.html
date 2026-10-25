@@ -1273,7 +1273,9 @@ function maybePostInterruption(){
    project's experience-base inventory (26 verified sources),
    weighted to interview and qualitative work; the source for
    each is named in its comment. Nothing is in here that the
-   inventory does not hold. */
+   inventory does not hold. Items 21–22 (v1.18) came through the
+   weekly research watch and were approved by the founder: two
+   peer-group studies — the room itself as evidence. */
 var KNOWLEDGE = [
   {theme:"singing-together", label:"voices singing together", q:"When they sing together, what holds them together — a tune, a rhythm, one of them leading?", tags:["singing","sing","choir","together","arguing","harmony"],
    l1:"Others describe voices that sing together, argue, or answer each other — a group, not a single voice.",
@@ -1393,7 +1395,28 @@ var KNOWLEDGE = [
   {theme:"relationship-changes", label:"the relationship changing", q:"What's one way the relationship is different from how it started?", tags:["less afraid","bothers me less","not afraid","getting stronger","scares me less"],
    l1:"In fifty first-person accounts of recovery, the turning point was rarely the voices vanishing.",
    l2:"People describe the relationship changing instead — the person getting stronger inside it.",
-   ctx:"In fifty first-person accounts of recovery, people describe the turning point the same way — not the voices vanishing, but the relationship changing, and the person getting stronger in it."}
+   ctx:"In fifty first-person accounts of recovery, people describe the turning point the same way — not the voices vanishing, but the relationship changing, and the person getting stronger in it."},
+  /* Akouri-Shan et al. (2026), Frontiers in Psychiatry — 24 veterans
+     in peer Voices and Visions groups, interviewed before, at 8
+     weeks, and at 16 weeks: the change ran Discovery → Reframing
+     → Change on two tracks — the relationship with self and the
+     experience, and the relationship with fellow members — and
+     what grew was connection, acceptance, and belonging. */
+  {theme:"the-room-helps", label:"being with people who get it", q:"What changes for you in a room where nobody needs it explained?", tags:["support group","group","peer","others like me","people like me","not the only one","belong","people who get it"],
+   l1:"In one study of peer voices groups, what grew over the weeks was connection, acceptance, and belonging.",
+   l2:"Twenty-four veterans in Voices and Visions groups described the change as a path — discovering, reframing, then change — in how they related to their experience, and to each other.",
+   ctx:"People who hear voices describe that too — being with people who get it. In peer groups, connection, acceptance, and a sense of belonging grew over the weeks."},
+  /* Brett & Read (2025), Community Mental Health Journal, DOI
+     10.1007/s10597-024-01391-3 — 10 UK voice-hearers who had
+     attended at least three Hearing Voices Network group sessions:
+     the groups offered commonality, authenticity, understanding,
+     and non-judgement, with freedom to talk about voices without
+     external pressure; explanations for voices were dynamic, not
+     fixed, shifting through shared sense-making. */
+  {theme:"meaning-moves", label:"what it means can change", q:"What do you currently think they are — and has talking about them moved that at all?", tags:["meaning","makes sense","talking about it","understanding it","group","no judgment","no judgement"],
+   l1:"In Hearing Voices groups, people described being able to talk about their voices with no judgment — and what they thought the voices were kept changing.",
+   l2:"Ten people who had sat in those groups described commonality and being understood; their explanations for the voices weren't fixed — they shifted as people made sense of them together.",
+   ctx:"People who hear voices describe that too — in the groups, there's freedom to talk about the voices with no judgment, and what they think the voices are keeps shifting as they talk it through together."}
 ];
 function knowledgeHaystack(){
   var parts = [];
@@ -3819,12 +3842,14 @@ function buildLiveHistory(){
 /* the knowledge base, whole, for the live packet (v1.9; widened
    to the CONTEXT BANK in v1.11): the research is the person's own
    experience base — the companion cannot draw on what it cannot
-   see. This section is static content, inherently bounded: 20
-   items measure 4,833 characters. The record digest keeps its
-   own 6,500-character cap. Measured whole-system packets (v1.11):
-   9,920 characters on a fresh record, 15,685 with a rich one —
-   bounded under ~17,500 with the digest at cap and a full
-   organizing-notes queue. */
+   see. This section is static content, inherently bounded: 22
+   items measure 5,505 characters (v1.18). The record digest keeps
+   its own 6,500-character cap. Measured whole-system packets:
+   9,920 characters on a fresh record at v1.11; 14,003 fresh at
+   v1.18 — under the ~17,500 bound. A maximally rich record
+   measured ~19,346 at v1.18, over that aspiration: the growth
+   since v1.11 is the constitution (8,129 characters at v1.18,
+   4,817 at v1.11), not this section — a trim pass is owed. */
 function buildKnowledgeBaseSection(){
   var L = ["=== KNOWLEDGE BASE (the research gathered for this person's atlas — findings from others' accounts and studies, in the app's short form. Offer at most one per exchange, only on a genuine match, framed as what others have described) ==="];
   KNOWLEDGE.forEach(function(it){
