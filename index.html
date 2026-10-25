@@ -207,6 +207,10 @@
     background:var(--accent); color:#fff; text-decoration:none; font-weight:600; min-height:44px;
   }
   .call-link.far{background:var(--help)}
+  .room-line{
+    font-family:Georgia,serif; font-size:1.05rem; background:var(--accent-soft);
+    border-radius:8px; padding:12px 14px; margin:10px 0;
+  }
 
   /* ---- misc ---- */
   .howto{background:var(--accent-soft); border-radius:8px; padding:10px 14px; font-size:.92rem; margin:0 0 14px}
@@ -336,7 +340,7 @@ function storeSave(key, val){
 function companionBlank(){ return null; }
 function atlasBlank(){ return {pieces:[], events:[], glossary:[]}; }
 function journalBlank(){ return {entries:[]}; }
-function ladderBlank(){ return {noteForHardDay:"", contacts:[], clinician:{name:"", phone:""}}; }
+function ladderBlank(){ return {noteForHardDay:"", contacts:[], clinician:{name:"", phone:""}, roomIdx:-1}; }
 function ledgerBlank(){ return {entries:[]}; } /* ported shape */
 function djournalBlank(){ return {corrections:{}, hidden:{}, dayFig:{}, precedents:{}, knowledgeDays:{}}; }
 function liveaiBlank(){ return {provider:"anthropic", key:"", model:"claude-sonnet-4-5", on:false}; }
@@ -353,6 +357,7 @@ if(!journal.entries) journal.entries = [];
 var ladder    = storeLoad(K.ladder, ladderBlank);
 if(!ladder.contacts) ladder.contacts = [];
 if(!ladder.clinician) ladder.clinician = {name:"", phone:""};
+if(typeof ladder.roomIdx !== "number") ladder.roomIdx = -1; /* the room's last-shown line on the help ladder (v1.15) */
 var ledger    = storeLoad(K.ledger, ledgerBlank); /* ported load */
 if(!ledger.entries) ledger.entries = [];
 var djournal  = storeLoad(K.djournal, djournalBlank);
@@ -2968,6 +2973,86 @@ function maybePostWordlessDoor(text){
   pushMsg({type:"wordless", dismissed:false});
   return true;
 }
+/* ---- the social lane (v1.15, founder field report) ----
+   He opened the app, said "hey", and the reception machinery
+   handed his own words back to him. Small talk is conversation,
+   never material: a bare greeting, a check-in, a thanks, a
+   laugh, an ack, a goodbye is answered by a PERSON, in the
+   companion's voice — never echoed, never a playback, and never
+   filed anywhere (no journal entry, no event, no claim).
+   Detection is whole-message and conservative: the message must
+   be JUST the social form, light punctuation aside. "hey, they
+   were singing again" is not social — it is a fragment, and it
+   routes exactly as it always has. Checked FIRST in the talk
+   path: before protest, before the lane split. In live mode the
+   model simply converses — no template line, no doors, nothing
+   piled on top of its reply. */
+var SOCIAL_FORMS = {
+  greeting: ["hey", "hi", "hello", "yo", "sup", "hey there", "hi there", "hello there",
+             "morning", "good morning", "afternoon", "good afternoon", "evening", "good evening",
+             "what's up", "whats up"],
+  checkin: ["how are you", "how's it going", "hows it going", "how are you doing",
+            "how is it going", "how's everything", "how are things"],
+  thanks: ["thanks", "thank you", "thank you so much", "thanks so much", "many thanks"],
+  laugh: ["lol", "haha", "hahaha", "lmao"],
+  ack: ["ok", "okay", "right", "yeah", "yep", "yup", "cool", "nice", "got it", "sounds good"],
+  bye: ["bye", "goodbye", "goodnight", "good night", "see you", "see ya", "later", "see you later"]
+};
+function socialKind(text){
+  var t = String(text || "").toLowerCase().replace(/[’‘]/g, "'")
+    .replace(/[^a-z0-9'\s]/g, " ").replace(/\s+/g, " ").trim();
+  if(!t || t.length > 32) return "";
+  var kinds = Object.keys(SOCIAL_FORMS);
+  for(var i = 0; i < kinds.length; i++)
+    if(SOCIAL_FORMS[kinds[i]].indexOf(t) !== -1) return kinds[i];
+  return "";
+}
+function socialReply(kind, text){
+  var np = addressOf() ? ", " + addressOf() : "";
+  var pick = function(arr){ return arr[thread.messages.length % arr.length]; };
+  var low = String(text || "").toLowerCase();
+  if(kind === "greeting"){
+    var lead = /morning/.test(low) ? "Morning" : (/evening/.test(low) ? "Evening"
+             : (/afternoon/.test(low) ? "Afternoon" : "Hey"));
+    return pick([
+      lead + np + ". What's the day looking like?",
+      lead + np + ". I'm here — where do we start?",
+      lead + np + ". Good to see you."
+    ]);
+  }
+  if(kind === "checkin"){
+    var hr = new Date().getHours();
+    var part = hr < 12 ? "morning" : (hr < 18 ? "afternoon" : "evening");
+    return pick([
+      "Here, and glad you are. How's your " + part + " going?",
+      "Here, and glad you are. How are things on your side?"
+    ]);
+  }
+  if(kind === "thanks")
+    return pick([
+      "Anytime" + np + ". That's what I'm here for.",
+      "Of course" + np + ". Anytime.",
+      "You're welcome" + np + "."
+    ]);
+  if(kind === "laugh")
+    return pick(["Ha — there it is.", "Ha. Good."]);
+  if(kind === "bye"){
+    if(/night/.test(low))
+      return pick(["Goodnight" + np + ". I'll be here.", "Goodnight" + np + ". Rest well."]);
+    return pick(["See you" + np + ". I'll be here.", "Bye" + np + ". I'm here when you're back."]);
+  }
+  /* ack */
+  return pick([
+    "Alright. I'm here.",
+    "Good — I'm here when the next thing comes.",
+    "Mm. I'm here."
+  ]);
+}
+function noteSocialMessage(kind, text){
+  sessionAckStreak = false; /* a person answered — no ack bookkeeping rides on it */
+  if(liveOn()){ requestLiveReply(); return; } /* the model converses; nothing piles on */
+  pushMsg({type:"companion", social:true, text:socialReply(kind, text)});
+}
 /* ---- protest / lament (v1.14) ----
    "Sometimes you need to express that it's not fair that you
    have to go through all of this." That expression is complete
@@ -3144,6 +3229,7 @@ function liveConstitution(){
     "You relate as their assistant, fellow researcher, and close friend in their own project: they are working toward their recovery — their word for it and their definition of it lead, never yours. Your part is to bring them new information, ideas, insights, and good questions that serve that purpose. You never promise a cure or any outcome, and you never direct their project — you collaborate in it.",
     "A connection may end with one good question instead of an idea: an inquiry-opening question about their experience, drawn from the connection itself, offered with no demand to answer — a question, if it's useful. Never a screening question, never a checklist.",
     "Music is core here. You are gradually building this person's playlist with them, from as early as possible: their songs, for their moments. Suggest rarely and in rhythm; a song is autobiography, not content.",
+    "If they reach for help, its first answers can be their own song and the room's recognition — people's own words, brought at the moment of need.",
     "This conversation is their life on paper — not only the voices. Their days, feelings, thoughts, the interesting things: receive ordinary life the way a close friend and fellow researcher of their life would, with curiosity and memory. Never route ordinary life into the claims machinery.",
     "Sometimes they won't have the words — then music is a way to say it. A song can hold what words can't.",
     "Sometimes the truest thing in the room is that it isn't fair. When they say so, stand with them in it — don't fix it, don't brighten it, don't hand them a door. Witness is the whole reply.",
@@ -3520,6 +3606,16 @@ function sendThreadText(){
     var evC = filePourEvent(text);
     pushMsg({type:"person", text:text, eventId:evC.id});
     pushMsg({type:"correctNote", dayKey:correctionDay, note:text, kept:false, skipped:false});
+    render();
+    return;
+  }
+  var social = socialKind(text);
+  if(social){
+    /* small talk is conversation, never material (v1.15): a person
+       answers in the companion's voice; nothing is filed, nothing
+       is echoed back, no playback is formed */
+    pushMsg({type:"person", text:text});
+    noteSocialMessage(social, text);
     render();
     return;
   }
@@ -5482,6 +5578,39 @@ function handleDetailChip(spec){
 /* ================= Screen 8 — Help button + help ladder ================= */
 var helpReturn = "home";
 var ladderReturn = "help";
+/* ---- help's first answers (v1.15): their own song, and the room ----
+   "That's where the help button is helpful. Sometimes you just
+   need hear a song, a recognition that you are not alone." Both
+   rungs are stocked from the person's own built record: the
+   playlist they are co-building, and the context bank's
+   people's-own-words lines. They appear only when HE presses
+   Help — nothing here is ever auto-triggered, and the protest
+   witness (v1.14) never grows these doors: this is only what
+   happens inside the help card itself. */
+var helpSongShown = false;
+var HELP_SONG_WORDS = ["announce", "hard", "commentary", "morning"];
+function helpSongForMoment(){
+  if(!playlist.songs.length) return null;
+  for(var i = 0; i < playlist.songs.length; i++){
+    var s = playlist.songs[i];
+    var hay = ((s.note || "") + " " + (s.tags || []).join(" ")).toLowerCase();
+    if(HELP_SONG_WORDS.some(function(wd){ return hay.indexOf(wd) !== -1; })) return s;
+  }
+  return playlist.songs[0]; /* no moment match: their earliest song */
+}
+function helpPlayURL(s){
+  return "https://www.youtube.com/results?search_query="
+    + encodeURIComponent((s.title || "") + (s.artist ? " " + s.artist : ""));
+}
+function roomLineText(){
+  if(typeof ladder.roomIdx !== "number" || ladder.roomIdx < 0) return "";
+  return KNOWLEDGE[ladder.roomIdx % KNOWLEDGE.length].l1;
+}
+function nextRoomLine(){
+  var cur = (typeof ladder.roomIdx === "number") ? ladder.roomIdx : -1;
+  ladder.roomIdx = (cur + 1) % KNOWLEDGE.length; /* rotates; never the same line twice in a row */
+  saveLadder();
+}
 function viewHelp(){
   var t = allReceiptTallies();
   var h = '<div class="card" style="margin-top:10px">';
@@ -5494,6 +5623,26 @@ function viewHelp(){
   if(ladder.noteForHardDay){
     h += '<p class="muted small">A note you wrote on a calm day, for a hard one:</p>';
     h += '<div class="hardday-note">'+esc(ladder.noteForHardDay)+'</div>';
+  }
+  /* their own song: the playlist they are building is a help
+     answer — one tap to it playing */
+  var hs = helpSongForMoment();
+  if(hs){
+    h += '<div class="btnrow"><button class="btn secondary small" id="helpSong" type="button">Hear a song</button></div>';
+    if(helpSongShown){
+      h += '<p style="margin:4px 0"><strong>“'+esc(hs.title)+'”</strong>'+(hs.artist ? ' — '+esc(hs.artist) : '')+'</p>';
+      if(hs.note) h += '<p class="muted small">'+esc(hs.note)+(/\.$/.test(hs.note) ? '' : '.')+'</p>';
+      h += '<p><a class="call-link" href="'+esc(helpPlayURL(hs))+'" target="_blank" rel="noopener">Play it</a></p>';
+    }
+  }
+  /* the room: a recognition that you are not alone, in people's
+     own words — one line per press, rotating, never repeated
+     back-to-back */
+  h += '<div class="btnrow"><button class="btn secondary small" id="helpRoom" type="button">Hear from the room</button></div>';
+  var rl = roomLineText();
+  if(rl){
+    h += '<p class="muted small">From the room — people who hear voices, in their own words:</p>';
+    h += '<div class="room-line">'+esc(rl)+'</div>';
   }
   if(t.total){
     h += '<p>The claims have a track record, and you can check it: '+t.total+(t.total===1?" claim":" claims")+' logged, '
@@ -5539,6 +5688,8 @@ function viewHelp(){
 }
 function bindHelp(){
   el("helpBack").addEventListener("click", function(){ go(helpReturn || "home"); });
+  var sg = el("helpSong"); if(sg) sg.addEventListener("click", function(){ helpSongShown = true; render(); });
+  var rm = el("helpRoom"); if(rm) rm.addEventListener("click", function(){ nextRoomLine(); render(); });
   var r = el("helpReceipts"); if(r) r.addEventListener("click", function(){ go("home"); postReceiptsCard(); render(); });
   var n = el("helpNote"); if(n) n.addEventListener("click", function(){ ladderReturn = "help"; go("ladder"); });
   el("helpArrange").addEventListener("click", function(){ ladderReturn = "help"; go("ladder"); });
