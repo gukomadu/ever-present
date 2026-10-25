@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1f4d3a">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171512">
+<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -14,70 +14,108 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Ever Present</title>
 <style>
-  /* ================= Ever Present v1.20 — the research applied =================
-     §7/§7B/§8 of the commissioned social-aesthetics research, applied
-     over the v1.19 room. Fluency is the law: body text is a clean
-     sans at 17/26; the serif is identity garnish only (headings,
-     journal prompts, the room lines, closing lines). Contrast sits
-     in the "enough, not maximum" band (~14:1 body, ~7:1 secondary —
-     never 21:1, never the 4.5:1 floor for long text). Motion is
-     tokenised; no bounce, no shimmer, no loops. System stacks only —
-     the app stays offline-capable. Founder law outranks the generic
-     spec where they differ (see the outgoing-bubble note below). */
+  /* ================= Ever Present v1.22 — the founder's ACTUAL palette =================
+     CORRECTION (2026-10-25): v1.21 was built on a MISREAD. The
+     founder's "Instagram uses black white blue and purple" was
+     INFORMATION about that app, not a direction for this one —
+     he corrected it himself: "It was information." v1.22 retires
+     the Instagram scheme wholesale (no violet, no IG blue, no
+     gradient identity marks anywhere) and lands on what he
+     actually stated:
+     - "I like a white background (that can go black for dark
+       theme at night)": light paper pure white #FFFFFF; dark
+       paper TRUE BLACK #000000, surfaces #1A1A1A, text #F5F5F5.
+     - "I like baby blue for the sign highlights": labels,
+       kickers, badges and sign-like marks are BABY BLUE #89CFF0
+       — as fills with ink text on them (10.74:1) where they are
+       chips/badges, and as the readable deep blue #0B6FA4
+       (5.49:1 on white) where a sign is text on white. Selected
+       chips are baby-blue filled. Links are the deep blue.
+     - "Your gray message highlights, I like the gray": incoming
+       bubbles stay GRAY — #F0F0F0 on white, #262626 on black.
+     - Outgoing bubbles return to the v1.20 status quo: the deep
+       room-GREEN gradient with white text (6.54–9.63:1). Green
+       survives ONLY there — his own messages — and nowhere as a
+       general accent.
+     - Help returns to terracotta (#B4552D, v1.20 values), top
+       pill, unchanged position.
+     - Room surfaces stay neutral light gray, told apart by
+       baby-blue sign marks + labels.
+     The serif stays OUT of the UI entirely (v1.21 finished that;
+     v1.22 verifies it). All v1.20 geometry, motion tokens, target
+     sizes and the 13px label floor are unchanged. Measured ratios
+     are reported with the v1.22 build. */
   :root{
     color-scheme:light;
-    /* warm paper, per spec §8 */
-    --paper:#faf7f1; --paper-glow:#fdfbf5;
-    --card:#ffffff; --card-line:#e5ddcf;
+    --paper:#ffffff; --paper-glow:#ffffff;
+    --card:#ffffff; --card-line:#e7e7e7;
     --field:#ffffff; --surface2:#ffffff;
-    --bubble-in:#f1ebe0;
-    --ink:#26221c; --ink-soft:#5c554a; --muted:#71685a;
-    /* the founder's room-green: brand + the outgoing bubble */
-    --green:#1f4d3a; --green-deep:#173c2d; --green-soft:#e9efe7;
-    --me-grad:linear-gradient(165deg, var(--green), var(--green-deep));
-    --me-ink:#f7f3e8;
-    /* primary action: deep green-teal, white text on it (~7.6:1) */
-    --accent:#175e52; --accent-soft:#dce9e2; --on-accent:#ffffff;
-    --sage:#8a9a8b; --sage-soft:#e9ede1; --sage-line:#ccd6c0;
-    --room-bg:#edf0e3; --room-line:#cdd8bf;
-    /* terracotta: small-area warmth only (Help) */
-    --help:#b4552d; --help-deep:#96431f; --help-hi:#c4663b; --help-soft:#f8ece5;
+    /* incoming bubbles: the gray he likes, kept */
+    --bubble-in:#f0f0f0;
+    --ink:#141414; --ink-soft:#595959; --muted:#6a6a6a;
+    /* SIGN HIGHLIGHTS = baby blue (founder's stated preference).
+       --sign is a FILL (badges, selected chips, top lines) and
+       always carries ink text (10.74:1); --sign-deep is the same
+       family as readable TEXT on white (5.49:1) and carries white
+       on filled buttons (5.49:1) */
+    --sign:#89cff0; --sign-deep:#0b6fa4; --sign-soft:#e3f3fb;
+    /* outgoing: the deep room-green gradient, v1.20 status quo —
+       green lives HERE only (his own messages), nowhere else */
+    --me:#1f4d3a;
+    --me-grad:linear-gradient(160deg, #27694c 0%, #1f4d3a 100%);
+    --me-ink:#ffffff;
+    /* primary actions: the readable deep blue */
+    --accent:#0b6fa4; --accent-soft:#e3f3fb; --on-accent:#ffffff;
+    /* text links: the same readable deep blue */
+    --link:#0b6fa4;
+    --sage:#a8a8a8; --sage-soft:#f0f0f0; --sage-line:#dbdbdb;
+    /* the room: neutral light gray — told apart by the baby-blue
+       sign marks and its labels, not a tint wash */
+    --room-bg:#f5f5f5; --room-line:#e7e7e7;
+    /* Help: terracotta, restored (v1.20 values) */
+    --help:#b4552d; --help-deep:#93331f; --help-hi:#c96a3f; --help-soft:#fbeee6;
     --danger:#b3261e;
-    --amber-bg:#fbf3e0; --amber-line:#e6d3a3; --amber-ink:#7a5b23;
+    /* legacy --amber names: now a pale baby-blue wash + deep-blue ink */
+    --amber-bg:#eaf6fd; --amber-line:#bfe6f7; --amber-ink:#0b6fa4;
     /* legacy alias (older rules lean on this name) */
     --line:var(--card-line);
     --radius:20px;
-    --shadow-card:0 1px 2px rgba(38,34,28,.05), 0 10px 28px rgba(38,34,28,.07);
-    --shadow-bubble:0 1px 2px rgba(38,34,28,.05), 0 6px 20px rgba(38,34,28,.07);
-    --shadow-me:0 2px 4px rgba(23,60,45,.22), 0 8px 20px rgba(23,60,45,.22);
-    --shadow-bar:0 12px 32px rgba(38,34,28,.14), 0 2px 8px rgba(38,34,28,.08);
+    --shadow-card:0 1px 2px rgba(20,20,20,.05), 0 10px 28px rgba(20,20,20,.07);
+    --shadow-bubble:0 1px 2px rgba(20,20,20,.05), 0 6px 20px rgba(20,20,20,.07);
+    --shadow-me:0 2px 4px rgba(31,77,58,.25), 0 8px 20px rgba(31,77,58,.22);
+    --shadow-bar:0 12px 32px rgba(20,20,20,.14), 0 2px 8px rgba(20,20,20,.08);
     /* motion tokens (research §8): press / new turn / card / exit */
     --dur-press:120ms; --dur-msg:180ms; --dur-card:280ms; --dur-exit:210ms;
     --ease-std:cubic-bezier(0.2,0,0,1);
     --ease-out:cubic-bezier(0.05,0.7,0.1,1);
     --ease-exit:cubic-bezier(0.3,0,0.8,0.15);
-    --serif:Georgia,"Iowan Old Style",Charter,"Times New Roman",serif;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   @media (prefers-color-scheme: dark){
     :root{
       color-scheme:dark;
-      /* the evening room: warm charcoal, never pure black (§5/§7B);
-         off-white text mitigates halation; the accent desaturates */
-      --paper:#171512; --paper-glow:#1e1a16;
-      --card:#221f1b; --card-line:#3a352c;
-      --field:#2b2721; --surface2:#2b2721;
-      --bubble-in:#221f1b;
-      --ink:#f3ede2; --ink-soft:#c9bfae; --muted:#a79b84;
-      --green:#2f6e52; --green-deep:#23573f; --green-soft:#233a2d;
-      --me-grad:linear-gradient(165deg, #24463a, #1e3a33);
-      --me-ink:#f3ede2;
-      --accent:#7fb5a8; --accent-soft:#27473e; --on-accent:#10201b;
-      --sage:#8a9a8b; --sage-soft:#243128; --sage-line:#41523f;
-      --room-bg:#23201b; --room-line:#3a352c;
-      --help:#d4694e; --help-deep:#b4552d; --help-hi:#e07f5f; --help-soft:#38221c;
+      /* dark: TRUE BLACK (the founder's white "can go black for
+         dark theme at night"); surfaces step up in gray;
+         off-white text mitigates halation */
+      --paper:#000000; --paper-glow:#000000;
+      --card:#1a1a1a; --card-line:#2e2e2e;
+      --field:#262626; --surface2:#1a1a1a;
+      --bubble-in:#262626;
+      --ink:#f5f5f5; --ink-soft:#a8a8a8; --muted:#a8a8a8;
+      /* signs in the dark: baby-blue fills still carry ink text;
+         sign TEXT on black takes the lightened deep blue (11.27:1) */
+      --sign:#89cff0; --sign-deep:#7cc7ef; --sign-soft:#0e2a3d;
+      /* outgoing stays the deep room green (9.12–12.29:1) */
+      --me:#1e3a33;
+      --me-grad:linear-gradient(160deg, #26503f 0%, #1e3a33 100%);
+      --me-ink:#ffffff;
+      --accent:#0b6fa4; --accent-soft:#0e2a3d; --on-accent:#ffffff;
+      --link:#7cc7ef;
+      --sage:#737373; --sage-soft:#262626; --sage-line:#363636;
+      --room-bg:#1a1a1a; --room-line:#2e2e2e;
+      --help:#b4552d; --help-deep:#93331f; --help-hi:#c96a3f; --help-soft:#2e1c12;
       --danger:#ea8a7f;
-      --amber-bg:#2f2716; --amber-line:#5b4a22; --amber-ink:#dcbc72;
+      --amber-bg:#0e2a3d; --amber-line:#1d4a66; --amber-ink:#7cc7ef;
       --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 10px 28px rgba(0,0,0,.35);
       --shadow-bubble:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.3);
       --shadow-me:0 2px 4px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.35);
@@ -93,7 +131,7 @@
     line-height:26px; font-size:17px;
     padding-bottom:calc(104px + env(safe-area-inset-bottom));
   }
-  ::selection{background:var(--sage-soft)}
+  ::selection{background:var(--sign)}
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   /* the Help shelf: a fixed paper veil across the top of the screen.
      Thread content scrolls up INTO the paper and is gone before it
@@ -112,7 +150,7 @@
     padding:calc(72px + env(safe-area-inset-top)) 16px 30px;
   }
   h1.appname{
-    font-family:var(--serif); font-weight:600;
+    font-family:var(--sans); font-weight:600;
     font-size:1.55rem; margin:6px 0 0; letter-spacing:.2px;
   }
   .companion-line{color:var(--muted); margin:2px 0 14px; font-size:.98rem}
@@ -121,7 +159,7 @@
     padding:20px; margin:0 0 14px; box-shadow:var(--shadow-card);
     font-size:16px; line-height:25px;
   }
-  .card h2{font-family:var(--serif); font-size:1.3rem; margin:0 0 10px; font-weight:600}
+  .card h2{font-family:var(--sans); font-size:1.3rem; margin:0 0 10px; font-weight:600}
   .card h3{font-size:1.02rem; margin:18px 0 6px; font-weight:700}
   .card h3:first-child{margin-top:0}
   .muted{color:var(--muted)} .small{font-size:.88rem}
@@ -152,7 +190,8 @@
     min-height:44px; font-family:var(--sans); text-align:left;
     transition:background var(--dur-press) var(--ease-std), border-color var(--dur-press) var(--ease-std), color var(--dur-press) var(--ease-std);
   }
-  .chip.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
+  /* a selected chip is a sign: baby-blue fill, ink text (10.74:1) */
+  .chip.on{background:var(--sign); border-color:var(--sign); color:var(--ink)}
   .chip.alt.on{background:var(--amber-ink); border-color:var(--amber-ink)}
   .chip small{display:block; font-size:.8125rem; opacity:.85; font-weight:400}
 
@@ -171,17 +210,18 @@
   }
   .tdots span:last-child{margin-right:0}
 
-  /* ---- persistent help button: terracotta, on its paper shelf ---- */
+  /* ---- persistent help button: solid terracotta (v1.20 values,
+     restored in v1.22), on its paper shelf — position unchanged ---- */
   #helpBtn{
     position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:80;
-    background:linear-gradient(160deg, var(--help-hi), var(--help) 55%, var(--help-deep));
-    color:#fff8f2; border:1px solid rgba(255,255,255,.5); border-radius:999px;
+    background:var(--help);
+    color:#ffffff; border:1px solid rgba(255,255,255,.5); border-radius:999px;
     padding:12px 24px; font-size:1.02rem; font-weight:700; letter-spacing:.01em;
     cursor:pointer; min-height:48px; font-family:var(--sans);
-    box-shadow:0 8px 22px rgba(150,67,31,.35), 0 2px 6px rgba(38,34,28,.25),
+    box-shadow:0 8px 22px rgba(180,85,45,.35), 0 2px 6px rgba(20,20,20,.25),
       inset 0 1px 0 rgba(255,255,255,.35);
   }
-  #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(34,39,31,.35)}
+  #helpBtn:active{transform:translateY(2px); box-shadow:0 2px 8px rgba(20,20,20,.35)}
   @media (max-width:420px){
     #helpBtn{padding:10px 17px; font-size:.95rem; min-height:44px}
   }
@@ -191,36 +231,40 @@
   /* ---- the Hub (Home) ---- */
   .hub-top{padding:8px 2px 18px}
   .hub-opener{
-    font-family:var(--serif); font-weight:600;
+    font-family:var(--sans); font-weight:600;
     font-size:1.85rem; line-height:1.32; margin:6px 0 12px;
   }
   .status-chips{display:flex; flex-wrap:wrap; gap:8px}
   .status-chips span{
-    background:var(--green-soft); color:var(--green); border-radius:999px;
+    /* status badges are signs: baby-blue fill, ink text */
+    background:var(--sign); color:var(--ink); border-radius:999px;
     padding:6px 13px; font-size:.84rem; font-weight:600;
   }
   .hero-card{
     border-radius:20px; padding:26px 22px 22px; margin:0 0 16px; cursor:pointer;
-    background:linear-gradient(155deg,#5f8772 0%, #2c5a44 48%, var(--green-deep) 100%);
-    color:#f7f3e8; box-shadow:0 14px 34px rgba(23,60,45,.38);
+    /* the black card: ink surface, white text (18.42:1), the
+       label and the main action signed in baby blue */
+    background:var(--ink);
+    color:#ffffff; box-shadow:0 14px 34px rgba(20,20,20,.28);
   }
   .hero-label{
     font-size:.8125rem; letter-spacing:.16em; text-transform:uppercase;
-    font-weight:700; opacity:.85;
+    font-weight:700; color:var(--sign);
   }
   .hero-line{
-    font-family:var(--serif); font-size:1.5rem;
+    font-family:var(--sans); font-size:1.5rem;
     line-height:1.35; margin:10px 0 20px;
   }
   .hero-main{
     display:block; width:100%; border:none; cursor:pointer; font-family:inherit;
-    background:#faf7f1; color:#173c2d; font-weight:700; font-size:1.12rem;
+    /* the hero's main action is a sign: baby-blue fill, ink text */
+    background:var(--sign); color:var(--ink); font-weight:700; font-size:1.12rem;
     padding:16px 20px; border-radius:999px; min-height:58px;
-    box-shadow:0 4px 14px rgba(23,60,45,.25);
+    box-shadow:0 4px 14px rgba(20,20,20,.25);
   }
   .hero-quick{
-    display:block; margin:12px auto 2px; background:transparent; color:#f7f3e8;
-    border:1px solid rgba(247,243,232,.55); border-radius:999px;
+    display:block; margin:12px auto 2px; background:transparent; color:#ffffff;
+    border:1px solid rgba(255,255,255,.55); border-radius:999px;
     padding:10px 20px; font-family:inherit; font-size:.95rem; cursor:pointer;
     min-height:48px;
   }
@@ -230,17 +274,20 @@
     box-shadow:var(--shadow-card);
     font-size:16px; line-height:25px;
   }
-  .hub-card h2{font-family:var(--serif); font-size:1.28rem; margin:0 0 8px; font-weight:600}
+  .hub-card h2{font-family:var(--sans); font-size:1.28rem; margin:0 0 8px; font-weight:600}
   .hub-label{
     font-size:.8125rem; letter-spacing:.16em; text-transform:uppercase;
-    color:var(--green); font-weight:700; margin:0 0 8px; font-family:var(--sans);
+    /* a sign written as text: the readable deep blue of the
+       baby-blue family (5.49:1 light / 9.34:1 dark on card) */
+    color:var(--sign-deep); font-weight:700; margin:0 0 8px; font-family:var(--sans);
   }
   .hub-card .claim-text{font-size:1.08rem; line-height:1.45}
 
   /* ---- tallies (ported) ---- */
   .tally{display:flex; gap:14px; flex-wrap:wrap; margin:0 0 14px}
   .tally .pill{
-    background:var(--green-soft); border-radius:999px; padding:8px 16px; font-size:.95rem;
+    /* tally pills are signs: baby-blue fill, ink text */
+    background:var(--sign); border-radius:999px; padding:8px 16px; font-size:.95rem;
   }
   .tally .pill b{font-size:1.15rem; margin-right:6px}
 
@@ -249,20 +296,22 @@
   .ledger-entry:first-of-type{border-top:none}
   .ledger-entry .claim-text{font-size:1.05rem}
   .ledger-outcome{
-    background:var(--green-soft); border-radius:10px; padding:10px 14px; margin-top:10px;
+    background:var(--sign-soft); border-radius:10px; padding:10px 14px; margin-top:10px;
   }
   .kind-tag{
-    display:inline-block; background:var(--amber-bg); border:1px solid var(--amber-line);
-    color:var(--amber-ink); border-radius:999px; padding:1px 9px; font-size:.8125rem;
+    /* a badge is a sign: baby-blue fill, ink text */
+    display:inline-block; background:var(--sign); border:1px solid var(--sign);
+    color:var(--ink); border-radius:999px; padding:1px 9px; font-size:.8125rem;
     margin-left:8px; vertical-align:middle; font-family:var(--sans);
   }
 
   /* ---- map pieces ---- */
   .piece-card{cursor:pointer}
-  .piece-card:active{border-color:var(--green)}
-  .piece-name{font-family:var(--serif); font-size:1.2rem; font-weight:600}
+  .piece-card:active{border-color:var(--sign-deep)}
+  .piece-name{font-family:var(--sans); font-size:1.2rem; font-weight:600}
   .type-tag{
-    display:inline-block; background:var(--green-soft); color:var(--green);
+    /* a badge is a sign: baby-blue fill, ink text */
+    display:inline-block; background:var(--sign); color:var(--ink);
     border-radius:999px; padding:1px 9px; font-size:.8125rem; margin-left:8px; vertical-align:middle;
     font-family:var(--sans);
   }
@@ -278,15 +327,15 @@
   }
 
   /* ---- journal prompts ---- */
-  .prompt-card{cursor:pointer; text-align:left; width:100%; font-family:var(--serif); font-size:1rem}
-  .prompt-card:active{border-color:var(--green)}
+  .prompt-card{cursor:pointer; text-align:left; width:100%; font-family:var(--sans); font-size:1rem}
+  .prompt-card:active{border-color:var(--sign-deep)}
 
   /* ---- help ladder ---- */
-  .rung{border-left:5px solid var(--green); padding-left:14px; margin:18px 0}
+  .rung{border-left:5px solid var(--sign-deep); padding-left:14px; margin:18px 0}
   .rung.far{border-left-color:var(--help)}
   .rung h3{margin:0 0 4px}
   .hardday-note{
-    font-family:var(--serif); font-size:1.15rem; background:var(--amber-bg);
+    font-family:var(--sans); font-size:1.15rem; background:var(--amber-bg);
     border:1px solid var(--amber-line); border-radius:10px; padding:14px 16px; margin:10px 0;
     white-space:pre-wrap;
   }
@@ -296,24 +345,26 @@
     line-height:1.55;
   }
   .call-link.far{background:var(--help)}
-  /* the room speaks on sage: visibly not ordinary talk */
+  /* the room speaks on neutral gray, marked with a baby-blue
+     sign edge: visibly not ordinary talk, without a tint wash */
   .room-line{
-    font-family:var(--serif); font-size:1.08rem; line-height:1.55;
+    font-family:var(--sans); font-size:1.08rem; line-height:1.55;
     background:var(--room-bg); border:1px solid var(--room-line);
+    border-left:4px solid var(--sign);
     border-radius:12px; padding:12px 16px; margin:10px 0;
   }
 
   /* ---- misc ---- */
-  .howto{background:var(--green-soft); border-radius:10px; padding:10px 14px; font-size:.92rem; margin:0 0 14px}
+  .howto{background:var(--sign-soft); border-radius:10px; padding:10px 14px; font-size:.92rem; margin:0 0 14px}
   .offer-card{border-color:var(--amber-line); background:var(--amber-bg)}
   .divider{border:none; border-top:1px solid var(--card-line); margin:16px 0}
   .stepdots{color:var(--muted); font-size:.85rem; margin:0 0 10px}
   .quiet-screen{padding-top:12vh}
   .summary-list{margin:6px 0; padding-left:20px}
   .summary-list li{margin:3px 0}
-  a.plain{color:var(--accent)}
+  a.plain{color:var(--link)}
   .toast{
-    background:var(--green-soft); border:1px solid var(--green); color:var(--ink);
+    background:var(--sign-soft); border:1px solid var(--sign-deep); color:var(--ink);
     border-radius:10px; padding:10px 14px; margin:0 0 14px; font-size:.95rem;
   }
 
@@ -321,44 +372,48 @@
   .thread{display:flex; flex-direction:column; gap:16px; padding-top:4px}
   .msg{display:flex}
   .msg.me{justify-content:flex-end}
-  /* incoming: warm sand in the light room, surface-1 in the evening
-     room; one radius (20px) for every bubble — the message markup
-     carries no grouped-run class, so the spec's 6px grouped corner
-     is not applied rather than faked */
+  /* incoming: neutral light gray in the light scheme, #262626 on
+     true black in the dark; one radius (20px) for every bubble —
+     the message markup carries no grouped-run class, so the spec's
+     6px grouped corner is not applied rather than faked */
   .msg .bubble{
     background:var(--bubble-in); border:1px solid var(--card-line); border-radius:20px;
     padding:10px 14px; max-width:78%; white-space:pre-wrap;
     font-size:17px; line-height:26px;
     box-shadow:var(--shadow-bubble);
   }
-  /* v1.20 (research §7.7): fluency is the law — companion body text
-     is sans like everything else; the serif survives only as
-     identity garnish (headings, journal prompts, the room lines,
-     closing lines). Controls and attributions inside a bubble were
-     always sans and stay sans. */
+  /* v1.21: the serif is out of the UI entirely — every voice is
+     sans; controls and attributions inside a bubble are pinned to
+     the sans stack explicitly, as before */
   .msg .bubble .hub-label, .msg .bubble .chip, .msg .bubble .btn,
   .msg .bubble textarea, .msg .bubble input, .msg .bubble select,
   .msg .bubble .small, .msg .bubble .jtag, .msg .bubble .kind-tag,
   .msg .bubble .type-tag{font-family:var(--sans)}
-  /* Outgoing keeps the founder's deep room-green with white text —
-     a DELIBERATE deviation from the research spec's pale sage
-     outgoing tint (§8): white on this green measures ~9.6:1, and
-     position + colour together encode "mine" (the redundant cue
-     §7B.7 asks for). Brand identity outranks the generic spec. */
+  /* Outgoing: the deep room-GREEN gradient (v1.20 status quo,
+     restored in v1.22) — white on it measures 6.54:1 at the
+     light stop, 9.63:1 at the deep stop, and position + colour
+     together encode "mine" (the redundant cue §7B.7 asks for).
+     Green lives here only: his own messages. */
   .msg.me .bubble{
-    background:var(--me-grad);
+    background:var(--me-grad) var(--me);
     border-color:transparent; color:var(--me-ink);
     border-radius:20px; box-shadow:var(--shadow-me);
   }
-  /* the room and the playlist sit on sage — a different surface,
-     so a glance tells them apart from ordinary talk; the room
-     still speaks in the serif (it is one of the garnish keepers) */
+  /* the room and the playlist sit on neutral gray — a different
+     surface, so a glance tells them apart from ordinary talk —
+     and carry a 3px BABY-BLUE sign line across the top (the
+     welcome card's accent line, the playlist card's accent bar).
+     A sign mark, never a surface under text. */
   .msg .bubble.room{
-    background:var(--room-bg); border-color:var(--room-line);
-    font-family:var(--serif);
+    background-color:var(--room-bg); border-color:var(--room-line);
+    background-image:linear-gradient(90deg, var(--sign), var(--sign));
+    background-size:100% 3px; background-position:top left;
+    background-repeat:no-repeat;
+    font-family:var(--sans); font-weight:500;
   }
-  /* a journal prompt, quoted in the talk, keeps the serif too */
-  .jprompt{font-family:var(--serif); font-size:1.08rem}
+  /* a journal prompt, quoted in the talk: sans, set apart by
+     weight and the room's gray */
+  .jprompt{font-family:var(--sans); font-size:1.08rem; font-weight:500}
   .msg .bubble .chiprow{margin-top:8px}
   .msg .bubble p{margin:0}
   .thread-spacer{height:118px}
@@ -379,8 +434,8 @@
     transition:border-color var(--dur-press) var(--ease-std), box-shadow var(--dur-press) var(--ease-std);
   }
   .composer-row:focus-within{
-    border-color:var(--sage);
-    box-shadow:var(--shadow-bar), 0 0 0 3px var(--sage-soft);
+    border-color:var(--accent);
+    box-shadow:var(--shadow-bar), 0 0 0 3px var(--accent-soft);
   }
   .composer textarea{
     flex:1; border:none; background:transparent; border-radius:22px;
