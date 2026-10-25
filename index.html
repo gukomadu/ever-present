@@ -252,6 +252,10 @@
     min-height:48px; max-height:20vh; resize:none; line-height:1.4;
   }
   .composer .btn{min-height:48px}
+  .composer .record-btn{white-space:nowrap; padding-left:12px; padding-right:12px}
+  .jmedia{width:100%; margin:6px 0; border-radius:12px}
+  video.jmedia{max-height:340px; background:#000}
+  .record-dot{color:#b3261e; font-weight:700}
   /* ---- the dynamic journal ---- */
   .jitem{border-top:1px solid var(--line); padding:12px 0}
   .jitem:first-of-type{border-top:none}
@@ -326,7 +330,8 @@ var K = {
   djournal:  "ever_present_v1_djournal",
   liveai:    "ever_present_v1_liveai",
   connections: "ever_present_v1_connections",
-  playlist:  "ever_present_v1_playlist"
+  playlist:  "ever_present_v1_playlist",
+  media:     "ever_present_v1_media"
 };
 function storeLoad(key, blank){
   try{
@@ -346,6 +351,7 @@ function djournalBlank(){ return {corrections:{}, hidden:{}, dayFig:{}, preceden
 function liveaiBlank(){ return {provider:"anthropic", key:"", model:"claude-sonnet-4-5", on:false}; }
 function connectionsBlank(){ return {shown:{}, lastTs:0}; } /* connections already brought, by theme (v1.11.1) */
 function playlistBlank(){ return {songs:[], seed:"", seedRestUntil:0, growTs:0}; } /* the co-built playlist (v1.13): songs + the seed/growth doors' state */
+function mediaBlank(){ return {clips:[]}; } /* self-recordings (v1.17): metadata only — the clips themselves live in IndexedDB, never localStorage */
 
 var companion = storeLoad(K.companion, companionBlank);
 var atlas     = storeLoad(K.atlas, atlasBlank);
@@ -382,6 +388,9 @@ if(!playlist.songs) playlist.songs = [];
 if(playlist.seed == null) playlist.seed = "";
 if(!playlist.seedRestUntil) playlist.seedRestUntil = 0;
 if(!playlist.growTs) playlist.growTs = 0;
+var media = storeLoad(K.media, mediaBlank);
+if(!media || typeof media !== "object") media = mediaBlank();
+if(!media.clips) media.clips = [];
 
 function saveCompanion(){ storeSave(K.companion, companion); }
 function saveAtlas(){ storeSave(K.atlas, atlas); }
@@ -392,6 +401,139 @@ function saveDjournal(){ storeSave(K.djournal, djournal); }
 function saveLiveai(){ storeSave(K.liveai, liveai); }
 function saveConnections(){ storeSave(K.connections, connections); }
 function savePlaylist(){ storeSave(K.playlist, playlist); }
+function saveMedia(){ storeSave(K.media, media); }
+function mediaClipById(id){
+  for(var i=0;i<media.clips.length;i++) if(media.clips[i].id === id) return media.clips[i];
+  return null;
+}
+
+/* ================= self-recording storage (v1.17) =================
+   The clips themselves — audio/video blobs — live in IndexedDB
+   (db "ever_present_media", store "clips"); only their metadata
+   (id, kind, told time, label, length) rides in localStorage, so
+   the day's page can lay them out and the export can carry the
+   index without carrying a single byte of media. Every operation
+   degrades gracefully: no IndexedDB (an old browser, a test rig)
+   means the metadata path still works and the clips simply have
+   no bytes behind them yet. Capture itself sits behind
+   EPMedia.capture, so the whole flow around it is testable. */
+var EPMEDIA_DB = "ever_present_media";
+var EPMEDIA_STORE = "clips";
+var _epMediaDbPromise = null;
+var EPMedia = {
+  available: function(){ return typeof indexedDB !== "undefined"; },
+  open: function(){
+    if(!EPMedia.available()) return Promise.reject(new Error("IndexedDB is not available"));
+    if(_epMediaDbPromise) return _epMediaDbPromise;
+    _epMediaDbPromise = new Promise(function(resolve, reject){
+      var req;
+      try{ req = indexedDB.open(EPMEDIA_DB, 1); }catch(e){ reject(e); return; }
+      req.onupgradeneeded = function(){
+        if(!req.result.objectStoreNames.contains(EPMEDIA_STORE))
+          req.result.createObjectStore(EPMEDIA_STORE, {keyPath:"id"});
+      };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+      req.onblocked = function(){ reject(new Error("IndexedDB open blocked")); };
+    });
+    return _epMediaDbPromise;
+  },
+  _request: function(mode, makeReq){
+    if(!EPMedia.available()) return Promise.resolve(null);
+    return EPMedia.open().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(EPMEDIA_STORE, mode);
+        var req;
+        try{ req = makeReq(tx.objectStore(EPMEDIA_STORE)); }catch(e){ reject(e); return; }
+        if(!req){ resolve(null); return; }
+        req.onsuccess = function(){ resolve(req.result); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    }).catch(function(){ return null; });
+  },
+  put: function(record, blob){
+    var rec = {id:record.id, kind:record.kind, mime:record.mime || (blob && blob.type) || "",
+               ts:record.ts, label:record.label || "", blob:blob};
+    return EPMedia._request("readwrite", function(store){ return store.put(rec); })
+      .then(function(){ return !!EPMedia.available(); });
+  },
+  get: function(id){
+    return EPMedia._request("readonly", function(store){ return store.get(id); })
+      .then(function(rec){ return rec || null; });
+  },
+  remove: function(id){
+    return EPMedia._request("readwrite", function(store){ return store.delete(id); })
+      .then(function(){ return !!EPMedia.available(); });
+  },
+  clear: function(){
+    return EPMedia._request("readwrite", function(store){ return store.clear(); })
+      .then(function(){ return !!EPMedia.available(); });
+  },
+  setLabel: function(id, label){
+    return EPMedia.get(id).then(function(rec){
+      if(!rec) return false;
+      rec.label = label;
+      return EPMedia._request("readwrite", function(store){ return store.put(rec); })
+        .then(function(){ return true; });
+    });
+  },
+  capture: function(kind){ return startMediaCapture(kind); }
+};
+function pickMediaMime(kind){
+  if(typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
+  var opts = kind === "video"
+    ? ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]
+    : ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  for(var i=0;i<opts.length;i++) if(MediaRecorder.isTypeSupported(opts[i])) return opts[i];
+  return "";
+}
+/* startMediaCapture resolves a session: {kind, stop() -> Promise
+   of {blob, mime, kind, seconds}, discard()}. A denial anywhere
+   along the way rejects, and the card answers with one plain line. */
+function startMediaCapture(kind){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia
+     || typeof MediaRecorder === "undefined")
+    return Promise.reject(new Error("media capture is not available"));
+  var constraints = kind === "video" ? {audio:true, video:true} : {audio:true};
+  return navigator.mediaDevices.getUserMedia(constraints).then(function(stream){
+    var mime = pickMediaMime(kind);
+    var rec = mime ? new MediaRecorder(stream, {mimeType:mime}) : new MediaRecorder(stream);
+    var chunks = [];
+    var startedAt = Date.now();
+    var settled = false;
+    rec.addEventListener("dataavailable", function(ev){
+      if(ev.data && ev.data.size) chunks.push(ev.data);
+    });
+    function stopTracks(){ stream.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){} }); }
+    var session = {
+      kind: kind,
+      mime: rec.mimeType || mime || "",
+      startedAt: startedAt,
+      stop: function(){
+        return new Promise(function(resolve, reject){
+          if(settled){ reject(new Error("already stopped")); return; }
+          settled = true;
+          rec.addEventListener("stop", function(){
+            stopTracks();
+            var type = session.mime || (kind === "video" ? "video/webm" : "audio/webm");
+            var blob = new Blob(chunks, {type:type});
+            resolve({blob:blob, mime:blob.type || type, kind:kind,
+                     seconds:Math.max(1, Math.round((Date.now() - startedAt) / 1000))});
+          }, {once:true});
+          try{ rec.stop(); }catch(e){ stopTracks(); reject(e); }
+        });
+      },
+      discard: function(){
+        if(settled) return;
+        settled = true;
+        try{ rec.stop(); }catch(e){}
+        stopTracks();
+      }
+    };
+    rec.start(250);
+    return session;
+  });
+}
 
 /* ================= shared lookups ================= */
 function pieceById(id){
@@ -2732,6 +2874,8 @@ function threadMsgHTML(m){
   }
   if(m.type === "journalcard"){ return journalCardHTML(m); }
   if(m.type === "playlistcard"){ return playlistCardHTML(m); }
+  if(m.type === "recordcard"){ return recordCardHTML(m); }
+  if(m.type === "recordlabel"){ return recordLabelHTML(m); }
   if(m.type === "welcome"){ return welcomeHTML(m); }
   if(m.type === "mapcard"){ return mapCardHTML(m); }
   if(m.type === "piececard"){ return pieceCardHTML(m); }
@@ -2771,6 +2915,191 @@ function welcomeHTML(m){
   return h + '</div></div>';
 }
 
+/* ---- self-recording, in the talk (v1.17) ----
+   Recording himself is a way of talking, so it lives here: a
+   small affordance in the composer and a card in the thread —
+   never an app mode. A recording is received, never analyzed,
+   never transcribed; it lands on today's page under the name
+   he gives it, and nowhere else. */
+var MEDIA_DENIED_LINE = "The mic/camera is off for this page — your phone's site settings can turn it on. Nothing was recorded.";
+var MEDIA_LABELS = ["Crying", "Laughing", "Dancing", "Singing", "Just me"];
+var MEDIA_MAX_SECONDS = 600; /* ten minutes */
+var mediaSession = null; /* {msgId, kind, session, startedAt, stopping} — live only, never stored */
+var mediaTimer = null;
+var mediaURLCache = {};
+function fmtDuration(sec){
+  sec = Math.max(0, Math.floor(sec || 0));
+  return Math.floor(sec / 60) + ":" + ("0" + (sec % 60)).slice(-2);
+}
+function postRecordCard(){
+  if(mediaSession) return; /* a recording is already running — its card is the door */
+  for(var i=0;i<thread.messages.length;i++){
+    var old = thread.messages[i];
+    if(old.type === "recordcard" && !old.dismissed && old.stage === "choose") return;
+  }
+  pushMsg({type:"recordcard", stage:"choose", kind:"", startedAt:0, clipId:"", error:"", capNote:"", dismissed:false});
+}
+function recordCardHTML(m){
+  if(m.dismissed) return "";
+  var h = '<div class="msg them"><div class="bubble"><p class="hub-label">Record yourself</p>';
+  if(m.stage === "recording"){
+    var el = Math.min(MEDIA_MAX_SECONDS, Math.floor((Date.now() - (m.startedAt || Date.now())) / 1000));
+    h += '<p style="margin:4px 0"><span class="record-dot">●</span> Recording… <span data-record-elapsed="'+m.id+'">'+fmtDuration(el)+'</span></p>'
+      + (m.kind === "video" ? '<p class="small muted" style="margin:4px 0">Video — you, as you are.</p>' : '<p class="small muted" style="margin:4px 0">Voice — you, as you are.</p>')
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':recdone">Done</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':recdiscard">Discard</button></div>';
+  } else if(m.stage === "starting" || m.stage === "saving"){
+    h += '<p style="margin:4px 0">'+(m.stage === "starting" ? "Getting the mic/camera ready…" : "Keeping it…")+'</p>';
+  } else if(m.stage === "error"){
+    h += '<p style="margin:4px 0">'+esc(m.error || MEDIA_DENIED_LINE)+'</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':reccancel">Close</button></div>';
+  } else {
+    h += '<p style="margin:4px 0">Your voice, or your body — crying, laughing, dancing, whatever is true. It stays on this phone, on today’s page, under your name for it.</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':recvoice">Voice</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':recvideo">Video</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':reccancel">Cancel</button></div>';
+  }
+  return h + '</div></div>';
+}
+function recordLabelHTML(m){
+  if(m.done){
+    return '<div class="msg them"><div class="bubble"><p class="muted small">Your recording'
+      + (m.label ? ' — kept as &ldquo;'+esc(m.label)+'&rdquo;' : '') + '.</p></div></div>';
+  }
+  var chips = MEDIA_LABELS.map(function(lab, i){
+    return '<button type="button" class="chip" data-tchip="'+m.id+':medialabel:'+i+'">'+esc(lab)+'</button>';
+  }).join("");
+  chips += '<button type="button" class="chip" data-tchip="'+m.id+':mediaown">In my words</button>'
+    + '<button type="button" class="chip" data-tchip="'+m.id+':medianone">No label</button>';
+  return '<div class="msg them"><div class="bubble"><p class="hub-label">Your recording</p>'
+    + '<p style="margin:4px 0">What is this one?</p>'
+    + '<div class="chiprow">'+chips+'</div></div></div>';
+}
+function stopMediaTimer(){
+  if(mediaTimer){ clearInterval(mediaTimer); mediaTimer = null; }
+}
+function startMediaTimer(m){
+  stopMediaTimer();
+  mediaTimer = setInterval(function(){
+    var s = Math.floor((Date.now() - (m.startedAt || Date.now())) / 1000);
+    var nodes = document.querySelectorAll('[data-record-elapsed="'+m.id+'"]');
+    nodes.forEach(function(n){ n.textContent = fmtDuration(Math.min(MEDIA_MAX_SECONDS, s)); });
+    if(s >= MEDIA_MAX_SECONDS) stopMediaRecording(m, true);
+  }, 500);
+}
+function startMediaRecording(m, kind){
+  if(mediaSession) return;
+  m.stage = "starting"; m.kind = kind; m.error = ""; saveThread(); render();
+  var capResult;
+  try{ capResult = EPMedia.capture(kind); }catch(e){ capResult = Promise.reject(e); }
+  Promise.resolve(capResult).then(function(session){
+    if(m.dismissed){ if(session && typeof session.discard === "function") session.discard(); return; }
+    if(session && session.blob && typeof session.stop !== "function"){
+      finalizeMediaResult(m, kind, session); /* a capture that hands back the clip itself */
+      return;
+    }
+    if(!session || typeof session.stop !== "function") throw new Error("capture unavailable");
+    mediaSession = {msgId:m.id, kind:kind, session:session, startedAt:Date.now(), stopping:false};
+    m.stage = "recording"; m.startedAt = mediaSession.startedAt; saveThread();
+    render();
+    startMediaTimer(m);
+  }).catch(function(){
+    m.stage = "error"; m.error = MEDIA_DENIED_LINE; saveThread(); render();
+  });
+}
+function stopMediaRecording(m, capped){
+  if(!mediaSession || mediaSession.msgId !== m.id || mediaSession.stopping) return;
+  mediaSession.stopping = true;
+  stopMediaTimer();
+  if(capped) m.capNote = "That reached ten minutes, so it stopped there.";
+  m.stage = "saving"; saveThread(); render();
+  var session = mediaSession.session;
+  mediaSession = null;
+  var stopped;
+  try{ stopped = session.stop(); }catch(e){ stopped = Promise.reject(e); }
+  Promise.resolve(stopped).then(function(result){
+    finalizeMediaResult(m, m.kind, result || {});
+  }).catch(function(){
+    m.stage = "error"; m.error = MEDIA_DENIED_LINE; saveThread(); render();
+  });
+}
+function discardMediaRecording(m){
+  if(mediaSession && mediaSession.msgId === m.id){
+    try{ mediaSession.session.discard(); }catch(e){}
+    mediaSession = null;
+  }
+  stopMediaTimer();
+  m.dismissed = true; saveThread(); render();
+}
+function finalizeMediaResult(m, kind, result){
+  var clip = {id:uid(), kind:kind, ts:Date.now(), label:"",
+              seconds:Math.max(1, Math.round(result.seconds || 1))};
+  media.clips.push(clip);
+  saveMedia();
+  if(result.blob){
+    var rec = {id:clip.id, kind:kind, mime:result.mime || result.blob.type || "", ts:clip.ts, label:""};
+    try{
+      var p = EPMedia.put(rec, result.blob);
+      if(p && typeof p.catch === "function") p.catch(function(){});
+    }catch(e){}
+  }
+  m.stage = "done"; m.clipId = clip.id; m.dismissed = true; saveThread();
+  if(m.capNote) pushMsg({type:"companion", text:m.capNote});
+  pushMsg({type:"recordlabel", clipId:clip.id, done:false, label:""});
+  render();
+}
+function settleMediaLabel(m, label){
+  var clip = mediaClipById(m.clipId);
+  if(clip){
+    clip.label = label;
+    saveMedia();
+    if(window.EPMedia && typeof EPMedia.setLabel === "function"){
+      try{
+        var p = EPMedia.setLabel(clip.id, label);
+        if(p && typeof p.catch === "function") p.catch(function(){});
+      }catch(e){}
+    }
+  }
+  m.label = label; m.done = true; saveThread();
+  pushMsg({type:"companion", text:"Kept. It's on today's page."});
+}
+function removeMediaClip(id){
+  media.clips = media.clips.filter(function(c){ return c.id !== id; });
+  saveMedia();
+  if(mediaURLCache[id]){
+    try{ URL.revokeObjectURL(mediaURLCache[id]); }catch(e){}
+    delete mediaURLCache[id];
+  }
+  if(window.EPMedia && typeof EPMedia.remove === "function"){
+    try{
+      var p = EPMedia.remove(id);
+      if(p && typeof p.catch === "function") p.catch(function(){});
+    }catch(e){}
+  }
+}
+/* journal media elements render with no src; once the thread is
+   bound, each one is pointed at its clip's blob, fetched fresh
+   from IndexedDB — so playback works the same after a reload */
+function hydrateMediaElements(){
+  document.querySelectorAll("[data-media-src]").forEach(function(node){
+    var id = node.getAttribute("data-media-src");
+    if(!id || node.getAttribute("src")) return;
+    if(mediaURLCache[id]){ node.setAttribute("src", mediaURLCache[id]); return; }
+    if(!window.EPMedia || typeof EPMedia.get !== "function") return;
+    var p;
+    try{ p = EPMedia.get(id); }catch(e){ return; }
+    if(!p || typeof p.then !== "function") return;
+    p.then(function(rec){
+      if(rec && rec.blob){
+        var url;
+        try{ url = URL.createObjectURL(rec.blob); }catch(e){ return; }
+        mediaURLCache[id] = url;
+        node.setAttribute("src", url);
+      }
+    }).catch(function(){});
+  });
+}
+
 function composerHTML(){
   var ph = "Say it here…";
   if(writeMode) ph = "Writing in your journal…";
@@ -2779,6 +3108,7 @@ function composerHTML(){
   else if(detail && detail.textField) ph = "In your own words…";
   return '<div class="composer"><div class="composer-row">'
     + '<textarea id="threadInput" rows="1" placeholder="'+ph+'" aria-label="Talk with your companion"></textarea>'
+    + '<button type="button" class="btn secondary record-btn" id="threadRecord" aria-label="Record yourself">🎙 Record</button>'
     + '<button type="button" class="btn" id="threadSend">Send</button></div></div>';
 }
 function viewThread(){
@@ -3319,6 +3649,7 @@ function liveConstitution(){
     "If they reach for help, its first answers can be their own song and the room's recognition — people's own words, brought at the moment of need.",
     "This conversation is their life on paper — not only the voices. Their days, feelings, thoughts, the interesting things: receive ordinary life the way a close friend and fellow researcher of their life would, with curiosity and memory. Never route ordinary life into the claims machinery.",
     "Sometimes they won't have the words — then music is a way to say it. A song can hold what words can't.",
+    "They can also record themselves — crying, laughing, dancing. A recording is received, never analyzed; you witness it and keep it on their day's page under the name they give it.",
     "Sometimes the truest thing in the room is that it isn't fair. When they say so, stand with them in it — don't fix it, don't brighten it, don't hand them a door. Witness is the whole reply.",
     "Your work is also horizontal: it runs between people, not only between this person and their record. When this place grows circles and peers, connecting this person with others — and with their insights and thoughts — follows the same law as everything else you bring: offered, never assigned; what was shared in a room stays the room's; and a connection to people is made only when their rhythm says they are ready for people.",
     "Finding this person's first — their first circle, the people whose experience belongs next to theirs — is part of your standing work. Bring it only when it is real and their rhythm says they are ready for people; never invent a match, a person, or a circle.",
@@ -3413,6 +3744,7 @@ function buildRecordDigest(){
       var parts = [];
       if(d.pours.length) parts.push(d.pours.length + (d.pours.length === 1 ? " pour" : " pours"));
       if(d.writings.length) parts.push(d.writings.length + (d.writings.length === 1 ? " writing" : " writings"));
+      if(d.clips && d.clips.length) parts.push(d.clips.length + (d.clips.length === 1 ? " recording" : " recordings"));
       if(d.claimsLog.length) parts.push(d.claimsLog.length + (d.claimsLog.length === 1 ? " claim" : " claims") + " said");
       if(d.claimsClosed.length) parts.push(d.claimsClosed.length + " checked");
       var mv = d.moves.length ? d.moves[d.moves.length - 1].move : "";
@@ -3457,6 +3789,7 @@ function liveHistoryNote(m){
   if(m.type === "playlistcard") return br("You brought their playlist card — the songs they are building with you, one at a time");
   if(m.type === "welcome") return br("You welcomed them back — one line from the room" + (m.roomLine ? ": " + m.roomLine : "") + (m.playlistLine ? " " + m.playlistLine : ""));
   if(m.type === "wordless") return br("The words were hard to find, and you offered the wordless channel: a song can hold what words can't");
+  if(m.type === "recordlabel" && m.done) return br("They recorded themselves, and you kept it on their day's page" + (m.label ? " under the name “" + m.label + "”" : "") + " — received, never analyzed");
   if(m.type === "settingscard") return br("You brought the settings card");
   if(m.type === "moveask"){ var me = ledgerEntryById(m.claimId); return br("You asked whether they want to note their move on the claim “" + (me ? shortWords(me.claim, 80) : "") + "”"); }
   if(m.type === "mapGlimpse") return br("You showed a glimpse of their map");
@@ -3616,6 +3949,11 @@ function detectIntent(text){
       if(nm && low.indexOf(" " + nm.toLowerCase()) !== -1) pieceHit = p;
     });
   });
+  /* recording himself (v1.17): "record me" / "I want to record" is
+     a door, not material — it opens the recording card in the talk */
+  if(low.indexOf(" record me ") !== -1 || low.indexOf(" want to record ") !== -1
+     || low.indexOf(" record myself ") !== -1)
+    return {kind:"record"};
   if(w("receipts") || w("claims") || low.indexOf(" track record ") !== -1
      || (pieceHit && (w("record") || w("claims") || w("receipts"))))
     return {kind:"receipts"};
@@ -3646,6 +3984,7 @@ function routeIntent(it){
   else if(it.kind === "settings") postSettingsCard();
   else if(it.kind === "playlist") postPlaylistCard();
   else if(it.kind === "songadd") postSongConfirm(it.title, it.artist, "", "");
+  else if(it.kind === "record") postRecordCard();
 }
 function sendThreadText(){
   var ta = el("threadInput");
@@ -3737,6 +4076,11 @@ function sendThreadText(){
 function bindThread(){
   var send = el("threadSend");
   if(send) send.addEventListener("click", sendThreadText);
+  var recBtn = el("threadRecord");
+  if(recBtn) recBtn.addEventListener("click", function(){
+    postRecordCard();
+    render();
+  });
   var ta = el("threadInput");
   if(ta) ta.addEventListener("keydown", function(ev){
     if(ev.key === "Enter" && !ev.shiftKey){ ev.preventDefault(); sendThreadText(); }
@@ -3924,6 +4268,9 @@ function bindThread(){
           playlist.songs = playlist.songs.filter(function(x){ return x.id !== m.songId; });
           savePlaylist();
           render();
+        } else if(m.kind === "media"){
+          removeMediaClip(m.clipId);
+          render();
         } else if(m.kind === "import"){
           if(pendingImport){
             var pi = pendingImport;
@@ -4074,6 +4421,27 @@ function bindThread(){
         pushMsg({type:"confirmact", kind:"song", songId:parts[2], done:""});
         render();
       }
+      else if(act === "recvoice" && m){ startMediaRecording(m, "audio"); }
+      else if(act === "recvideo" && m){ startMediaRecording(m, "video"); }
+      else if(act === "recdone" && m){ stopMediaRecording(m, false); }
+      else if(act === "recdiscard" && m){ discardMediaRecording(m); }
+      else if(act === "reccancel" && m){ m.dismissed = true; saveThread(); render(); }
+      else if(act === "medialabel" && m){
+        settleMediaLabel(m, MEDIA_LABELS[parseInt(parts[2], 10)] || "");
+        render();
+      }
+      else if(act === "mediaown" && m){
+        askText("medialabel", {clipId:m.clipId, msgId:m.id}, "Say what this one is, in your words.");
+        render();
+      }
+      else if(act === "medianone" && m){
+        settleMediaLabel(m, "");
+        render();
+      }
+      else if(act === "mediadelask"){
+        pushMsg({type:"confirmact", kind:"media", clipId:parts[2], done:""});
+        render();
+      }
       else if(act === "more" && m){ m.expanded = true; saveThread(); render(); }
       else if(act === "hardnote"){ ladderReturn = "home"; go("ladder"); }
       else if(act === "alright" && m){
@@ -4161,6 +4529,7 @@ function bindThread(){
   document.querySelectorAll("[data-dchip]").forEach(function(b){
     b.addEventListener("click", function(){ handleDetailChip(b.getAttribute("data-dchip")); });
   });
+  hydrateMediaElements();
   window.scrollTo(0, document.body && document.body.scrollHeight ? document.body.scrollHeight : 0);
 }
 
@@ -4542,7 +4911,7 @@ function journalToldKeyForEvent(ev){ return dayKeyOf(ev.toldTs || ev.ts); }
 function journalToldKeyForClaim(e){ return dayKeyOf(e.toldTs || e.ts); }
 function journalDayData(key){
   var d = {key:key, pours:[], writings:[], claimsLog:[], claimsClosed:[], moves:[],
-           fig:null, prec:[], know:null, corrections:[], hiddenItems:[], verbatim:[]};
+           fig:null, prec:[], know:null, corrections:[], hiddenItems:[], verbatim:[], clips:[]};
   atlas.events.forEach(function(ev){
     if(journalToldKeyForEvent(ev) !== key) return;
     if(djournal.hidden[ev.id]){ d.hiddenItems.push({id:ev.id, text:evWords(ev)}); return; }
@@ -4554,6 +4923,10 @@ function journalDayData(key){
     if(djournal.hidden[en.id]){ d.hiddenItems.push({id:en.id, text:en.text}); return; }
     d.writings.push(en);
     d.verbatim.push({id:en.id, text:en.text});
+  });
+  media.clips.forEach(function(c){
+    if(dayKeyOf(c.ts) !== key) return;
+    d.clips.push(c); /* his recordings sit on the day they were told, like everything else (v1.17) */
   });
   ledger.entries.forEach(function(e){
     if(journalToldKeyForClaim(e) === key) d.claimsLog.push(e);
@@ -4572,16 +4945,19 @@ function journalDayData(key){
   d.claimsLog.sort(function(a,b){ return a.ts - b.ts; });
   d.claimsClosed.sort(function(a,b){ return (a.tsOutcome || 0) - (b.tsOutcome || 0); });
   d.moves.sort(function(a,b){ return (a.tsOutcome || a.ts) - (b.tsOutcome || b.ts); });
+  d.clips.sort(function(a,b){ return a.ts - b.ts; });
   return d;
 }
 function journalHasContent(d){
   return !!(d.pours.length || d.writings.length || d.claimsLog.length || d.claimsClosed.length
-    || d.moves.length || d.fig || d.prec.length || d.know || d.corrections.length || d.hiddenItems.length);
+    || d.moves.length || d.fig || d.prec.length || d.know || d.corrections.length || d.hiddenItems.length
+    || (d.clips && d.clips.length));
 }
 function journalDayKeys(){
   var seen = {};
   atlas.events.forEach(function(ev){ seen[journalToldKeyForEvent(ev)] = 1; });
   journal.entries.forEach(function(en){ seen[dayKeyOf(en.ts)] = 1; });
+  media.clips.forEach(function(c){ seen[dayKeyOf(c.ts)] = 1; });
   ledger.entries.forEach(function(e){
     seen[journalToldKeyForClaim(e)] = 1;
     if(e.tsOutcome) seen[dayKeyOf(e.tsOutcome)] = 1;
@@ -4665,27 +5041,55 @@ function journalCardHTML(m){
     body += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':jearlier:'+olderKey+'">Earlier days</button></div>';
   return cardBubble("Journal", body);
 }
+/* one recording on the day's page (v1.17): its label above it, the
+   player under it — the element renders with no src and is pointed
+   at its IndexedDB blob once the thread binds (hydrateMediaElements),
+   so it plays the same after a reload. Taking it off goes through
+   the standard confirm, and removes blob + metadata together. */
+function mediaClipHTML(cardMsg, c){
+  var tag = c.kind === "video"
+    ? '<video class="jmedia" controls playsinline preload="metadata" data-media-src="'+c.id+'" aria-label="Your video recording"></video>'
+    : '<audio class="jmedia" controls preload="metadata" data-media-src="'+c.id+'" aria-label="Your voice recording"></audio>';
+  return '<div class="jitem"><p class="small muted" style="margin:4px 0 0">'
+    + (c.kind === "video" ? "Video" : "Recording") + ' · ' + esc(fmtTime(c.ts))
+    + (c.seconds ? ' · ' + fmtDuration(c.seconds) : '') + '</p>'
+    + (c.label ? '<p style="margin:2px 0"><strong>' + esc(c.label) + '</strong></p>' : '')
+    + tag
+    + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+cardMsg.id+':mediadelask:'+c.id+'">Take it off</button></div></div>';
+}
 function journalCardDayHTML(m, key){
   var d = journalDayData(key);
   var h = '<div class="cardblock"><p style="margin:2px 0"><strong>'+esc(dayLabel(key))+'</strong></p>';
   var items = 0;
-  d.pours.forEach(function(ev){
+  /* the day's moments in the order they were told — pours,
+     writings, and his recordings in one timeline (v1.17). Text
+     condenses to three, as before; a recording always shows —
+     he made it on purpose. */
+  var moments = [];
+  d.pours.forEach(function(ev){ moments.push({ts:ev.toldTs || ev.ts, tie:ev.ts, kind:"pour", ev:ev}); });
+  d.writings.forEach(function(en){ moments.push({ts:en.ts, tie:en.ts, kind:"writing", en:en}); });
+  (d.clips || []).forEach(function(c){ moments.push({ts:c.ts, tie:c.ts, kind:"clip", clip:c}); });
+  moments.sort(function(a,b){ return (a.ts - b.ts) || (a.tie - b.tie); });
+  moments.forEach(function(mo){
+    if(mo.kind === "clip"){ h += mediaClipHTML(m, mo.clip); return; }
     if(items >= 3) return;
-    var wtxt = evWords(ev);
-    if(!wtxt) return;
-    var isFrag = ev.mode === "fragment" || ev.type === "fragment";
-    var tag = isFrag ? "Fragment" : (ev.mode === "quick" ? "Quick note" : "A pour");
-    var names = (ev.whoIds || []).map(function(id){ return pieceName(id); }).filter(Boolean).join(", ");
-    var whenTag = ev.timeUnknown ? " · from some time back" : (ev.remembered ? " · remembered — " + (ev.timePhrase || "earlier") : "");
-    h += '<p class="small muted" style="margin:4px 0 0">'+esc(tag)+' · '+esc(fmtTime(ev.toldTs || ev.ts))+esc(whenTag)+(names ? ' — '+esc(names) : '')+'</p>'
-      + '<p style="margin:2px 0">'+esc(shortWords(wtxt, 150))+'</p>';
-    items++;
-  });
-  d.writings.forEach(function(en){
-    if(items >= 3) return;
-    h += '<p class="small muted" style="margin:4px 0 0">'+(en.prompt ? esc(shortWords(en.prompt, 60)) : 'Journal')+' · '+esc(fmtTime(en.ts))+'</p>'
-      + '<p style="margin:2px 0">'+esc(shortWords(en.text, 150))+'</p>';
-    items++;
+    if(mo.kind === "pour"){
+      var ev = mo.ev;
+      var wtxt = evWords(ev);
+      if(!wtxt) return;
+      var isFrag = ev.mode === "fragment" || ev.type === "fragment";
+      var tag = isFrag ? "Fragment" : (ev.mode === "quick" ? "Quick note" : "A pour");
+      var names = (ev.whoIds || []).map(function(id){ return pieceName(id); }).filter(Boolean).join(", ");
+      var whenTag = ev.timeUnknown ? " · from some time back" : (ev.remembered ? " · remembered — " + (ev.timePhrase || "earlier") : "");
+      h += '<p class="small muted" style="margin:4px 0 0">'+esc(tag)+' · '+esc(fmtTime(ev.toldTs || ev.ts))+esc(whenTag)+(names ? ' — '+esc(names) : '')+'</p>'
+        + '<p style="margin:2px 0">'+esc(shortWords(wtxt, 150))+'</p>';
+      items++;
+    } else {
+      var en = mo.en;
+      h += '<p class="small muted" style="margin:4px 0 0">'+(en.prompt ? esc(shortWords(en.prompt, 60)) : 'Journal')+' · '+esc(fmtTime(en.ts))+'</p>'
+        + '<p style="margin:2px 0">'+esc(shortWords(en.text, 150))+'</p>';
+      items++;
+    }
   });
   var extraN = (d.pours.length + d.writings.length) - items;
   if(extraN > 0) h += '<p class="small muted" style="margin:2px 0">…and '+extraN+' more '+(extraN === 1 ? "thing" : "things")+' that day.</p>';
@@ -4982,6 +5386,7 @@ function settingsCardHTML(m){
   if(ladder.clinician && (ladder.clinician.name || ladder.clinician.phone))
     h += '<p class="small" style="margin:4px 0">Your clinician on the ladder: '+esc(ladder.clinician.name || "My clinician")+(ladder.clinician.phone ? ' — '+esc(ladder.clinician.phone) : '')+'</p>';
   h += '<p class="small muted" style="margin:4px 0">Your whole record lives on this phone. Export gives you a copy to keep, and import brings a copy back onto this phone; erase removes it all, here, for good. The export includes everything except your live-companion API key — that never leaves this phone.</p>';
+  h += '<p class="small muted" style="margin:4px 0">Recordings stay on this phone and aren\'t in the export yet.</p>';
   h += '<div class="chiprow">'
     + '<button type="button" class="chip" data-tchip="'+m.id+':reshape">Reshape companion</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':ladder">Arrange my ladder</button>'
@@ -5041,7 +5446,7 @@ function exportRecord(){
   a.download = "ever-present-record.json";
   document.body.appendChild(a);
   a.click();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  setTimeout(function(){ try{ URL.revokeObjectURL(a.href); }catch(e){} a.remove(); }, 400);
 }
 
 /* ---- import: bring a record home from an export file ----
@@ -5051,7 +5456,10 @@ function exportRecord(){
    overwritten by one: it lives on this device only, so the device's
    own key survives an import untouched. */
 var pendingImport = null;
-var IMPORT_KEYS = Object.keys(K).map(function(name){ return K[name]; });
+/* recordings don't travel yet (v1.17): the media store is left out
+   of import entirely — a file's recording index is simply not read */
+var IMPORT_KEYS = Object.keys(K).map(function(name){ return K[name]; })
+  .filter(function(key){ return key !== K.media; });
 function importParse(text){
   var data;
   try{ data = JSON.parse(text); }catch(e){ return null; }
@@ -5136,7 +5544,15 @@ function eraseEverything(){
     if(k && k.indexOf("ever_present") === 0) kill.push(k);
   }
   kill.forEach(function(k){ localStorage.removeItem(k); });
-  location.reload();
+  /* the recordings go too — their bytes live in IndexedDB, so the
+     erase isn't done until that store is cleared as well (v1.17) */
+  var finished = false;
+  function finish(){ if(!finished){ finished = true; try{ location.reload(); }catch(e){} } }
+  try{
+    var p = (window.EPMedia && typeof EPMedia.clear === "function") ? EPMedia.clear() : null;
+    if(p && typeof p.then === "function"){ p.then(finish, finish); setTimeout(finish, 800); }
+    else finish();
+  }catch(e){ finish(); }
 }
 
 /* ---- one confirmation pattern for the irreversible taps ---- */
@@ -5146,11 +5562,12 @@ function confirmActHTML(m){
   if(m.done === "done"){
     if(m.kind === "piece") return '<div class="msg them"><div class="bubble"><p class="muted small">Removed from the map.</p></div></div>';
     if(m.kind === "song") return '<div class="msg them"><div class="bubble"><p class="muted small">Off your playlist.</p></div></div>';
+    if(m.kind === "media") return '<div class="msg them"><div class="bubble"><p class="muted small">The recording is gone.</p></div></div>';
     return '<div class="msg them"><div class="bubble"><p class="muted small">Done.</p></div></div>';
   }
   if(m.kind === "erase1"){
     return '<div class="msg them"><div class="bubble"><p class="hub-label">Erase everything</p>'
-      + '<p style="margin:4px 0">Your companion, all map pieces, glossary terms, every claim you’ve told me, your journal writings, your playlist, and your help ladder — erased from this phone. This can’t be undone.</p>'
+      + '<p style="margin:4px 0">Your companion, all map pieces, glossary terms, every claim you’ve told me, your journal writings, your playlist, your recordings, and your help ladder — erased from this phone. This can’t be undone.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Erase everything</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep my record</button></div></div></div>';
   }
@@ -5176,6 +5593,12 @@ function confirmActHTML(m){
     var sg = null;
     playlist.songs.forEach(function(x){ if(x.id === m.songId) sg = x; });
     return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">Take '+(sg ? '“'+esc(sg.title)+'”' : 'that song')+' off your playlist?</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Take it off</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep it</button></div></div></div>';
+  }
+  if(m.kind === "media"){
+    var mc = mediaClipById(m.clipId);
+    return '<div class="msg them"><div class="bubble"><p style="margin:4px 0">Take this recording off today’s page? The recording itself goes too — it only lives on this phone.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Take it off</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep it</button></div></div></div>';
   }
@@ -5234,6 +5657,11 @@ function handleTextAsk(text){
     pushMsg({type:"companion", text:"Renamed. History kept."});
   } else if(ask.kind === "glossterm"){
     pushMsg({type:"glossdoes", pieceId:ask.pieceId, term:text, done:false});
+  } else if(ask.kind === "medialabel"){
+    /* his own words for what the recording is — kept verbatim as
+       its label; the witness line is the whole reply (v1.17) */
+    var mlm = threadMsgById(ask.msgId);
+    if(mlm && !mlm.done) settleMediaLabel(mlm, text);
   }
 }
 
