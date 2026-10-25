@@ -1,0 +1,1714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#476b5c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ever Present">
+<title>Ever Present</title>
+<style>
+  /* ================= Ever Present v1 — styles =================
+     Palette carried from the local product build: warm paper, calm green.
+     Mobile-first. Big tap targets. No streaks, no scores on the person. */
+  :root{
+    --paper:#faf7f1; --card:#fffdf9; --ink:#2b2620; --muted:#7a7166;
+    --line:#e4dccb; --accent:#476b5c; --accent-soft:#e9f0ea;
+    --amber-bg:#fbf3e2; --amber-line:#e6d3a3; --amber-ink:#7a5b23;
+    --help:#a8432f; --help-soft:#f9ebe7;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6; font-size:16px;
+    padding-bottom:calc(92px + env(safe-area-inset-bottom));
+  }
+  .wrap{max-width:680px; margin:0 auto; padding:18px 16px 30px}
+  h1.appname{
+    font-family:Georgia,"Times New Roman",serif; font-weight:600;
+    font-size:1.55rem; margin:6px 0 0; letter-spacing:.2px;
+  }
+  .companion-line{color:var(--muted); margin:2px 0 14px; font-size:.98rem}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:20px; margin:0 0 14px;
+  }
+  .card h2{font-family:Georgia,serif; font-size:1.3rem; margin:0 0 10px; font-weight:600}
+  .card h3{font-size:1.02rem; margin:18px 0 6px; font-weight:700}
+  .card h3:first-child{margin-top:0}
+  .muted{color:var(--muted)} .small{font-size:.88rem}
+  .lede{font-size:1.03rem}
+  .empty{color:var(--muted); font-style:italic}
+  .field-label{font-weight:600; font-size:.95rem; margin:14px 0 6px}
+  .field-label:first-child{margin-top:0}
+
+  /* ---- buttons ---- */
+  .btn{
+    display:inline-block; border:1px solid var(--accent); background:var(--accent); color:#fff;
+    padding:12px 20px; border-radius:999px; font-size:1rem; cursor:pointer; min-height:48px;
+    font-family:inherit;
+  }
+  .btn.secondary{background:var(--card); color:var(--ink); border-color:var(--line)}
+  .btn.quiet{background:transparent; color:var(--muted); border-color:transparent}
+  .btn.danger{background:var(--card); color:var(--help); border-color:var(--help)}
+  .btn.small{padding:8px 14px; min-height:40px; font-size:.92rem}
+  .btn.block{display:block; width:100%; text-align:center}
+  .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px}
+  .btn:disabled{opacity:.5}
+
+  /* ---- chips (options first, questions last) ---- */
+  .chiprow{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px}
+  .chip{
+    border:1px solid var(--line); background:#fff; color:var(--ink);
+    padding:10px 14px; border-radius:999px; font-size:.95rem; cursor:pointer;
+    min-height:44px; font-family:inherit; text-align:left;
+  }
+  .chip.on{background:var(--accent); border-color:var(--accent); color:#fff}
+  .chip.alt.on{background:#7a5b23; border-color:#7a5b23}
+  .chip small{display:block; font-size:.78rem; opacity:.85; font-weight:400}
+
+  /* ---- inputs ---- */
+  textarea.big, input.txt, textarea.txt{
+    width:100%; border:1px solid var(--line); border-radius:10px; background:#fff;
+    padding:12px 14px; font-size:1rem; font-family:inherit; color:var(--ink);
+  }
+  textarea.big{min-height:16vh; line-height:1.55}
+  textarea.short{min-height:9vh}
+
+  /* ---- persistent help button ---- */
+  #helpBtn{
+    position:fixed; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:80;
+    background:var(--help); color:#fff; border:none; border-radius:999px;
+    padding:11px 20px; font-size:1rem; font-weight:700; cursor:pointer; min-height:46px;
+    box-shadow:0 2px 10px rgba(43,38,32,.25); font-family:inherit;
+  }
+
+  /* ---- bottom nav ---- */
+  nav.bottom{
+    position:fixed; left:0; right:0; bottom:0; z-index:70;
+    background:var(--card); border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom);
+    display:flex; justify-content:space-around;
+  }
+  nav.bottom button{
+    flex:1; background:none; border:none; cursor:pointer; font-family:inherit;
+    padding:9px 2px 8px; color:var(--muted); font-size:.78rem; min-height:56px;
+  }
+  nav.bottom button .gly{display:block; font-size:1.25rem; line-height:1.2}
+  nav.bottom button.active{color:var(--accent); font-weight:700}
+
+  /* ---- tallies (ported) ---- */
+  .tally{display:flex; gap:14px; flex-wrap:wrap; margin:0 0 14px}
+  .tally .pill{
+    background:var(--accent-soft); border-radius:999px; padding:8px 16px; font-size:.95rem;
+  }
+  .tally .pill b{font-size:1.15rem; margin-right:6px}
+
+  /* ---- claims ledger (ported from the local product build) ---- */
+  .ledger-entry{border-top:1px solid var(--line); padding:14px 0}
+  .ledger-entry:first-of-type{border-top:none}
+  .ledger-entry .claim-text{font-size:1.05rem}
+  .ledger-outcome{
+    background:var(--accent-soft); border-radius:8px; padding:10px 14px; margin-top:10px;
+  }
+  .kind-tag{
+    display:inline-block; background:var(--amber-bg); border:1px solid var(--amber-line);
+    color:var(--amber-ink); border-radius:999px; padding:1px 9px; font-size:.76rem;
+    margin-left:8px; vertical-align:middle;
+  }
+
+  /* ---- map pieces ---- */
+  .piece-card{cursor:pointer}
+  .piece-card:active{border-color:var(--accent)}
+  .piece-name{font-family:Georgia,serif; font-size:1.2rem; font-weight:600}
+  .type-tag{
+    display:inline-block; background:var(--accent-soft); color:var(--accent);
+    border-radius:999px; padding:1px 9px; font-size:.76rem; margin-left:8px; vertical-align:middle;
+  }
+  .seeing-box{
+    background:var(--amber-bg); border:1px solid var(--amber-line); border-radius:8px;
+    padding:10px 14px; margin:10px 0;
+  }
+  .seeing-box .lab{font-size:.78rem; text-transform:uppercase; letter-spacing:.6px; color:var(--amber-ink); font-weight:700}
+  .mini-chips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0}
+  .mini-chips span{
+    background:#fff; border:1px solid var(--line); border-radius:999px;
+    padding:2px 10px; font-size:.82rem;
+  }
+
+  /* ---- journal prompts ---- */
+  .prompt-card{cursor:pointer; text-align:left; width:100%; font-family:inherit; font-size:1rem}
+  .prompt-card:active{border-color:var(--accent)}
+
+  /* ---- help ladder ---- */
+  .rung{border-left:5px solid var(--accent); padding-left:14px; margin:18px 0}
+  .rung.far{border-left-color:var(--help)}
+  .rung h3{margin:0 0 4px}
+  .hardday-note{
+    font-family:Georgia,serif; font-size:1.15rem; background:var(--amber-bg);
+    border:1px solid var(--amber-line); border-radius:8px; padding:14px 16px; margin:10px 0;
+    white-space:pre-wrap;
+  }
+  .call-link{
+    display:inline-block; margin:4px 8px 4px 0; padding:10px 16px; border-radius:999px;
+    background:var(--accent); color:#fff; text-decoration:none; font-weight:600; min-height:44px;
+  }
+  .call-link.far{background:var(--help)}
+
+  /* ---- misc ---- */
+  .howto{background:var(--accent-soft); border-radius:8px; padding:10px 14px; font-size:.92rem; margin:0 0 14px}
+  .offer-card{border-color:var(--amber-line); background:var(--amber-bg)}
+  .divider{border:none; border-top:1px solid var(--line); margin:16px 0}
+  .stepdots{color:var(--muted); font-size:.85rem; margin:0 0 10px}
+  .quiet-screen{padding-top:12vh}
+  .summary-list{margin:6px 0; padding-left:20px}
+  .summary-list li{margin:3px 0}
+  a.plain{color:var(--accent)}
+  .toast{
+    background:var(--accent-soft); border:1px solid var(--accent); color:var(--ink);
+    border-radius:8px; padding:10px 14px; margin:0 0 14px; font-size:.95rem;
+  }
+</style>
+</head>
+<body>
+<button id="helpBtn" type="button" aria-label="Help">Help</button>
+<main class="wrap" id="app" aria-live="polite"></main>
+<nav class="bottom" id="bottomNav" style="display:none"></nav>
+
+<script>
+"use strict";
+/* =====================================================================
+   Ever Present v1 — single-file web app.
+   Private, on-device core: companion, capture (the pour), map,
+   Check the receipts (claims ledger), journal, help ladder, settings.
+   Nothing leaves the device. Nothing grades the person.
+   ===================================================================== */
+
+/* ================= helpers ================= */
+function esc(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function uid(){ return "id" + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function el(id){ return document.getElementById(id); }
+function fmtDate(ts){ /* ported from the local product build (ledgerFmt) */
+  var d = new Date(ts);
+  return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})
+    + ", " + d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+}
+function relDay(ts){
+  var now = new Date(); var d = new Date(ts);
+  var startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var startD = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  var days = Math.round((startNow - startD) / 86400000);
+  if(days <= 0) return "today";
+  if(days === 1) return "yesterday";
+  if(days < 7) return "last " + d.toLocaleDateString(undefined,{weekday:"long"});
+  return "on " + d.toLocaleDateString(undefined,{month:"short", day:"numeric"});
+}
+function uniqPush(arr, val){ if(val && arr.indexOf(val) === -1) arr.push(val); return arr; }
+
+/* ================= stores (localStorage) =================
+   Ledger keeps the ported key ever_present_ledger_v1 for continuity
+   with the local product build; all v1 stores use ever_present_v1_*.
+   Erase-all sweeps every key beginning with "ever_present". */
+var K = {
+  companion: "ever_present_v1_companion",
+  atlas:     "ever_present_v1_atlas",
+  journal:   "ever_present_v1_journal",
+  ladder:    "ever_present_v1_ladder",
+  ledger:    "ever_present_ledger_v1"
+};
+function storeLoad(key, blank){
+  try{
+    var raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : blank();
+  }catch(e){ return blank(); }
+}
+function storeSave(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){}
+}
+function companionBlank(){ return null; }
+function atlasBlank(){ return {pieces:[], events:[], glossary:[]}; }
+function journalBlank(){ return {entries:[]}; }
+function ladderBlank(){ return {noteForHardDay:"", contacts:[], clinician:{name:"", phone:""}}; }
+function ledgerBlank(){ return {entries:[]}; } /* ported shape */
+
+var companion = storeLoad(K.companion, companionBlank);
+var atlas     = storeLoad(K.atlas, atlasBlank);
+if(!atlas.pieces) atlas.pieces = [];
+if(!atlas.events) atlas.events = [];
+if(!atlas.glossary) atlas.glossary = [];
+var journal   = storeLoad(K.journal, journalBlank);
+if(!journal.entries) journal.entries = [];
+var ladder    = storeLoad(K.ladder, ladderBlank);
+if(!ladder.contacts) ladder.contacts = [];
+if(!ladder.clinician) ladder.clinician = {name:"", phone:""};
+var ledger    = storeLoad(K.ledger, ledgerBlank); /* ported load */
+if(!ledger.entries) ledger.entries = [];
+
+function saveCompanion(){ storeSave(K.companion, companion); }
+function saveAtlas(){ storeSave(K.atlas, atlas); }
+function saveJournal(){ storeSave(K.journal, journal); }
+function saveLadder(){ storeSave(K.ladder, ladder); }
+function saveLedger(){ storeSave(K.ledger, ledger); } /* ported save */
+
+/* ================= shared lookups ================= */
+function pieceById(id){
+  for(var i=0;i<atlas.pieces.length;i++) if(atlas.pieces[i].id === id) return atlas.pieces[i];
+  return null;
+}
+function pieceName(id){ var p = pieceById(id); return p ? p.name : ""; }
+function openClaims(){ return ledger.entries.filter(function(e){ return !isChecked(e); }); }
+function isChecked(e){
+  if(e.outcome && e.outcome.trim()) return true;
+  return e.outcomeChip === "happened" || e.outcomeChip === "didnt" || e.outcomeChip === "partly";
+}
+function heldUp(e){ return e.outcomeChip === "happened" || e.outcomeChip === "partly"; }
+var KIND_LABELS = {
+  prediction:"Prediction",
+  now:"Claim about right now",
+  commentary:"Running commentary",
+  instruction:"Instruction"
+};
+function outcomeLabel(e){
+  var parts = [];
+  if(e.outcomeChip === "happened") parts.push("It happened");
+  if(e.outcomeChip === "didnt") parts.push("It didn\u2019t happen");
+  if(e.outcomeChip === "partly") parts.push("Partly");
+  if(e.outcome) parts.push(e.outcome);
+  return parts.join(" \u2014 ");
+}
+/* receipts tallies for one voice (by piece id or exact name) */
+function receiptsForPiece(p){
+  var mine = ledger.entries.filter(function(e){
+    return (e.whoId && e.whoId === p.id) || (e.who && e.who === p.name);
+  });
+  var checked = mine.filter(isChecked);
+  return {
+    total: mine.length,
+    checked: checked.length,
+    open: mine.length - checked.length,
+    held: checked.filter(heldUp).length,
+    didnt: checked.filter(function(e){ return e.outcomeChip === "didnt"; }).length
+  };
+}
+function allReceiptTallies(){
+  var checked = ledger.entries.filter(isChecked);
+  return {
+    total: ledger.entries.length,
+    checked: checked.length,
+    open: ledger.entries.length - checked.length,
+    held: checked.filter(heldUp).length,
+    didnt: checked.filter(function(e){ return e.outcomeChip === "didnt"; }).length
+  };
+}
+function learnedBodySpots(){
+  var spots = [];
+  atlas.events.forEach(function(ev){ (ev.bodySpots||[]).forEach(function(s){ uniqPush(spots, s); }); });
+  atlas.pieces.forEach(function(p){ (p.bodySpots||[]).forEach(function(s){ uniqPush(spots, s); }); });
+  return spots;
+}
+
+/* ================= app state ================= */
+var view = companion ? "home" : "arrival";
+var toast = "";
+var sessionDismissed = {}; /* in-memory only: dismissing an offer writes nothing about the person */
+var pieceDetailId = null;
+var journalReadId = null;
+var journalPrompt = "";
+
+/* ================= render root + nav ================= */
+var NAV = [
+  ["home","⌂","Home"],
+  ["capture","◉","Pour"],
+  ["map","✦","Map"],
+  ["receipts","✓","Receipts"],
+  ["journal","✎","Journal"]
+];
+function renderNav(){
+  var nav = el("bottomNav");
+  if(!companion){ nav.style.display = "none"; nav.innerHTML = ""; return; }
+  nav.style.display = "flex";
+  var base = view;
+  if(view === "piece") base = "map";
+  if(view === "journalWrite" || view === "journalRead") base = "journal";
+  if(view === "create") base = "home";
+  if(view === "settings" || view === "help" || view === "ladder") base = "home";
+  nav.innerHTML = NAV.map(function(n){
+    return '<button type="button" data-nav="'+n[0]+'" class="'+(base===n[0] ? "active" : "")+'">'
+      + '<span class="gly">'+n[1]+'</span>'+n[2]+'</button>';
+  }).join("");
+  nav.querySelectorAll("[data-nav]").forEach(function(b){
+    b.addEventListener("click", function(){ go(b.getAttribute("data-nav")); });
+  });
+}
+function go(v){
+  view = v;
+  render();
+  window.scrollTo(0,0);
+}
+function headerHTML(){
+  var h = '<h1 class="appname">Ever Present</h1>';
+  if(companion){
+    h += '<p class="companion-line">'+esc(companion.name)+' keeps your record, in your words.</p>';
+  }
+  return h;
+}
+function render(){
+  var v = el("app");
+  var h = "";
+  if(toast){ h += '<div class="toast">'+esc(toast)+'</div>'; toast = ""; }
+  if(view === "arrival"){ v.innerHTML = h + viewArrival(); bindArrival(); }
+  else if(view === "create"){ v.innerHTML = h + viewCreate(); bindCreate(); }
+  else if(view === "home"){ v.innerHTML = headerHTML() + h + viewHome(); bindHome(); }
+  else if(view === "capture"){ v.innerHTML = headerHTML() + h + viewCapture(); bindCapture(); }
+  else if(view === "pour"){ v.innerHTML = headerHTML() + h + viewPour(); bindPour(); }
+  else if(view === "confirm"){ v.innerHTML = headerHTML() + h + viewConfirm(); bindConfirm(); }
+  else if(view === "map"){ v.innerHTML = headerHTML() + h + viewMap(); bindMap(); }
+  else if(view === "piece"){ v.innerHTML = headerHTML() + h + viewPiece(); bindPiece(); }
+  else if(view === "receipts"){ v.innerHTML = headerHTML() + h + viewReceipts(); bindReceipts(); }
+  else if(view === "journal"){ v.innerHTML = headerHTML() + h + viewJournal(); bindJournal(); }
+  else if(view === "journalWrite"){ v.innerHTML = headerHTML() + h + viewJournalWrite(); bindJournalWrite(); }
+  else if(view === "journalRead"){ v.innerHTML = headerHTML() + h + viewJournalRead(); bindJournalRead(); }
+  else if(view === "help"){ v.innerHTML = headerHTML() + h + viewHelp(); bindHelp(); }
+  else if(view === "ladder"){ v.innerHTML = headerHTML() + h + viewLadder(); bindLadder(); }
+  else if(view === "settings"){ v.innerHTML = headerHTML() + h + viewSettings(); bindSettings(); }
+  renderNav();
+}
+
+/* ================= Screen 1 — Arrival / first open ================= */
+var CONTRACT_LINES = [
+  "I keep your record. It stays on this phone.",
+  "I never grade you. I never tell you what things mean.",
+  "Everything I write down, you can see, fix, or erase."
+];
+var PRIVACY_PROMISES = [
+  "Your record stays yours.",
+  "Nothing is shared unless you share it.",
+  "This app never reports on you."
+];
+function contractHTML(){
+  var h = CONTRACT_LINES.map(function(l){ return '<p class="lede">'+esc(l)+'</p>'; }).join("");
+  h += '<hr class="divider">';
+  h += PRIVACY_PROMISES.map(function(l){ return '<p class="lede"><strong>'+esc(l)+'</strong></p>'; }).join("");
+  return h;
+}
+function viewArrival(){
+  var h = '<div class="card" style="margin-top:26px">';
+  h += '<h2>Ever Present</h2>';
+  h += '<p class="lede">This is a place to pour out what the voices do and say \u2014 in your words, at your pace \u2014 and to keep the record yourself.</p>';
+  h += '<p class="lede muted">Before anything is asked of you, here is the deal, in plain words. The companion who keeps this record is yours to create.</p>';
+  h += contractHTML();
+  h += '<div class="btnrow"><button class="btn" id="goCreate" type="button">Create your companion</button></div>';
+  h += '</div>';
+  h += '<p class="muted small">No account. No forms. No diagnosis questions. The Help button at the top right works right now, before anything is set up.</p>';
+  return h;
+}
+function bindArrival(){
+  el("goCreate").addEventListener("click", function(){ startCreate(false); });
+}
+
+/* ================= Screen 2 — Companion creation ================= */
+var createMode = "new"; /* "new" | "edit" */
+var createStep = 0;
+var createDraft = null;
+var NAME_IDEAS = ["Keeper","Lantern","Witness","Scribe","Anchor","Compass"];
+var REGISTER_OPTS = ["Plain and warm","Plain and dry","Playful \u2014 laughs with me","Quiet, few words","Steady and formal"];
+var LANGUAGE_OPTS = ["My own tongue or dialect","Family sayings","Faith language, if it\u2019s mine","Slang from my world","Simple, standard words"];
+var ADDRESS_OPTS = [["name","My name"],["nickname","A nickname I choose"],["none","No name \u2014 just talk to me"]];
+var OFFER_OPTS = [["freely","Offer freely"],["sometimes","Offer sometimes"],["asked","Only when I ask"]];
+function blankCompanionDraft(){
+  return {name:"", register:[], language:[], registerOwn:"", languageOwn:"",
+          addressType:"none", addressValue:"", offerFreq:"sometimes"};
+}
+function startCreate(editing){
+  createMode = editing ? "edit" : "new";
+  createStep = 0;
+  if(editing && companion){
+    createDraft = JSON.parse(JSON.stringify(companion));
+    delete createDraft.created;
+  } else {
+    createDraft = blankCompanionDraft();
+  }
+  view = "create";
+  render(); window.scrollTo(0,0);
+}
+function chipsHTML(group, opts, selected, multi){
+  return '<div class="chiprow">' + opts.map(function(o){
+    var val = Array.isArray(o) ? o[0] : o;
+    var lab = Array.isArray(o) ? o[1] : o;
+    var on = multi ? (selected.indexOf(val) !== -1) : (selected === val);
+    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-chip="'+esc(group)+'" data-val="'+esc(val)+'">'+esc(lab)+'</button>';
+  }).join("") + '</div>';
+}
+function viewCreate(){
+  var d = createDraft;
+  var steps = ["Name it","Its language","How it addresses you","How much it offers","The contract"];
+  var h = '<div class="card" style="margin-top:10px">';
+  h += '<p class="stepdots">Step '+(createStep+1)+' of '+steps.length+' \u2014 '+esc(steps[createStep])+'</p>';
+  if(createStep === 0){
+    h += '<h2>Name your companion</h2>';
+    h += '<p class="muted">This one keeps your record. You made it, it works for you, and you can rename it any time. Take one of these, or write your own.</p>';
+    h += chipsHTML("cname", NAME_IDEAS, d.name, false);
+    h += '<p class="field-label">Its name</p>';
+    h += '<input type="text" class="txt" id="cNameInput" value="'+esc(d.name)+'" placeholder="Write a name" aria-label="Companion name">';
+  }
+  if(createStep === 1){
+    h += '<h2>How it talks with you</h2>';
+    h += '<p class="muted">Its register, and your cultural language \u2014 your tongue, your idioms, your world. Pick any that fit; add your own words if you like.</p>';
+    h += '<p class="field-label">Register</p>';
+    h += chipsHTML("creg", REGISTER_OPTS, d.register, true);
+    h += '<input type="text" class="txt" id="cRegOwn" value="'+esc(d.registerOwn)+'" placeholder="In my own words (optional)" aria-label="Register in my own words">';
+    h += '<p class="field-label">Cultural language</p>';
+    h += chipsHTML("clang", LANGUAGE_OPTS, d.language, true);
+    h += '<input type="text" class="txt" id="cLangOwn" value="'+esc(d.languageOwn)+'" placeholder="In my own words (optional)" aria-label="Language in my own words">';
+  }
+  if(createStep === 2){
+    h += '<h2>How it addresses you</h2>';
+    h += chipsHTML("caddr", ADDRESS_OPTS, d.addressType, false);
+    if(d.addressType === "name" || d.addressType === "nickname"){
+      h += '<p class="field-label">'+(d.addressType === "name" ? "Your name" : "The nickname")+'</p>';
+      h += '<input type="text" class="txt" id="cAddrVal" value="'+esc(d.addressValue)+'" placeholder="What it calls you" aria-label="What it calls you">';
+    }
+  }
+  if(createStep === 3){
+    h += '<h2>How much it offers</h2>';
+    h += '<p class="muted">Your companion can offer doors \u2014 a topic to explore, a note for a hard day, material in your map you haven\u2019t poured yet. Offers are always yours to pass on. This sets how often doors appear, never whether you walk through one.</p>';
+    h += chipsHTML("coffer", OFFER_OPTS, d.offerFreq, false);
+  }
+  if(createStep === 4){
+    h += '<h2>'+esc(d.name || "Your companion")+'</h2>';
+    h += '<p class="lede muted">In its own voice, the deal stays the same:</p>';
+    h += contractHTML();
+    h += '<div class="btnrow"><button class="btn" id="cConfirm" type="button">That\u2019s right</button>'
+      + '<button class="btn secondary" id="cRestart" type="button">Change something</button></div>';
+  }
+  if(createStep < 4){
+    h += '<div class="btnrow">';
+    if(createStep > 0) h += '<button class="btn secondary" id="cBack" type="button">Back</button>';
+    h += '<button class="btn" id="cNext" type="button">'+(createStep === 3 ? "See the contract" : "Next")+'</button>';
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+function harvestCreate(){
+  var d = createDraft;
+  if(createStep === 0){ var n = el("cNameInput"); if(n) d.name = n.value.trim(); }
+  if(createStep === 1){
+    var r = el("cRegOwn"); if(r) d.registerOwn = r.value.trim();
+    var l = el("cLangOwn"); if(l) d.languageOwn = l.value.trim();
+  }
+  if(createStep === 2){ var a = el("cAddrVal"); if(a) d.addressValue = a.value.trim(); }
+}
+function bindCreate(){
+  document.querySelectorAll("[data-chip]").forEach(function(b){
+    b.addEventListener("click", function(){
+      harvestCreate();
+      var g = b.getAttribute("data-chip"), val = b.getAttribute("data-val"), d = createDraft;
+      if(g === "cname"){ d.name = val; }
+      if(g === "creg"){ var i = d.register.indexOf(val); if(i === -1) d.register.push(val); else d.register.splice(i,1); }
+      if(g === "clang"){ var j = d.language.indexOf(val); if(j === -1) d.language.push(val); else d.language.splice(j,1); }
+      if(g === "caddr"){ d.addressType = val; }
+      if(g === "coffer"){ d.offerFreq = val; }
+      render();
+    });
+  });
+  var nx = el("cNext");
+  if(nx) nx.addEventListener("click", function(){
+    harvestCreate();
+    if(createStep === 0 && !createDraft.name){ var inp = el("cNameInput"); if(inp) inp.focus(); return; }
+    createStep++; render(); window.scrollTo(0,0);
+  });
+  var bk = el("cBack");
+  if(bk) bk.addEventListener("click", function(){ harvestCreate(); createStep--; render(); window.scrollTo(0,0); });
+  var cf = el("cConfirm");
+  if(cf) cf.addEventListener("click", function(){
+    var isNew = !companion;
+    companion = {
+      name: createDraft.name, register: createDraft.register, language: createDraft.language,
+      registerOwn: createDraft.registerOwn, languageOwn: createDraft.languageOwn,
+      addressType: createDraft.addressType, addressValue: createDraft.addressValue,
+      offerFreq: createDraft.offerFreq,
+      created: companion && companion.created ? companion.created : Date.now()
+    };
+    saveCompanion();
+    if(isNew){ toast = companion.name + " is here. Your record starts now \u2014 nothing in it but what you put there."; }
+    else { toast = "Companion updated. Your map and receipts are untouched."; }
+    go(createMode === "edit" ? "settings" : "home");
+  });
+  var rs = el("cRestart");
+  if(rs) rs.addEventListener("click", function(){ createStep = 0; render(); window.scrollTo(0,0); });
+}
+function addressOf(){
+  if(!companion) return "";
+  if(companion.addressType === "name" || companion.addressType === "nickname") return companion.addressValue || "";
+  return "";
+}
+
+/* ================= Screen 3 — Home / companion ================= */
+function greetingWord(){
+  var hr = new Date().getHours();
+  if(hr < 5) return "Up late";
+  if(hr < 12) return "Morning";
+  if(hr < 18) return "Afternoon";
+  return "Evening";
+}
+function memoryLine(){
+  if(!atlas.events.length) return "When you\u2019re ready, one tap starts your map.";
+  var evs = atlas.events.slice().sort(function(a,b){ return b.ts - a.ts; });
+  for(var i=0;i<evs.length;i++){
+    var ids = evs[i].whoIds || [];
+    for(var j=0;j<ids.length;j++){
+      var p = pieceById(ids[j]);
+      if(p){
+        var count = atlas.events.filter(function(e){ return (e.whoIds||[]).indexOf(p.id) !== -1; }).length;
+        if(count > 1 && relDay(evs[i].ts) !== "today") return p.name + " was around " + relDay(evs[i].ts) + " too. It\u2019s in the record.";
+        return "Your map has " + atlas.pieces.length + (atlas.pieces.length === 1 ? " piece" : " pieces") + " in it so far.";
+      }
+    }
+  }
+  return "Your record is here when you need it.";
+}
+function viewHome(){
+  var addr = addressOf();
+  var h = '<div class="card">';
+  h += '<h2>'+esc(greetingWord())+(addr ? ", " + esc(addr) : "")+'.</h2>';
+  h += '<p class="lede">'+esc(companion.name)+' is here. '+esc(memoryLine())+'</p>';
+  h += '<div class="btnrow">'
+    + '<button class="btn" id="hQuick" type="button">Pour \u2014 quick capture</button>'
+    + '<button class="btn secondary" id="hPour" type="button">Pour it out</button></div>';
+  h += '<div class="btnrow">'
+    + '<button class="btn secondary" id="hMap" type="button">Your map</button>'
+    + '<button class="btn secondary" id="hJournal" type="button">Journal</button>'
+    + '<button class="btn quiet" id="hSettings" type="button">Settings</button></div>';
+  h += '</div>';
+
+  /* one offered door at a time; offers obey the creation setting; passing leaves no mark */
+  if(companion.offerFreq !== "asked"){
+    if(!ladder.noteForHardDay && !sessionDismissed.noteOffer){
+      h += '<div class="card offer-card"><h3>A door, if you want it</h3>'
+        + '<p>'+esc(companion.name)+' can keep a note you write on a calm day, saved for a hard one. It lives on your help ladder, on the reassurance rung.</p>'
+        + '<div class="btnrow"><button class="btn small" id="offerNote" type="button">Write the note</button>'
+        + '<button class="btn quiet small" id="offerNoteNo" type="button">Not now</button></div></div>';
+    } else {
+      var unseeen = null;
+      for(var i=0;i<atlas.pieces.length;i++){ if(!atlas.pieces[i].seeing){ unseeen = atlas.pieces[i]; break; } }
+      if(unseeen && !sessionDismissed.seeingOffer){
+        h += '<div class="card offer-card"><h3>A door, if you want it</h3>'
+          + '<p>You haven\u2019t said how you see '+esc(unseeen.name)+' yet. How you see them is the top layer of your map \u2014 the door\u2019s open whenever.</p>'
+          + '<div class="btnrow"><button class="btn small" id="offerSeeing" data-piece="'+unseeen.id+'" type="button">Open '+esc(unseeen.name)+'</button>'
+          + '<button class="btn quiet small" id="offerSeeingNo" type="button">Not now</button></div></div>';
+      }
+    }
+  }
+
+  /* receipts on Home: open claims as tappable outcomes (offered, never homework) */
+  var open = openClaims();
+  h += '<div class="card"><h2>Check the receipts</h2>';
+  if(!ledger.entries.length){
+    h += '<p class="muted">The ledger writes down what the voices claim \u2014 then what actually happened. Nothing logged yet.</p>';
+  } else if(open.length){
+    h += '<p>'+open.length+(open.length === 1 ? " claim" : " claims")+' still open. When you know how one went, tap it \u2014 or don\u2019t. It keeps.</p>';
+    open.slice(0,3).forEach(function(e){
+      h += '<div class="ledger-entry"><div class="claim-text">&ldquo;'+esc(e.claim)+'&rdquo;</div>'
+        + '<div class="muted small">'+esc(fmtDate(e.ts))+(e.who ? ' &mdash; '+esc(e.who) : '')+'</div>'
+        + '<div class="chiprow">'
+        + '<button type="button" class="chip" data-hout="'+e.id+':happened">It happened</button>'
+        + '<button type="button" class="chip" data-hout="'+e.id+':didnt">It didn\u2019t</button>'
+        + '<button type="button" class="chip" data-hout="'+e.id+':partly">Partly</button>'
+        + '<button type="button" class="chip" data-hout="'+e.id+':notyet">Not yet</button>'
+        + '</div></div>';
+    });
+  } else {
+    h += '<p class="muted">Every claim so far has been checked against what happened.</p>';
+  }
+  h += '<div class="btnrow"><button class="btn secondary small" id="hReceipts" type="button">See all receipts</button></div>';
+  h += '</div>';
+  return h;
+}
+function bindHome(){
+  el("hQuick").addEventListener("click", function(){ startCapture("quick"); });
+  el("hPour").addEventListener("click", function(){ startPour(); });
+  el("hMap").addEventListener("click", function(){ go("map"); });
+  el("hJournal").addEventListener("click", function(){ go("journal"); });
+  el("hSettings").addEventListener("click", function(){ go("settings"); });
+  el("hReceipts").addEventListener("click", function(){ go("receipts"); });
+  var on = el("offerNote"); if(on) on.addEventListener("click", function(){ go("ladder"); });
+  var onn = el("offerNoteNo"); if(onn) onn.addEventListener("click", function(){ sessionDismissed.noteOffer = true; render(); });
+  var os = el("offerSeeing"); if(os) os.addEventListener("click", function(){ pieceDetailId = os.getAttribute("data-piece"); go("piece"); });
+  var osn = el("offerSeeingNo"); if(osn) osn.addEventListener("click", function(){ sessionDismissed.seeingOffer = true; render(); });
+  document.querySelectorAll("[data-hout]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var parts = b.getAttribute("data-hout").split(":");
+      setOutcome(parts[0], parts[1], "");
+      toast = "Written down. The record is updated.";
+      render();
+    });
+  });
+}
+function setOutcome(id, chip, text){
+  ledger.entries.forEach(function(e){
+    if(e.id === id){
+      if(chip && chip !== "notyet"){ e.outcomeChip = chip; }
+      if(chip === "notyet"){ e.outcomeChip = "notyet"; }
+      if(text){ e.outcome = text; }
+      e.tsOutcome = Date.now();
+    }
+  });
+  saveLedger();
+}
+
+/* ================= Screen 4 — Capture (quick) + the pour ================= */
+var cap = null;
+function blankCap(){
+  return {
+    mode:"quick", pourText:"",
+    whoIds:[], whoFlags:[], whoOwn:"",
+    newPiece:{name:"", noName:false, likeness:"", status:"", standing:false},
+    channels:[], mannerWhere:[], mannerHow:[], bodySpots:[], bodySpotOwn:"",
+    among:[],
+    claimKind:"", claimChips:[], claimOwn:"", claimWhoId:"", claimWhoText:"", encoded:false,
+    response:[],
+    register:[], seeingChip:"", seeingOwn:"",
+    glossTerm:"", glossDoes:"", glossDoesOwn:"",
+    eventOwn:""
+  };
+}
+function startCapture(mode){
+  cap = blankCap(); cap.mode = mode || "quick";
+  go("capture");
+}
+function startPour(){
+  cap = blankCap(); cap.mode = "pour";
+  go("pour");
+}
+var CHANNEL_OPTS = ["Words, like someone talking","Like a thought, not a sound","Sounds or noises, no words",
+  "A feeling in my body","Pain","Being touched","Something I saw \u2014 a person","Something I saw \u2014 a face",
+  "Something else I saw","Someone there, but nothing seen or heard"];
+var WHERE_OPTS = ["Right next to my ear","Inside my head","Out in the room","Behind me",
+  "In a part of my body","Close by, but I couldn\u2019t see or hear anything","Everywhere at once"];
+var HOW_OPTS = ["Whispering","Normal talking volume","Shouting","So quiet I could barely hear it"];
+var AMONG_OPTS = ["They were talking to each other","They were talking about me","One answered another",
+  "They took turns","They were arguing","They were working together","They were singing together",
+  "Each one only talks to me \u2014 they don\u2019t talk to each other","I could hear them, but it wasn\u2019t for me"];
+var CLAIM_SUBS = {
+  prediction:["It said something would happen","It threatened something","It promised something","It said I\u2019d be responsible if I didn\u2019t listen"],
+  now:["It said what this means","It said what someone is really doing","It said I did something wrong","It blamed me","It said someone else is at fault","It charged me with something it won\u2019t say plainly"],
+  commentary:["It described what I was doing","It graded what I just did","It announced something I did wrong, back to me","It reacted to what I was thinking","It narrated like a sportscaster","It commented, but nothing was said out loud"],
+  instruction:["It told me to do something","It gave advice, strongly"]
+};
+var REGISTER_OPTS_CAP = [
+  ["Grand \u2014 acting big, acting in charge",""],["Threatening",""],["Hilarious",""],["Strange",""],["Pathetic",""],
+  ["Kind \u2014 being nice",""],["Biscuit \u2014 nice as a lure","their word: niceness offered like a treat, to get me to come closer, follow, or stay"],
+  ["Cruel",""],["Like an authority, talking down",""],["Like family",""],["Using my own words back at me",""]
+];
+var SEEING_OPTS = ["A clown \u2014 I see through the act","A bully running a script",
+  "A squatter \u2014 in my house without permission","Smaller than it sounds",
+  "Grand on the surface, losing on the record","Still getting to me \u2014 for now","Not sure how I see this one yet"];
+var GLOSS_DOES_OPTS = ["It\u2019s their word for something ordinary","It\u2019s a lure \u2014 niceness or reward offered to steer me",
+  "It\u2019s a threat dressed as something else","It\u2019s a name they call me",
+  "It\u2019s a name they call each other / themselves","It\u2019s a rule they enforce","It grades or scores what I do"];
+var LIKENESS_OPTS = ["Someone I know","Someone I used to know","A stranger","It reminds me of someone","Not a person, exactly","A group or crowd"];
+var WHO_FLAG_OPTS = [
+  ["new","Someone new"],["knownnew","Someone I know \u2014 not in my map yet"],["group","A group or crowd"],
+  ["notperson","Not a person, exactly"],["noises","Just noises \u2014 no one specific"],
+  ["bodyonly","No one \u2014 it\u2019s in my body only"],["presence","Someone there, but nothing seen or heard"],
+  ["toomany","Too many to count"]
+];
+function capChips(group, opts, selected, multi){
+  return '<div class="chiprow">' + opts.map(function(o){
+    var val = Array.isArray(o) ? o[0] : o;
+    var lab = Array.isArray(o) ? o[1] : o;
+    var on = multi ? (selected.indexOf(val) !== -1) : (selected === val);
+    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-capchip="'+group+'" data-val="'+esc(val)+'">'+esc(lab)+'</button>';
+  }).join("") + '</div>';
+}
+function whoCount(){
+  var n = cap.whoIds.length;
+  ["new","knownnew","group","presence","notperson"].forEach(function(f){ if(cap.whoFlags.indexOf(f) !== -1) n++; });
+  return n;
+}
+function hasPresence(){
+  if(cap.whoIds.length) return true;
+  return ["new","knownnew","group","presence","notperson","noises"].some(function(f){ return cap.whoFlags.indexOf(f) !== -1; });
+}
+function newPieceWanted(){
+  return ["new","knownnew","group","presence","notperson"].some(function(f){ return cap.whoFlags.indexOf(f) !== -1; });
+}
+function newPieceType(){
+  if(cap.whoFlags.indexOf("presence") !== -1) return "presence";
+  if(cap.whoFlags.indexOf("group") !== -1) return "group";
+  if(cap.whoFlags.indexOf("notperson") !== -1) return "other";
+  return "voice";
+}
+function claimWhoOptions(){
+  var opts = [];
+  cap.whoIds.forEach(function(id){ var p = pieceById(id); if(p) opts.push([id, p.name]); });
+  if(newPieceWanted()) opts.push(["__new", cap.newPiece.name || "The new one"]);
+  opts.push(["", "No one specific"]);
+  return opts;
+}
+function viewCapture(){
+  var d = cap;
+  var amongShown = (whoCount() >= 2 || d.whoFlags.indexOf("group") !== -1);
+  var claimsNo = 3 + (hasPresence() ? 1 : 0) + (amongShown ? 1 : 0);
+  var h = "";
+  if(d.mode === "pour"){
+    h += '<div class="card"><h2>Filing the pour</h2>'
+      + '<p class="muted">Your pour is kept whole, exactly as it came out. Anything below is optional filing \u2014 pieces for your map, a claim for the ledger. Skip any of it, or all of it.</p>'
+      + '<div class="btnrow"><button class="btn" id="capJustPour" type="button">File just the pour</button></div></div>';
+  } else {
+    h += '<div class="card"><h2>Quick capture</h2>'
+      + '<p class="muted">Tap what fits. Skip what doesn\u2019t. Done is available from the first tap \u2014 a capture with only \u201cwho\u201d filled is a valid record.</p>'
+      + '<div class="btnrow"><button class="btn" id="capDoneTop" type="button">Done</button></div></div>';
+  }
+
+  /* 1 — Who is present (their own ops first, rebrands verbatim) */
+  h += '<div class="card"><h3>1. Who is present</h3>';
+  if(atlas.pieces.length){
+    h += '<div class="chiprow">' + atlas.pieces.map(function(p){
+      var on = d.whoIds.indexOf(p.id) !== -1;
+      return '<button type="button" class="chip'+(on ? " on" : "")+'" data-who="'+p.id+'">'+esc(p.name)+'</button>';
+    }).join("") + '</div>';
+  }
+  h += capChips("whoFlags", WHO_FLAG_OPTS, d.whoFlags, true);
+  h += '<input type="text" class="txt" id="capWhoOwn" value="'+esc(d.whoOwn)+'" placeholder="In my own words (optional)" aria-label="Who is present, in my own words">';
+
+  /* Path E — identity capture, inline, right now */
+  if(newPieceWanted()){
+    h += '<hr class="divider"><h3>The new one \u2014 captured now</h3>';
+    h += '<p class="field-label">Its name</p>';
+    h += '<input type="text" class="txt" id="npName" value="'+esc(d.newPiece.name)+'" placeholder="The name as you know it \u2014 or a name you\u2019re giving it" aria-label="Name">';
+    h += '<div class="chiprow"><button type="button" class="chip'+(d.newPiece.noName ? " on" : "")+'" id="npNoName">No name yet</button></div>';
+    h += '<p class="field-label">Who it is like</p>';
+    h += capChips("npLikeness", LIKENESS_OPTS, d.newPiece.likeness, false);
+    h += '<p class="field-label">New or known</p>';
+    h += capChips("npStatus", [["new","New \u2014 first time"],["known","I\u2019ve met this one before"]], d.newPiece.status, false);
+    h += '<p class="field-label">Standing <span class="muted" style="font-weight:400">(optional \u2014 yours to make or not)</span></p>';
+    h += '<div class="chiprow"><button type="button" class="chip'+(d.newPiece.standing ? " on" : "")+'" id="npStanding">It stands for something that happened</button></div>';
+  }
+  h += '</div>';
+
+  /* 2 — What came through (channels combine into one event) */
+  h += '<div class="card"><h3>2. What came through</h3>';
+  h += '<p class="muted small">More than one is normal \u2014 they combine into one event.</p>';
+  h += capChips("channels", CHANNEL_OPTS, d.channels, true);
+  h += '</div>';
+
+  /* 3 — Manner and position (when a voice or presence is in the event) */
+  if(hasPresence()){
+    h += '<div class="card"><h3>3. Manner and position</h3>';
+    h += '<p class="field-label">Where it was</p>';
+    h += capChips("mannerWhere", WHERE_OPTS, d.mannerWhere, true);
+    h += '<p class="field-label">How it came through</p>';
+    h += capChips("mannerHow", HOW_OPTS, d.mannerHow, true);
+    var showSpots = d.mannerWhere.indexOf("In a part of my body") !== -1
+      || d.channels.indexOf("A feeling in my body") !== -1
+      || d.channels.indexOf("Pain") !== -1 || d.channels.indexOf("Being touched") !== -1;
+    if(showSpots){
+      h += '<p class="field-label">Where in the body</p>';
+      var spots = learnedBodySpots();
+      if(spots.length) h += capChips("bodySpots", spots, d.bodySpots, true);
+      h += '<input type="text" class="txt" id="capSpotOwn" value="'+esc(d.bodySpotOwn)+'" placeholder="A body spot, in my own words (optional)" aria-label="Body spot">';
+    }
+    h += '</div>';
+  }
+
+  /* 4 — Voices among themselves */
+  if(amongShown){
+    h += '<div class="card"><h3>'+(hasPresence() ? 4 : 3)+'. Among themselves</h3>';
+    h += '<p class="muted small">Not everything is addressed to you. The record can say so.</p>';
+    h += capChips("among", AMONG_OPTS, d.among, true);
+    h += '</div>';
+  }
+
+  /* 5 — What they're doing: claims log to the ledger from here (Path F) */
+  h += '<div class="card"><h3>'+claimsNo+'. What they\u2019re doing \u2014 claims</h3>';
+  h += '<p class="muted small">If a claim was made, picking its kind here logs it in Check the receipts, already sorted.</p>';
+  h += capChips("claimKind", [["prediction","A prediction \u2014 something would happen"],["now","A claim about right now"],["commentary","Running commentary"],["instruction","Not a claim \u2014 an instruction"]], d.claimKind, false);
+  if(d.claimKind){
+    h += capChips("claimChips", CLAIM_SUBS[d.claimKind], d.claimChips, true);
+    if(d.claimKind === "now") h += '<p class="muted small">If it charged you with something it won\u2019t say plainly, the record holds the question open: <strong>not yet understandable</strong>. It is never marked nonsense, and the app never closes it.</p>';
+    h += '<p class="field-label">The claim, in my own words <span class="muted" style="font-weight:400">(optional)</span></p>';
+    h += '<textarea class="big short" id="capClaimOwn" placeholder="What was claimed" aria-label="The claim in my own words">'+esc(d.claimOwn)+'</textarea>';
+    h += '<p class="field-label">Who said it</p>';
+    h += capChips("claimWho", claimWhoOptions(), d.claimWhoId || (claimWhoOptions().length ? claimWhoOptions()[0][0] : ""), false);
+    h += '<p class="field-label">My response <span class="muted" style="font-weight:400">(optional)</span></p>';
+    h += capChips("response", ["I answered back","It argued with what I decided"], d.response, true);
+  }
+  h += '</div>';
+
+  /* 6 — How they presented (Path G) */
+  h += '<div class="card"><h3>How they presented</h3>';
+  h += '<p class="muted small">Their move, as it came across.</p>';
+  h += '<div class="chiprow">' + REGISTER_OPTS_CAP.map(function(o){
+    var on = d.register.indexOf(o[0]) !== -1;
+    return '<button type="button" class="chip'+(on ? " on" : "")+'" data-capchip="register" data-val="'+esc(o[0])+'">'+esc(o[0])+(o[1] ? '<small>'+esc(o[1])+'</small>' : '')+'</button>';
+  }).join("") + '</div>';
+  h += '</div>';
+
+  /* 7 — How you see them (Path H — the top layer; own words lead) */
+  h += '<div class="card"><h3>How you see them</h3>';
+  h += '<p class="muted small">No matter how they present, how you see them is the top layer of the record.</p>';
+  h += '<textarea class="big short" id="capSeeingOwn" placeholder="In my own words (optional)" aria-label="How I see them, in my own words">'+esc(d.seeingOwn)+'</textarea>';
+  h += capChips("seeingChip", SEEING_OPTS, d.seeingChip, false);
+  h += '</div>';
+
+  /* 8 — Optional filings: their own words (Path I) */
+  h += '<div class="card"><h3>File a word they use <span class="muted" style="font-weight:400">(optional)</span></h3>';
+  h += '<p class="muted small">Their language, documented \u2014 the word, and what it does.</p>';
+  h += '<input type="text" class="txt" id="capGlossTerm" value="'+esc(d.glossTerm)+'" placeholder="The word \u2014 e.g. biscuit" aria-label="A word they use">';
+  if(d.glossTerm){
+    h += '<p class="field-label">What it means / what it does</p>';
+    h += capChips("glossDoes", GLOSS_DOES_OPTS, d.glossDoes, false);
+    h += '<input type="text" class="txt" id="capGlossOwn" value="'+esc(d.glossDoesOwn)+'" placeholder="In my own words (optional)" aria-label="What the word does, in my own words">';
+  }
+  h += '<p class="field-label">Anything else, in my own words <span class="muted" style="font-weight:400">(optional)</span></p>';
+  h += '<textarea class="big short" id="capEventOwn" placeholder="Whatever else belongs in the record" aria-label="Anything else">'+esc(d.eventOwn)+'</textarea>';
+  h += '<div class="btnrow"><button class="btn" id="capDone" type="button">Done \u2014 show me what will be filed</button>'
+    + '<button class="btn quiet" id="capDiscard" type="button">Don\u2019t file this</button></div>';
+  h += '</div>';
+  return h;
+}
+function harvestCap(){
+  if(!cap) return;
+  var m = {capWhoOwn:"whoOwn", npName:null, capSpotOwn:"bodySpotOwn", capClaimOwn:"claimOwn",
+           capSeeingOwn:"seeingOwn", capGlossTerm:"glossTerm", capGlossOwn:"glossDoesOwn", capEventOwn:"eventOwn"};
+  Object.keys(m).forEach(function(id){
+    var node = el(id);
+    if(!node) return;
+    if(id === "npName"){ cap.newPiece.name = node.value.trim(); }
+    else cap[m[id]] = node.value;
+  });
+  var pt = el("pourText"); if(pt && cap.mode === "pour") cap.pourText = pt.value;
+}
+function toggleIn(arr, val){ var i = arr.indexOf(val); if(i === -1) arr.push(val); else arr.splice(i,1); }
+function bindCapture(){
+  document.querySelectorAll("[data-who]").forEach(function(b){
+    b.addEventListener("click", function(){ harvestCap(); toggleIn(cap.whoIds, b.getAttribute("data-who")); render(); });
+  });
+  document.querySelectorAll("[data-capchip]").forEach(function(b){
+    b.addEventListener("click", function(){
+      harvestCap();
+      var g = b.getAttribute("data-capchip"), val = b.getAttribute("data-val");
+      if(g === "whoFlags") toggleIn(cap.whoFlags, val);
+      else if(g === "channels") toggleIn(cap.channels, val);
+      else if(g === "mannerWhere") toggleIn(cap.mannerWhere, val);
+      else if(g === "mannerHow") toggleIn(cap.mannerHow, val);
+      else if(g === "bodySpots") toggleIn(cap.bodySpots, val);
+      else if(g === "among") toggleIn(cap.among, val);
+      else if(g === "claimKind"){ cap.claimKind = (cap.claimKind === val) ? "" : val; cap.claimChips = []; }
+      else if(g === "claimChips") toggleIn(cap.claimChips, val);
+      else if(g === "claimWho") cap.claimWhoId = val;
+      else if(g === "response") toggleIn(cap.response, val);
+      else if(g === "register") toggleIn(cap.register, val);
+      else if(g === "seeingChip") cap.seeingChip = (cap.seeingChip === val) ? "" : val;
+      else if(g === "glossDoes") cap.glossDoes = (cap.glossDoes === val) ? "" : val;
+      else if(g === "npLikeness") cap.newPiece.likeness = val;
+      else if(g === "npStatus") cap.newPiece.status = val;
+      render();
+    });
+  });
+  var nn = el("npNoName");
+  if(nn) nn.addEventListener("click", function(){ harvestCap(); cap.newPiece.noName = !cap.newPiece.noName; render(); });
+  var ns = el("npStanding");
+  if(ns) ns.addEventListener("click", function(){ harvestCap(); cap.newPiece.standing = !cap.newPiece.standing; render(); });
+  var jp = el("capJustPour");
+  if(jp) jp.addEventListener("click", function(){ harvestCap(); go("confirm"); });
+  var dt = el("capDoneTop");
+  if(dt) dt.addEventListener("click", function(){ harvestCap(); go("confirm"); });
+  el("capDone").addEventListener("click", function(){ harvestCap(); go("confirm"); });
+  el("capDiscard").addEventListener("click", function(){ cap = null; toast = "Not filed. Nothing was written down."; go("home"); });
+}
+function viewPour(){
+  var h = '<div class="card quiet-screen"><h2>Pour it out</h2>'
+    + '<p class="lede">'+esc(companion.name)+' is listening. Take your time.</p>'
+    + '<p class="muted">Nothing here is summarized, fixed, or filed while you pour. Type it out \u2014 or use your keyboard\u2019s microphone and speak it. When you say you\u2019re done, and only then, you\u2019ll see what can be filed from it. All of it is your call.</p>'
+    + '<textarea class="big" id="pourText" style="min-height:34vh" placeholder="It all goes here\u2026" aria-label="Pour it out">'+esc(cap.pourText)+'</textarea>'
+    + '<div class="btnrow"><button class="btn" id="pourDone" type="button">I\u2019m done</button>'
+    + '<button class="btn quiet" id="pourNever" type="button">Never mind</button></div></div>';
+  return h;
+}
+function bindPour(){
+  el("pourDone").addEventListener("click", function(){
+    cap.pourText = el("pourText").value;
+    go("capture"); /* organize: the same filing trees, all optional */
+  });
+  el("pourNever").addEventListener("click", function(){ cap = null; go("home"); });
+}
+
+/* ================= Confirm / file the capture ================= */
+function claimTextOf(d){
+  if(d.claimOwn && d.claimOwn.trim()) return d.claimOwn.trim();
+  return d.claimChips.join("; ");
+}
+function claimWhoOf(d){
+  var opts = claimWhoOptions();
+  var chosen = d.claimWhoId || (opts.length ? opts[0][0] : "");
+  if(chosen === "__new") return {id:"__new", name: d.newPiece.name || "The new one"};
+  if(chosen){ var p = pieceById(chosen); if(p) return {id:p.id, name:p.name}; }
+  return {id:"", name:""};
+}
+function defaultPieceName(){
+  var t = newPieceType();
+  if(cap.newPiece.name) return cap.newPiece.name;
+  if(t === "presence") return "A presence";
+  if(t === "group") return "A group";
+  return "Unnamed one";
+}
+function summaryList(items){
+  if(!items.length) return "";
+  return '<ul class="summary-list">' + items.map(function(i){ return '<li>'+i+'</li>'; }).join("") + '</ul>';
+}
+function viewConfirm(){
+  var d = cap;
+  var h = '<div class="card"><h2>Here\u2019s what will be filed</h2>';
+  h += '<p class="muted">Nothing is in the record yet. Check it, fix it, or don\u2019t file it at all.</p>';
+  if(d.mode === "pour" && d.pourText){
+    h += '<h3>Your pour, kept whole</h3><p>'+esc(d.pourText.length > 280 ? d.pourText.slice(0,280) + "\u2026" : d.pourText)+'</p>';
+  }
+  var whoNames = d.whoIds.map(function(id){ return esc(pieceName(id)); }).filter(Boolean);
+  if(newPieceWanted()) whoNames.push(esc(defaultPieceName()) + " (new)");
+  if(d.whoOwn) whoNames.push(esc(d.whoOwn));
+  if(d.whoFlags.indexOf("noises") !== -1) whoNames.push("Just noises");
+  if(d.whoFlags.indexOf("bodyonly") !== -1) whoNames.push("No one \u2014 body only");
+  if(d.whoFlags.indexOf("toomany") !== -1) whoNames.push("Too many to count");
+  if(whoNames.length) h += '<h3>Who</h3>' + summaryList(whoNames);
+  if(d.channels.length) h += '<h3>What came through</h3>' + summaryList(d.channels.map(esc));
+  var manner = d.mannerWhere.concat(d.mannerHow).concat(d.bodySpots).concat(d.bodySpotOwn ? [d.bodySpotOwn] : []);
+  if(manner.length) h += '<h3>Manner and position</h3>' + summaryList(manner.map(esc));
+  if(d.among.length) h += '<h3>Among themselves</h3>' + summaryList(d.among.map(esc));
+  if(d.claimKind){
+    var cw = claimWhoOf(d);
+    h += '<h3>A claim for the ledger</h3>' + summaryList([
+      esc(KIND_LABELS[d.claimKind] || d.claimKind),
+      "&ldquo;" + esc(claimTextOf(d) || "(from the options above)") + "&rdquo;",
+      cw.name ? "Said by: " + esc(cw.name) : "No one specific named"
+    ]);
+    if(d.claimChips.indexOf("It charged me with something it won\u2019t say plainly") !== -1)
+      h += '<p class="muted small">Encoded charge: the record holds the question open \u2014 not yet understandable.</p>';
+  }
+  if(d.response.length) h += '<h3>Your response</h3>' + summaryList(d.response.map(esc));
+  if(d.register.length) h += '<h3>How they presented</h3>' + summaryList(d.register.map(esc));
+  var seeing = d.seeingOwn.trim() || d.seeingChip;
+  if(seeing) h += '<h3>How you see them</h3><p>'+esc(seeing)+'</p>';
+  if(d.glossTerm) h += '<h3>A word they use</h3>' + summaryList([esc(d.glossTerm), esc(d.glossDoes || d.glossDoesOwn || "")].filter(Boolean));
+  if(d.eventOwn) h += '<h3>In your words</h3><p>'+esc(d.eventOwn)+'</p>';
+  if(!whoNames.length && !d.channels.length && !d.claimKind && !d.pourText && !d.eventOwn && !d.glossTerm)
+    h += '<p class="empty">Nothing was picked. That\u2019s allowed \u2014 but there\u2019s nothing to file. Go back and tap what fits, or don\u2019t file this.</p>';
+  h += '<div class="btnrow"><button class="btn" id="cfFile" type="button">File it</button>'
+    + '<button class="btn secondary" id="cfFix" type="button">Fix it</button>'
+    + '<button class="btn quiet" id="cfDrop" type="button">Don\u2019t file this</button></div>';
+  h += '</div>';
+  return h;
+}
+function bindConfirm(){
+  el("cfFile").addEventListener("click", function(){ fileCapture(); });
+  el("cfFix").addEventListener("click", function(){ go("capture"); });
+  el("cfDrop").addEventListener("click", function(){ cap = null; toast = "Not filed. Nothing was written down."; go("home"); });
+}
+function fileCapture(){
+  var d = cap;
+  var ts = Date.now();
+  var involved = d.whoIds.slice();
+  var newId = "";
+  if(newPieceWanted()){
+    newId = uid();
+    var p = {
+      id:newId, name: defaultPieceName(),
+      nameHistory:[{name: defaultPieceName(), ts:ts}],
+      type: newPieceType(), likeness: d.newPiece.likeness || "", status: d.newPiece.status || "",
+      standing: !!d.newPiece.standing,
+      seeing:"", seeingTs:0, registers:{}, channels:{}, bodySpots:[], created:ts
+    };
+    atlas.pieces.push(p);
+    involved.push(newId);
+  }
+  var seeing = d.seeingOwn.trim() || d.seeingChip;
+  var spots = d.bodySpots.slice(); if(d.bodySpotOwn) uniqPush(spots, d.bodySpotOwn.trim());
+  involved.forEach(function(id){
+    var pc = pieceById(id); if(!pc) return;
+    d.channels.forEach(function(c){ pc.channels[c] = (pc.channels[c]||0) + 1; });
+    d.register.forEach(function(r){ pc.registers[r] = (pc.registers[r]||0) + 1; });
+    spots.forEach(function(s){ uniqPush(pc.bodySpots, s); });
+    if(seeing){ pc.seeing = seeing; pc.seeingTs = ts; }
+  });
+  var ledgerId = "";
+  if(d.claimKind){
+    var cw = claimWhoOf(d);
+    var whoId = cw.id === "__new" ? newId : cw.id;
+    ledgerId = uid();
+    ledger.entries.push({
+      id:ledgerId, claim: claimTextOf(d), kind: d.claimKind,
+      who: cw.id === "__new" ? defaultPieceName() : cw.name, whoId: whoId || "",
+      ts:ts, outcome:"", outcomeChip:"", tsOutcome:0,
+      encoded: d.claimChips.indexOf("It charged me with something it won\u2019t say plainly") !== -1
+    });
+    saveLedger();
+  }
+  var glossId = "";
+  if(d.glossTerm){
+    glossId = uid();
+    atlas.glossary.push({
+      id:glossId, term:d.glossTerm.trim(), does:d.glossDoes || "", doesOwn:d.glossDoesOwn || "",
+      whoIds: involved.slice(),
+      whoText: involved.map(function(id){ return pieceName(id); }).filter(Boolean).join(", "),
+      ts:ts
+    });
+  }
+  atlas.events.push({
+    id:uid(), ts:ts, mode:d.mode, pourText:d.pourText || "",
+    whoIds: involved, whoFlags: d.whoFlags.slice(), whoOwn: d.whoOwn,
+    channels: d.channels.slice(), mannerWhere: d.mannerWhere.slice(), mannerHow: d.mannerHow.slice(),
+    bodySpots: spots, among: d.among.slice(),
+    claimLedgerId: ledgerId, register: d.register.slice(),
+    seeing: seeing, response: d.response.slice(),
+    glossaryId: glossId, eventOwn: d.eventOwn
+  });
+  saveAtlas();
+  cap = null;
+  toast = "Filed. It\u2019s in your map \u2014 and anything in it can be fixed or erased, any time.";
+  go("map");
+}
+
+/* ================= Screen 5 — Map (your atlas) ================= */
+var TYPE_LABELS = {voice:"Voice", presence:"Felt presence", group:"Group", other:"Not a person, exactly"};
+function topKeys(counts, n){
+  return Object.keys(counts || {}).sort(function(a,b){ return counts[b]-counts[a]; }).slice(0, n || 4);
+}
+function miniChips(items){
+  if(!items.length) return "";
+  return '<div class="mini-chips">' + items.map(function(i){ return '<span>'+esc(i)+'</span>'; }).join("") + '</div>';
+}
+function receiptsLine(p){
+  var r = receiptsForPiece(p);
+  if(!r.total) return '<p class="muted small">No claims in the ledger yet.</p>';
+  return '<p class="small">Receipts: '+r.total+(r.total===1?" claim":" claims")+' logged, '+r.checked+' checked'
+    + (r.checked ? ' \u2014 '+r.held+' held up, '+r.didnt+' didn\u2019t' : '')
+    + (r.open ? ', '+r.open+' still open' : '') + '.</p>';
+}
+function viewMap(){
+  var h = '<div class="card"><h2>Your map</h2>'
+    + '<p class="lede muted">Built from what you\u2019ve captured, in your words. They present; you see; the map holds your seeing on top. Rebrands are first-class here \u2014 a new name is the name.</p></div>';
+  if(!atlas.pieces.length){
+    h += '<div class="card"><p class="empty">No pieces yet. The first capture \u2014 even just who was present \u2014 lays the first piece.</p>'
+      + '<div class="btnrow"><button class="btn" id="mStart" type="button">Start a capture</button></div></div>';
+  }
+  atlas.pieces.forEach(function(p){
+    h += '<div class="card piece-card" data-piece="'+p.id+'">';
+    h += '<span class="piece-name">'+esc(p.name)+'</span><span class="type-tag">'+esc(TYPE_LABELS[p.type] || "Voice")+'</span>';
+    if(p.seeing) h += '<div class="seeing-box"><span class="lab">How I see them</span><br>'+esc(p.seeing)+'</div>';
+    var regs = topKeys(p.registers, 4);
+    if(regs.length) h += '<p class="small" style="margin-bottom:2px"><strong>How they present:</strong></p>' + miniChips(regs);
+    var chans = topKeys(p.channels, 4);
+    if(chans.length) h += '<p class="small" style="margin-bottom:2px"><strong>Usual channels:</strong></p>' + miniChips(chans);
+    if(p.bodySpots && p.bodySpots.length) h += '<p class="small" style="margin-bottom:2px"><strong>Body spots:</strong></p>' + miniChips(p.bodySpots);
+    h += receiptsLine(p);
+    h += '<p class="muted small">Tap to open \u2014 rename, add how you see them, file a word they use.</p>';
+    h += '</div>';
+  });
+  if(atlas.glossary.length){
+    h += '<div class="card"><h2>Their own words</h2>'
+      + '<p class="muted small">The ops\u2019 language, documented the way an anthropologist would: their terms, and what each one does.</p>';
+    atlas.glossary.forEach(function(g){
+      h += '<div class="ledger-entry"><div class="claim-text">&ldquo;'+esc(g.term)+'&rdquo;</div>'
+        + '<div class="small">'+esc(g.does || "")+(g.doesOwn ? (g.does ? " \u2014 " : "") + esc(g.doesOwn) : "")+'</div>'
+        + (g.whoText ? '<div class="muted small">Used by: '+esc(g.whoText)+'</div>' : "")
+        + '</div>';
+    });
+    h += '</div>';
+  }
+  if(atlas.events.length){
+    h += '<div class="card"><h2>Recent captures</h2>';
+    atlas.events.slice().sort(function(a,b){ return b.ts - a.ts; }).slice(0,5).forEach(function(ev){
+      var names = (ev.whoIds||[]).map(function(id){ return pieceName(id); }).filter(Boolean).join(", ");
+      h += '<div class="ledger-entry"><div class="small"><strong>'+esc(fmtDate(ev.ts))+'</strong>'
+        + (names ? ' \u2014 ' + esc(names) : '') + (ev.mode === "pour" ? ' \u2014 a pour' : '') + '</div>'
+        + (ev.pourText ? '<div class="small muted">'+esc(ev.pourText.length > 140 ? ev.pourText.slice(0,140)+"\u2026" : ev.pourText)+'</div>' : "")
+        + (ev.channels && ev.channels.length ? '<div class="small muted">'+esc(ev.channels.join(" \u00b7 "))+'</div>' : "")
+        + '</div>';
+    });
+    h += '</div>';
+  }
+  return h;
+}
+function bindMap(){
+  var ms = el("mStart"); if(ms) ms.addEventListener("click", function(){ startCapture("quick"); });
+  document.querySelectorAll("[data-piece]").forEach(function(c){
+    c.addEventListener("click", function(){ pieceDetailId = c.getAttribute("data-piece"); go("piece"); });
+  });
+}
+
+/* ---- piece detail: both layers, name history, doors ---- */
+var pieceGlossOpen = false;
+function viewPiece(){
+  var p = pieceById(pieceDetailId);
+  if(!p) return '<div class="card"><p class="empty">That piece isn\u2019t here anymore.</p></div>';
+  var h = '<div class="card">';
+  h += '<button class="btn quiet small" id="pBack" type="button">\u2190 Your map</button>';
+  h += '<h2 style="margin-top:8px">'+esc(p.name)+'<span class="type-tag">'+esc(TYPE_LABELS[p.type] || "Voice")+'</span></h2>';
+  if(p.likeness) h += '<p class="muted small">Who it is like: '+esc(p.likeness)+(p.status ? ' \u00b7 ' + esc(p.status === "new" ? "New \u2014 first time" : "Met before it was in the map") : '')+'</p>';
+  if(p.standing) h += '<p class="muted small">You\u2019ve marked: it stands for something that happened. The link is yours; the app doesn\u2019t press it.</p>';
+
+  /* the top layer: how the person sees them */
+  h += '<div class="seeing-box"><span class="lab">How I see them \u2014 the top layer</span>';
+  if(p.seeing) h += '<p style="margin:6px 0 0">'+esc(p.seeing)+'</p>';
+  else h += '<p class="muted" style="margin:6px 0 0">Not said yet. This layer is yours alone to write.</p>';
+  h += '</div>';
+  h += '<textarea class="big short" id="pSeeing" placeholder="How I see them \u2014 in my words" aria-label="How I see them">'+esc(p.seeing || "")+'</textarea>';
+  h += capChips("pSeeingChip", SEEING_OPTS, "", false);
+  h += '<div class="btnrow"><button class="btn small" id="pSeeingSave" type="button">Save how I see them</button></div>';
+
+  h += '<hr class="divider"><h3>How they present</h3>';
+  var regs = topKeys(p.registers, 8);
+  h += regs.length ? miniChips(regs.map(function(r){ return r + " (" + p.registers[r] + ")"; }))
+                    : '<p class="muted small">No presentations recorded yet.</p>';
+  var chans = topKeys(p.channels, 8);
+  if(chans.length) h += '<h3>Usual channels</h3>' + miniChips(chans.map(function(c){ return c + " (" + p.channels[c] + ")"; }));
+  if(p.bodySpots && p.bodySpots.length) h += '<h3>Body spots</h3>' + miniChips(p.bodySpots);
+
+  h += '<hr class="divider"><h3>Receipts</h3>' + receiptsLine(p);
+
+  var terms = atlas.glossary.filter(function(g){ return (g.whoIds||[]).indexOf(p.id) !== -1; });
+  if(terms.length){
+    h += '<h3>Their words on this piece</h3>';
+    terms.forEach(function(g){ h += '<p class="small">&ldquo;'+esc(g.term)+'&rdquo;'+(g.does ? ' \u2014 ' + esc(g.does) : '')+'</p>'; });
+  }
+  h += '<div class="btnrow"><button class="btn secondary small" id="pGlossToggle" type="button">File a word they use</button></div>';
+  if(pieceGlossOpen){
+    h += '<input type="text" class="txt" id="pGlossTerm" placeholder="The word" aria-label="The word" style="margin-top:10px">';
+    h += capChips("pGlossDoes", GLOSS_DOES_OPTS, pieceGlossDoesSel, false);
+    h += '<input type="text" class="txt" id="pGlossOwn" placeholder="What it does, in my own words (optional)" aria-label="What it does" style="margin-top:8px">';
+    h += '<div class="btnrow"><button class="btn small" id="pGlossSave" type="button">File the word</button></div>';
+  }
+
+  h += '<hr class="divider"><h3>Rename \u2014 a rebrand is an act, not an edit</h3>';
+  h += '<input type="text" class="txt" id="pRename" placeholder="The new name" aria-label="New name">';
+  h += '<div class="btnrow"><button class="btn secondary small" id="pRenameBtn" type="button">Rename</button></div>';
+  if(p.nameHistory && p.nameHistory.length > 1){
+    h += '<p class="muted small">Name history: ' + p.nameHistory.map(function(n){ return esc(n.name); }).join(" \u2192 ") + '</p>';
+  }
+  h += '<hr class="divider"><div class="btnrow"><button class="btn danger small" id="pDelete" type="button">Remove this piece</button></div>';
+  h += '</div>';
+  return h;
+}
+var pieceGlossDoesSel = "";
+function bindPiece(){
+  var p = pieceById(pieceDetailId);
+  el("pBack").addEventListener("click", function(){ pieceGlossOpen = false; go("map"); });
+  if(!p) return;
+  document.querySelectorAll("[data-capchip]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var g = b.getAttribute("data-capchip"), val = b.getAttribute("data-val");
+      if(g === "pSeeingChip"){
+        var ta = el("pSeeing"); if(ta) ta.value = val;
+        document.querySelectorAll("[data-capchip='pSeeingChip']").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+      }
+      if(g === "pGlossDoes"){ pieceGlossDoesSel = val; render(); }
+    });
+  });
+  el("pSeeingSave").addEventListener("click", function(){
+    var val = el("pSeeing").value.trim();
+    p.seeing = val; p.seeingTs = Date.now(); saveAtlas();
+    toast = "Saved. Your seeing sits on top of this piece.";
+    render();
+  });
+  var gt = el("pGlossToggle");
+  if(gt) gt.addEventListener("click", function(){ pieceGlossOpen = !pieceGlossOpen; render(); });
+  var gs = el("pGlossSave");
+  if(gs) gs.addEventListener("click", function(){
+    var term = el("pGlossTerm").value.trim();
+    if(!term){ el("pGlossTerm").focus(); return; }
+    atlas.glossary.push({id:uid(), term:term, does:pieceGlossDoesSel, doesOwn:el("pGlossOwn").value.trim(),
+      whoIds:[p.id], whoText:p.name, ts:Date.now()});
+    saveAtlas(); pieceGlossOpen = false; pieceGlossDoesSel = "";
+    toast = "Filed under their own words.";
+    render();
+  });
+  el("pRenameBtn").addEventListener("click", function(){
+    var val = el("pRename").value.trim();
+    if(!val){ el("pRename").focus(); return; }
+    p.name = val;
+    p.nameHistory = p.nameHistory || [];
+    p.nameHistory.push({name:val, ts:Date.now()});
+    saveAtlas();
+    toast = "Renamed. The new name is the name \u2014 the old one stays in the history.";
+    render();
+  });
+  el("pDelete").addEventListener("click", function(){
+    if(!confirm("Remove this piece from your map? Its captures stay in the record, but the piece itself will be gone.")) return;
+    atlas.pieces = atlas.pieces.filter(function(x){ return x.id !== p.id; });
+    saveAtlas(); pieceDetailId = null;
+    toast = "Piece removed.";
+    go("map");
+  });
+}
+
+/* ================= Screen 6 — Check the receipts (ported ledger) =================
+   Behavior ported from the local product build: on-device store,
+   framing copy, tallies, still-open / checked lists, delete with
+   confirmation. v1 upgrades: claim kind stored at logging; outcome
+   chips first, own-words outcome as the opt-in door; per-voice and
+   per-kind track records computed from the entries. */
+var receiptKindSel = "prediction";
+function ledgerEntryHTML(e, isOpen){
+  var h = '<div class="ledger-entry"><div class="claim-text">&ldquo;'+esc(e.claim)+'&rdquo;'
+    + (e.kind ? '<span class="kind-tag">'+esc(KIND_LABELS[e.kind] || e.kind)+'</span>' : '') + '</div>';
+  h += '<div class="muted small" style="margin-top:4px">'+esc(fmtDate(e.ts)) + (e.who ? ' &mdash; '+esc(e.who) : '') + '</div>';
+  if(e.encoded){
+    h += '<p class="small" style="margin:8px 0 0"><strong>What exactly did they say I did wrong?</strong> The record holds this question open: <strong>not yet understandable</strong>. It is never marked nonsense, and the app never closes it.</p>';
+  }
+  if(isOpen){
+    h += '<div class="chiprow">'
+      + '<button type="button" class="chip" data-rout="'+e.id+':happened">It happened</button>'
+      + '<button type="button" class="chip" data-rout="'+e.id+':didnt">It didn\u2019t</button>'
+      + '<button type="button" class="chip" data-rout="'+e.id+':partly">Partly</button>'
+      + '<button type="button" class="chip" data-rout="'+e.id+':notyet">Not yet</button></div>';
+    if(e.outcomeChip === "notyet") h += '<p class="muted small">Marked \u201cnot yet&rdquo; '+esc(fmtDate(e.tsOutcome))+' \u2014 still open.</p>';
+    h += '<textarea class="big" id="out_'+e.id+'" style="min-height:9vh;margin-top:6px" placeholder="What actually happened? (in my own words)" aria-label="What actually happened"></textarea>';
+    h += '<div class="btnrow"><button class="btn secondary small" data-close="'+e.id+'" type="button">Add the outcome</button>'
+      + '<button class="btn quiet small" data-del="'+e.id+'" type="button">Delete</button></div>';
+  } else {
+    h += '<div class="ledger-outcome"><strong>What actually happened:</strong> '+esc(outcomeLabel(e))
+      + '<div class="muted small">'+esc(fmtDate(e.tsOutcome))+'</div></div>';
+    h += '<div class="btnrow"><button class="btn quiet small" data-del="'+e.id+'" type="button">Delete</button></div>';
+  }
+  h += '</div>';
+  return h;
+}
+function trackRecordHTML(){
+  var byWho = {};
+  ledger.entries.forEach(function(e){
+    var key = e.who || "";
+    if(!key) return;
+    byWho[key] = byWho[key] || [];
+    byWho[key].push(e);
+  });
+  var names = Object.keys(byWho);
+  if(!names.length) return "";
+  var h = '<div class="card"><h2>Track records</h2>'
+    + '<p class="muted small">The app counts; you conclude. These are tallies from your own outcome taps \u2014 the record\u2019s arithmetic, never a verdict about what to believe.</p>';
+  names.sort().forEach(function(name){
+    var mine = byWho[name];
+    var checked = mine.filter(isChecked);
+    var held = checked.filter(heldUp).length;
+    var didnt = checked.filter(function(e){ return e.outcomeChip === "didnt"; }).length;
+    h += '<p class="small"><strong>'+esc(name)+'</strong> \u2014 '+mine.length+(mine.length===1?" claim":" claims")
+      + ', '+checked.length+' checked'
+      + (checked.length ? ', '+held+' held up, '+didnt+' didn\u2019t' : '')
+      + (mine.length - checked.length ? ', '+(mine.length - checked.length)+' still open' : '') + '.</p>';
+  });
+  var byKind = {};
+  ledger.entries.forEach(function(e){ if(e.kind){ byKind[e.kind] = byKind[e.kind] || []; byKind[e.kind].push(e); } });
+  var kinds = Object.keys(byKind);
+  if(kinds.length){
+    h += '<hr class="divider">';
+    kinds.forEach(function(k){
+      var mine = byKind[k];
+      var checked = mine.filter(isChecked);
+      h += '<p class="small"><strong>'+esc(KIND_LABELS[k] || k)+'</strong> \u2014 '+mine.length+' logged, '+checked.length+' checked.</p>';
+    });
+  }
+  h += '</div>';
+  return h;
+}
+function viewReceipts(){
+  var entries = ledger.entries;
+  var open = entries.filter(function(e){ return !isChecked(e); });
+  var closed = entries.filter(isChecked);
+  var h = '<div class="card">';
+  h += '<h2>Check the receipts</h2>';
+  h += '<p class="lede">Voices make claims &mdash; about what will happen, and about what&rsquo;s happening right now. They define the moment: what something means, what someone&rsquo;s really doing, what you just did &mdash; narrating it, grading it live, announcing it back to you.</p>';
+  h += '<p class="lede">Write the claim down when you hear it. Later, write down what actually happened. Over time this becomes your own evidence about which claims hold up and which don&rsquo;t.</p>';
+  h += '<p class="lede muted">The ledger doesn&rsquo;t decide anything. It just keeps the record &mdash; you draw your own conclusions.</p>';
+  h += '</div>';
+  if(entries.length){
+    h += '<div class="tally">';
+    h += '<div class="pill"><b>'+entries.length+'</b>claims logged</div>';
+    h += '<div class="pill"><b>'+closed.length+'</b>checked</div>';
+    if(open.length) h += '<div class="pill"><b>'+open.length+'</b>still open</div>';
+    h += '</div>';
+  }
+  h += '<div class="card"><h2>Log a claim</h2>';
+  h += '<p class="muted small" style="margin-top:-6px">What did a voice say? A prediction, what&rsquo;s happening now, what you just did, a grade on it &mdash; your words.</p>';
+  h += '<p class="field-label">The kind</p>';
+  h += capChips("rkind", [["prediction","A prediction"],["now","Happening right now"],["commentary","Running commentary"],["instruction","An instruction"]], receiptKindSel, false);
+  h += '<textarea class="big" id="fClaim" style="min-height:12vh" placeholder="e.g. They said I&rsquo;d freeze up in the meeting" aria-label="What was claimed"></textarea>';
+  h += '<p class="field-label">Who said it? <span class="muted" style="font-weight:400">(optional)</span></p>';
+  if(atlas.pieces.length){
+    h += '<div class="chiprow">' + atlas.pieces.map(function(p){
+      return '<button type="button" class="chip" data-rwho="'+esc(p.name)+'">'+esc(p.name)+'</button>';
+    }).join("") + '</div>';
+  }
+  h += '<input type="text" class="txt" id="fWho" placeholder="one word (optional)" aria-label="Who said it">';
+  h += '<div class="btnrow"><button class="btn" id="fAdd" type="button">Log the claim</button></div>';
+  h += '</div>';
+  h += trackRecordHTML();
+  if(open.length){
+    h += '<div class="card"><h2>Still open ('+open.length+')</h2>';
+    open.forEach(function(e){ h += ledgerEntryHTML(e, true); });
+    h += '</div>';
+  }
+  if(closed.length){
+    h += '<div class="card"><h2>Checked ('+closed.length+')</h2>';
+    closed.forEach(function(e){ h += ledgerEntryHTML(e, false); });
+    h += '</div>';
+  }
+  if(!entries.length){
+    h += '<div class="card"><p class="empty">Nothing logged yet. When a voice makes a claim &mdash; a prediction, a running commentary, a live grade, an announcement of what you just did &mdash; put it here, then come back and write what actually happened.</p></div>';
+  }
+  return h;
+}
+function bindReceipts(){
+  document.querySelectorAll("[data-capchip='rkind']").forEach(function(b){
+    b.addEventListener("click", function(){ receiptKindSel = b.getAttribute("data-val"); render(); });
+  });
+  document.querySelectorAll("[data-rwho]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var w = el("fWho"); if(w) w.value = b.getAttribute("data-rwho");
+    });
+  });
+  el("fAdd").addEventListener("click", function(){
+    var c = el("fClaim"), w = el("fWho");
+    var val = c.value.trim();
+    if(!val){ c.focus(); return; }
+    var whoName = w.value.trim();
+    var whoId = "";
+    atlas.pieces.forEach(function(p){ if(p.name === whoName) whoId = p.id; });
+    ledger.entries.push({id:uid(), claim:val, kind:receiptKindSel, who:whoName, whoId:whoId, ts:Date.now(), outcome:"", outcomeChip:"", tsOutcome:0, encoded:false});
+    saveLedger(); toast = "Logged. The ledger keeps it from here.";
+    render(); window.scrollTo(0,0);
+  });
+  document.querySelectorAll("[data-rout]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var parts = b.getAttribute("data-rout").split(":");
+      setOutcome(parts[0], parts[1], "");
+      render(); window.scrollTo(0,0);
+    });
+  });
+  document.querySelectorAll("[data-close]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var id = b.getAttribute("data-close");
+      var ta = el("out_" + id);
+      var val = ta ? ta.value.trim() : "";
+      if(!val){ if(ta) ta.focus(); return; }
+      setOutcome(id, "", val);
+      render(); window.scrollTo(0,0);
+    });
+  });
+  document.querySelectorAll("[data-del]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var id = b.getAttribute("data-del");
+      if(!confirm("Delete this ledger entry?")) return;
+      ledger.entries = ledger.entries.filter(function(e){ return e.id !== id; });
+      saveLedger(); render();
+    });
+  });
+}
+
+/* ================= Screen 7 — Journal ================= */
+function journalPrompts(){
+  var prompts = [
+    "What did they claim this week that never happened?",
+    "Which voice has been quiet lately \u2014 and what changed?",
+    "Write the moment they defined for you, in your words instead."
+  ];
+  var pers = [];
+  /* a quiet op, named */
+  var lastSeen = {};
+  atlas.events.forEach(function(ev){ (ev.whoIds||[]).forEach(function(id){
+    if(!lastSeen[id] || ev.ts > lastSeen[id]) lastSeen[id] = ev.ts;
+  }); });
+  var quietId = "", quietTs = Infinity;
+  Object.keys(lastSeen).forEach(function(id){ if(lastSeen[id] < quietTs){ quietTs = lastSeen[id]; quietId = id; } });
+  if(quietId && Date.now() - quietTs > 86400000){
+    var qp = pieceById(quietId);
+    if(qp) pers.push(qp.name + " has been quiet since " + relDay(quietTs) + ". What\u2019s different?");
+  }
+  /* an unchecked claim, named */
+  var open = openClaims();
+  if(open.length) pers.push("Still open in the ledger: \u201c" + open[0].claim + "\u201d What has actually happened since?");
+  /* a claim that failed, named */
+  var failed = ledger.entries.filter(function(e){ return e.outcomeChip === "didnt"; });
+  if(failed.length){
+    var f = failed[failed.length - 1];
+    pers.push((f.who ? f.who : "A voice") + " claimed \u201c" + f.claim + "\u201d \u2014 and it didn\u2019t happen. What does their record look like now?");
+  }
+  return pers.concat(prompts);
+}
+function viewJournal(){
+  var h = '<div class="card"><h2>Journal</h2>'
+    + '<p class="lede muted">For calm times \u2014 mornings, quiet evenings, steady weeks. Prompts point at the ops\u2019 record, never at grading you. Your entries are yours alone: the app never summarizes, analyzes, or files them anywhere.</p></div>';
+  h += '<div class="card"><h3>Pick a prompt \u2014 or pass them all</h3>';
+  journalPrompts().forEach(function(pr, i){
+    h += '<button type="button" class="card prompt-card" data-prompt="'+i+'">'+esc(pr)+'</button>';
+  });
+  h += '<div class="btnrow"><button class="btn" id="jBlank" type="button">Write without a prompt</button></div></div>';
+  if(journal.entries.length){
+    h += '<div class="card"><h2>Past entries</h2>';
+    journal.entries.slice().sort(function(a,b){ return b.ts - a.ts; }).forEach(function(en){
+      h += '<div class="ledger-entry" data-entry="'+en.id+'" style="cursor:pointer">'
+        + '<div class="muted small">'+esc(fmtDate(en.ts))+(en.prompt ? ' \u2014 ' + esc(en.prompt) : '')+'</div>'
+        + '<div class="small">'+esc(en.text.length > 160 ? en.text.slice(0,160) + "\u2026" : en.text)+'</div></div>';
+    });
+    h += '</div>';
+  }
+  return h;
+}
+var currentPrompts = [];
+function bindJournal(){
+  currentPrompts = journalPrompts();
+  currentPrompts.forEach(function(_, i){
+    document.querySelectorAll("[data-prompt='"+i+"']").forEach(function(b){
+      b.addEventListener("click", function(){ journalPrompt = currentPrompts[i]; go("journalWrite"); });
+    });
+  });
+  el("jBlank").addEventListener("click", function(){ journalPrompt = ""; go("journalWrite"); });
+  document.querySelectorAll("[data-entry]").forEach(function(row){
+    row.addEventListener("click", function(){ journalReadId = row.getAttribute("data-entry"); go("journalRead"); });
+  });
+}
+function viewJournalWrite(){
+  var h = '<div class="card"><button class="btn quiet small" id="jwBack" type="button">\u2190 Journal</button>';
+  if(journalPrompt) h += '<p class="lede" style="margin-top:10px">'+esc(journalPrompt)+'</p>';
+  h += '<textarea class="big" id="jwText" style="min-height:34vh" placeholder="Your words\u2026" aria-label="Journal entry"></textarea>'
+    + '<div class="btnrow"><button class="btn" id="jwSave" type="button">Save</button>'
+    + '<button class="btn quiet" id="jwDiscard" type="button">Discard</button></div></div>';
+  return h;
+}
+function bindJournalWrite(){
+  el("jwBack").addEventListener("click", function(){ go("journal"); });
+  el("jwDiscard").addEventListener("click", function(){ go("journal"); });
+  el("jwSave").addEventListener("click", function(){
+    var t = el("jwText").value.trim();
+    if(!t){ el("jwText").focus(); return; }
+    journal.entries.push({id:uid(), ts:Date.now(), prompt:journalPrompt, text:t});
+    saveJournal(); journalPrompt = "";
+    toast = "Saved. It stays exactly as you wrote it.";
+    go("journal");
+  });
+}
+function viewJournalRead(){
+  var en = null;
+  journal.entries.forEach(function(x){ if(x.id === journalReadId) en = x; });
+  if(!en) return '<div class="card"><p class="empty">That entry isn\u2019t here anymore.</p></div>';
+  var h = '<div class="card"><button class="btn quiet small" id="jrBack" type="button">\u2190 Journal</button>'
+    + '<p class="muted small" style="margin-top:10px">'+esc(fmtDate(en.ts))+'</p>'
+    + (en.prompt ? '<p class="lede">'+esc(en.prompt)+'</p>' : '')
+    + '<p style="white-space:pre-wrap">'+esc(en.text)+'</p>'
+    + '<hr class="divider"><div class="btnrow"><button class="btn danger small" id="jrErase" type="button">Erase this entry</button></div></div>';
+  return h;
+}
+function bindJournalRead(){
+  el("jrBack").addEventListener("click", function(){ go("journal"); });
+  var er = el("jrErase");
+  if(er) er.addEventListener("click", function(){
+    if(!confirm("Erase this journal entry?")) return;
+    journal.entries = journal.entries.filter(function(x){ return x.id !== journalReadId; });
+    saveJournal(); journalReadId = null;
+    toast = "Entry erased.";
+    go("journal");
+  });
+}
+
+/* ================= Screen 8 — Help button + help ladder ================= */
+var helpReturn = "home";
+var ladderReturn = "help";
+function viewHelp(){
+  var t = allReceiptTallies();
+  var h = '<div class="card" style="margin-top:10px">';
+  h += '<button class="btn quiet small" id="helpBack" type="button">\u2190 Back</button>';
+  h += '<h2 style="margin-top:8px">Help, your way</h2>';
+  h += '<p class="lede muted">Sometimes you just need help. This connects you outward \u2014 it never alerts or notifies anyone behind your back, and pressing it writes nothing down. No log of help-seeking is kept, anywhere.</p>';
+
+  /* rung 1 — reassurance, from the person's own record */
+  h += '<div class="rung"><h3>Reassurance \u2014 from your own record</h3>';
+  if(ladder.noteForHardDay){
+    h += '<p class="muted small">A note you wrote on a calm day, for a hard one:</p>';
+    h += '<div class="hardday-note">'+esc(ladder.noteForHardDay)+'</div>';
+  }
+  if(t.total){
+    h += '<p>The claims have a track record, and you can check it: '+t.total+(t.total===1?" claim":" claims")+' logged, '
+      + t.checked+' checked' + (t.checked ? ' \u2014 '+t.held+' held up, '+t.didnt+' didn\u2019t' : '') + '.</p>';
+    h += '<div class="btnrow"><button class="btn secondary small" id="helpReceipts" type="button">Check the receipts</button></div>';
+  }
+  if(!ladder.noteForHardDay && !t.total){
+    h += '<p>You are the one who keeps this record. Their claims have a track record, and you can check it.</p>';
+  }
+  if(!ladder.noteForHardDay){
+    h += '<div class="btnrow"><button class="btn quiet small" id="helpNote" type="button">Write a note for a hard day</button></div>';
+  }
+  h += '</div>';
+
+  /* rung 2 — a person */
+  h += '<div class="rung"><h3>A person</h3>';
+  if(ladder.contacts.length){
+    ladder.contacts.forEach(function(c){
+      h += '<p><strong>'+esc(c.name)+'</strong><br>'
+        + '<a class="call-link" href="tel:'+esc(c.phone)+'">Call</a>'
+        + '<a class="call-link" href="sms:'+esc(c.phone)+'">Text</a></p>';
+    });
+  } else {
+    h += '<p class="muted">Circles and the people features arrive in a later phase \u2014 in v1, nothing shared leaves this phone. You can still put a person you trust on this rung.</p>';
+  }
+  h += '<div class="btnrow"><button class="btn secondary small" id="helpArrange" type="button">Arrange my ladder</button></div>';
+  h += '</div>';
+
+  /* rung 3 — a professional: live from first open, no setup, never removable */
+  h += '<div class="rung far"><h3>Speak with a professional</h3>';
+  h += '<p><strong>988 Suicide and Crisis Lifeline</strong> (US)<br>'
+    + '<a class="call-link far" href="tel:988">Call 988</a>'
+    + '<a class="call-link far" href="sms:988">Text 988</a></p>';
+  h += '<p><strong>Crisis Text Line</strong><br>'
+    + '<a class="call-link far" href="sms:741741?&amp;body=HOME">Text HOME to 741741</a></p>';
+  if(ladder.clinician && ladder.clinician.phone){
+    h += '<p><strong>'+esc(ladder.clinician.name || "My clinician")+'</strong><br>'
+      + '<a class="call-link far" href="tel:'+esc(ladder.clinician.phone)+'">Call '+esc(ladder.clinician.phone)+'</a></p>';
+  }
+  h += '<p class="muted small">These standard routes stay on your ladder and can\u2019t be removed by accident. Stepping up from any rung is one tap \u2014 no gates, no \u201care you sure.\u201d</p>';
+  h += '</div></div>';
+  return h;
+}
+function bindHelp(){
+  el("helpBack").addEventListener("click", function(){ go(helpReturn || "home"); });
+  var r = el("helpReceipts"); if(r) r.addEventListener("click", function(){ go("receipts"); });
+  var n = el("helpNote"); if(n) n.addEventListener("click", function(){ ladderReturn = "help"; go("ladder"); });
+  el("helpArrange").addEventListener("click", function(){ ladderReturn = "help"; go("ladder"); });
+}
+
+/* ---- arrange the ladder (owner-authored, in calm times, skippable) ---- */
+function viewLadder(){
+  var h = '<div class="card" style="margin-top:10px">';
+  h += '<button class="btn quiet small" id="ladBack" type="button">\u2190 Back</button>';
+  h += '<h2 style="margin-top:8px">Arrange your help ladder</h2>';
+  h += '<p class="lede muted">Yours to arrange, in a calm moment, rung by rung. Everything here is stored on this phone and can be changed or removed any time.</p>';
+  h += '<h3>A note for a hard day</h3>';
+  h += '<p class="muted small">Written by you, on a calm day, in your words. It waits on the reassurance rung.</p>';
+  h += '<textarea class="big" id="ladNote" style="min-height:14vh" placeholder="What a hard day needs to hear from you\u2026" aria-label="A note for a hard day">'+esc(ladder.noteForHardDay)+'</textarea>';
+  h += '<div class="btnrow"><button class="btn small" id="ladNoteSave" type="button">Save the note</button></div>';
+  h += '<hr class="divider"><h3>A person</h3>';
+  if(ladder.contacts.length){
+    ladder.contacts.forEach(function(c, i){
+      h += '<p class="small"><strong>'+esc(c.name)+'</strong> \u2014 '+esc(c.phone)
+        + ' <button class="btn quiet small" data-delcontact="'+i+'" type="button">Remove</button></p>';
+    });
+  }
+  h += '<input type="text" class="txt" id="ladCName" placeholder="Their name" aria-label="Contact name" style="margin-bottom:8px">';
+  h += '<input type="tel" class="txt" id="ladCPhone" placeholder="Their number" aria-label="Contact number">';
+  h += '<div class="btnrow"><button class="btn secondary small" id="ladCAdd" type="button">Add this person</button></div>';
+  h += '<hr class="divider"><h3>My clinician or clinic</h3>';
+  h += '<input type="text" class="txt" id="ladClinName" placeholder="Name (e.g. my clinic)" value="'+esc(ladder.clinician.name || "")+'" aria-label="Clinician name" style="margin-bottom:8px">';
+  h += '<input type="tel" class="txt" id="ladClinPhone" placeholder="Number" value="'+esc(ladder.clinician.phone || "")+'" aria-label="Clinician number">';
+  h += '<div class="btnrow"><button class="btn small" id="ladClinSave" type="button">Save</button></div>';
+  h += '</div>';
+  return h;
+}
+function bindLadder(){
+  el("ladBack").addEventListener("click", function(){ go(ladderReturn || "help"); });
+  el("ladNoteSave").addEventListener("click", function(){
+    ladder.noteForHardDay = el("ladNote").value.trim();
+    saveLadder(); toast = "Saved. It\u2019ll be there on the reassurance rung.";
+    render();
+  });
+  el("ladCAdd").addEventListener("click", function(){
+    var n = el("ladCName").value.trim(), ph = el("ladCPhone").value.trim();
+    if(!n || !ph){ (n ? el("ladCPhone") : el("ladCName")).focus(); return; }
+    ladder.contacts.push({name:n, phone:ph});
+    saveLadder(); render();
+  });
+  document.querySelectorAll("[data-delcontact]").forEach(function(b){
+    b.addEventListener("click", function(){
+      ladder.contacts.splice(parseInt(b.getAttribute("data-delcontact"), 10), 1);
+      saveLadder(); render();
+    });
+  });
+  el("ladClinSave").addEventListener("click", function(){
+    ladder.clinician = {name: el("ladClinName").value.trim(), phone: el("ladClinPhone").value.trim()};
+    saveLadder(); toast = "Saved to your ladder\u2019s professional rung.";
+    render();
+  });
+}
+
+/* ================= Screen 9 — Settings ================= */
+function viewSettings(){
+  var c = companion;
+  var h = '<div class="card"><h2>Settings</h2>'
+    + '<p class="lede muted">Your control room. Everything this app holds can be seen, taken, or erased here.</p></div>';
+  h += '<div class="card"><h2>Your companion</h2>';
+  if(c){
+    h += '<p><strong>'+esc(c.name)+'</strong></p>';
+    h += '<p class="small muted">Talks: '+esc([c.register.join(", "), c.registerOwn].filter(Boolean).join(" \u00b7 ") || "\u2014")
+      + '<br>Language: '+esc([c.language.join(", "), c.languageOwn].filter(Boolean).join(" \u00b7 ") || "\u2014")
+      + '<br>Addresses you: '+esc(c.addressType === "none" ? "no name \u2014 just talks to you" : (c.addressValue || c.addressType))
+      + '<br>Offers: '+esc(c.offerFreq === "freely" ? "freely" : c.offerFreq === "asked" ? "only when you ask" : "sometimes")+'</p>';
+  }
+  h += '<div class="btnrow"><button class="btn secondary" id="setCompanion" type="button">Reshape your companion</button></div>';
+  h += '<p class="muted small">Renaming or reshaping your companion never touches your map or your receipts.</p></div>';
+  h += '<div class="card"><h2>The contract</h2>' + contractHTML() + '</div>';
+  h += '<div class="card"><h2>Your help ladder</h2>'
+    + '<p class="small muted">Reassurance from your own record, a person you name, your professional routes. Pressing Help writes nothing down \u2014 no log of help-seeking is kept.</p>'
+    + '<div class="btnrow"><button class="btn secondary" id="setLadder" type="button">Arrange my ladder</button></div></div>';
+  h += '<div class="card"><h2>Your clinician</h2>'
+    + '<input type="text" class="txt" id="setClinName" placeholder="Name (e.g. my clinic)" value="'+esc(ladder.clinician.name || "")+'" aria-label="Clinician name" style="margin-bottom:8px">'
+    + '<input type="tel" class="txt" id="setClinPhone" placeholder="Number" value="'+esc(ladder.clinician.phone || "")+'" aria-label="Clinician number">'
+    + '<div class="btnrow"><button class="btn small" id="setClinSave" type="button">Save</button></div></div>';
+  h += '<div class="card"><h2>Export your record</h2>'
+    + '<p class="muted small">Your whole map, ledger, glossary, and journal, as one file \u2014 to keep, or to carry to a care professional. You assemble it; you share it. The app sends nothing anywhere.</p>'
+    + '<div class="btnrow"><button class="btn secondary" id="setExport" type="button">Download my record (JSON)</button></div></div>';
+  h += '<div class="card"><h2>Erase</h2>'
+    + '<p class="muted small">Deleting one thing lives with the thing itself \u2014 a ledger entry, a journal entry, a map piece. Erasing everything is here. Data posture: everything is on this phone. v1 has no account and no sync. If any future feature needs data to leave the device, it will be stated plainly before it happens.</p>'
+    + '<div class="btnrow"><button class="btn danger" id="setErase" type="button">Erase everything</button></div></div>';
+  return h;
+}
+function bindSettings(){
+  el("setCompanion").addEventListener("click", function(){ startCreate(true); });
+  el("setLadder").addEventListener("click", function(){ ladderReturn = "settings"; go("ladder"); });
+  el("setClinSave").addEventListener("click", function(){
+    ladder.clinician = {name: el("setClinName").value.trim(), phone: el("setClinPhone").value.trim()};
+    saveLadder(); toast = "Clinician saved to your ladder.";
+    render();
+  });
+  el("setExport").addEventListener("click", function(){
+    var data = {
+      exportedAt: new Date().toISOString(),
+      companion: companion, atlas: atlas, ledger: ledger, journal: journal, ladder: ladder
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "ever-present-record.json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+  });
+  el("setErase").addEventListener("click", function(){
+    if(!confirm("Erase your entire record \u2014 your companion, all map pieces, glossary terms, every claim in the ledger, journal entries, and your help ladder? This can\u2019t be undone.")) return;
+    var kill = [];
+    for(var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if(k && k.indexOf("ever_present") === 0) kill.push(k);
+    }
+    kill.forEach(function(k){ localStorage.removeItem(k); });
+    location.reload();
+  });
+}
+
+/* ================= boot ================= */
+el("helpBtn").addEventListener("click", function(){
+  if(view !== "help"){ helpReturn = view; }
+  view = "help";
+  render(); window.scrollTo(0,0);
+});
+render();
+</script>
+</body>
+</html>
