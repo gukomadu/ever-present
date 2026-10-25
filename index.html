@@ -162,36 +162,37 @@
        now anchored to the bar itself: 16 + spacer + 20 =
        72 + inset + 7, i.e. the spacer is calc(43px + the
        inset) and the last message rests a clean ~7px above
-       the bar, fully visible, at rest and scrolled alike. */
+       the bar, fully visible, at rest and scrolled alike.
+     v1.30 — THE FOUNDER'S PICTURES AS THE ROOM (2026-10-25):
+     "Use the background from the pictures I sent." The Day
+     poppy-field scene serves the light scheme and the Night
+     blossoms/tower scene serves the dark scheme, each as a
+     fixed centered cover photograph under a strong watermark
+     wash. The earlier picture-as-palette-only boundary is
+     superseded by this direct instruction; interface surfaces
+     remain solid. */
   :root{
     color-scheme:light;
-    --paper:#ffffff; --paper-glow:#e8f6ff;
-    /* the WATERMARK ATMOSPHERE (v1.29, the founder: "Maybe
-       this type of watermark type feel for the background?
-       Maybe the pictures I sent you can be a guide") —
-       guided by his own pictures: the Day flower-field
-       photo, the Night blossoms/indigo photo, and his
-       home-screen aurora wallpaper (soft sky-blue beams
-       melting into seafoam, luminous and airy). DAY: pale
-       sky at the top melting into a faint seafoam, one soft
-       diagonal beam of aqua light low in the room — all at
-       WATERMARK strength: high luminance everywhere text
-       could rest, colours felt rather than seen. CSS
-       gradients only, no images, no animation — atmosphere,
-       never wallpaper: it lives in the room's empty space
-       only; bubbles, cards
-       and the composer stay solid. Worst point measured
-       (beam over seafoam glow over the deepest stop,
-       #d4f2e9): muted text 4.55:1, ink-soft 5.90:1 — the
-       floors hold; the beam was softened from .08 to .05
-       to keep them. --paper-glow is the gradient's top
-       stop (the veil samples it); --paper-low is its local
-       value at the floor (the composer fades into it). */
-    --room-grad:
-      linear-gradient(118deg, transparent 56%, rgba(56,160,214,.05) 74%, transparent 96%),
-      radial-gradient(130% 55% at 78% 100%, rgba(94,234,212,.08), transparent 62%),
-      linear-gradient(180deg, #e8f6ff 0%, #f3fbff 30%, #effaf2 58%, #e9f8ee 100%);
-    --paper-low:#e9f8ee;
+    --paper:#ffffff;
+    /* the FOUNDER'S PICTURES AS THE ROOM (v1.30, his words:
+       "Use the background from the pictures I sent"). The
+       extracted Day scene is the light scheme's fixed,
+       centered cover photograph. It remains a WATERMARK:
+       a white wash holds at .52 through the room and
+       strengthens to .70 at the floor; the veil starts from
+       that wash, and the composer melt uses the floor wash.
+       Bubbles, cards and the composer surfaces stay solid,
+       so ordinary text never rests directly on the photo.
+       Day stamps and signs do sit on this washed ground;
+       because photo contrast cannot be computed reliably,
+       the wash is held at the strong end and its final
+       strength is a founder phone-test call. No animation. */
+    --room-photo:url("bg-day.jpg");
+    --room-wash:rgba(255,255,255,.52);
+    --room-wash-low:rgba(255,255,255,.70);
+    --room-wash-grad:linear-gradient(180deg, rgba(255,255,255,.48) 0%, var(--room-wash) 52%, var(--room-wash-low) 100%);
+    --room-veil-grad:linear-gradient(180deg, rgba(255,255,255,.78) 0, rgba(255,255,255,.78) 78px, var(--room-wash) 100px);
+    --paper-low:var(--room-wash-low);
     --card:#ffffff; --card-line:#e7e7e7;
     /* text on a baby-blue sign fill: dark in BOTH schemes (the
        fill never changes, so its text must not flip with --ink) */
@@ -286,18 +287,19 @@
          blue, not black" supersedes v1.22's plain-black reading).
          Paper is deep indigo #0D1230 and every surface steps up
          in blue; off-white text mitigates halation */
-      --paper:#0d1230; --paper-glow:#131a3d;
-      /* the watermark at night: the blossom photo's light
-         on the indigo — a soft pink-lavender bloom high in
-         the room, a brighter blue wash low, deep indigo
-         overall. Worst points measured: muted #98A1C6 at
-         4.89:1 in the bloom, 5.95:1 in the wash — floors
-         hold at full strength, nothing softened */
-      --room-grad:
-        radial-gradient(90% 42% at 72% 0%, rgba(244,183,211,.14), transparent 62%),
-        radial-gradient(120% 55% at 50% 108%, rgba(59,110,246,.20), transparent 65%),
-        linear-gradient(180deg, #131a3d 0%, #0d1230 45%, #0a0f2c 100%);
-      --paper-low:#142254;
+      --paper:#0d1230;
+      /* the founder's Night scene (blossoms and the lit
+         tower against indigo) is the dark scheme's fixed,
+         centered cover photograph, under the same watermark
+         treatment: an indigo wash at .56 through the room,
+         strengthening to .70 at the floor. The veil starts
+         from that wash; no animation. */
+      --room-photo:url("bg-night.jpg");
+      --room-wash:rgba(13,18,48,.56);
+      --room-wash-low:rgba(13,18,48,.70);
+      --room-wash-grad:linear-gradient(180deg, rgba(13,18,48,.52) 0%, var(--room-wash) 52%, var(--room-wash-low) 100%);
+      --room-veil-grad:linear-gradient(180deg, rgba(13,18,48,.76) 0, rgba(13,18,48,.76) 78px, var(--room-wash) 100px);
+      --paper-low:var(--room-wash-low);
       --card:#171e42; --card-line:#303a75;
       --field:#20295c; --surface2:#20295c;
       --bubble-in:#252e5e;
@@ -342,11 +344,16 @@
   html{-webkit-text-size-adjust:100%}
   body{
     margin:0; color:var(--ink);
-    /* the room itself is the watermark gradient, fixed to
-       the viewport so the atmosphere stays put while the
-       talk scrolls through it (v1.29; the v1.23 flat paper
-       + 240px sky band is superseded) */
-    background:var(--room-grad); background-attachment:fixed; background-color:var(--paper);
+    /* the room itself is the founder's selected photograph,
+       fixed and centered under its watermark wash, so the
+       scene stays put while the talk scrolls through it
+       (v1.30; the v1.29 gradient-only room is superseded) */
+    background-color:var(--paper);
+    background-image:var(--room-wash-grad), var(--room-photo);
+    background-position:center center, center center;
+    background-size:auto, cover;
+    background-repeat:no-repeat, no-repeat;
+    background-attachment:fixed, fixed;
     font-family:var(--sans);
     line-height:26px; font-size:17px;
     padding-bottom:calc(104px + env(safe-area-inset-bottom));
@@ -369,13 +376,15 @@
   body::before{
     content:""; position:fixed; top:0; left:0; right:0; z-index:70;
     height:calc(100px + env(safe-area-inset-top));
-    /* v1.29: the veil now carries the room gradient itself
-       (fixed-attached, so it samples the gradient's local
-       value exactly) under its paper-glow fade — it melts
-       into the watermark instead of sitting on it */
-    background:linear-gradient(180deg, var(--paper-glow) 0, var(--paper-glow) 78px,
-      color-mix(in srgb, var(--paper-glow) 0%, transparent) 100px), var(--room-grad);
-    background-attachment:fixed;
+    /* v1.30: the veil carries the same fixed photograph,
+       with a stronger wash through the shelf that settles
+       to the room wash at 100px — it fades from the wash
+       colour itself, never flat paper */
+    background-image:var(--room-veil-grad), var(--room-photo);
+    background-position:center center, center center;
+    background-size:auto, cover;
+    background-repeat:no-repeat, no-repeat;
+    background-attachment:fixed, fixed;
     pointer-events:none;
   }
   .wrap{
@@ -802,9 +811,9 @@
     width:min(680px, 100%);
     bottom:0;
     padding:10px 12px calc(10px + env(safe-area-inset-bottom));
-    /* v1.29: the bar fades into --paper-low, the watermark
-       gradient's local value at the floor of the room, not
-       flat paper (both schemes) */
+    /* v1.30: the bar fades into --paper-low, the stronger
+       wash colour at the floor of the photographed room,
+       not flat paper (both schemes) */
     background:linear-gradient(180deg,
       color-mix(in srgb, var(--paper-low) 0%, transparent), var(--paper-low) 42%);
   }

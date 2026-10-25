@@ -1,8 +1,8 @@
 /* Ever Present — service worker.
    Network-first for the app so updates always land; cache is the offline fallback.
    User data never passes through here — it lives in localStorage on the device. */
-const CACHE = "ever-present-v31";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+const CACHE = "ever-present-v32";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./bg-day.jpg", "./bg-night.jpg"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
