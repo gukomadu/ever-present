@@ -253,6 +253,10 @@
     --room-wash-low:rgba(255,255,255,.70);
     --room-wash-grad:linear-gradient(180deg, rgba(255,255,255,.48) 0%, var(--room-wash) 52%, var(--room-wash-low) 100%);
     --room-veil-grad:linear-gradient(180deg, rgba(255,255,255,.78) 0, rgba(255,255,255,.78) 78px, var(--room-wash) 100px);
+    /* v1.38: outside the contained desktop column, the
+       same Day scene becomes a calmer backdrop under a
+       much heavier slate wash */
+    --room-outer-grad:linear-gradient(180deg, rgba(219,228,238,.86) 0%, rgba(219,228,238,.93) 100%);
     --paper-low:var(--room-wash-low);
     --card:#ffffff; --card-line:#e7e7e7;
     /* text on a baby-blue sign fill: dark in BOTH schemes (the
@@ -363,6 +367,13 @@
       --room-wash-low:rgba(13,18,48,.70);
       --room-wash-grad:linear-gradient(180deg, rgba(13,18,48,.52) 0%, var(--room-wash) 52%, var(--room-wash-low) 100%);
       --room-veil-grad:linear-gradient(180deg, rgba(13,18,48,.76) 0, rgba(13,18,48,.76) 78px, var(--room-wash) 100px);
+      /* v1.38: the Night scene outside the desktop column
+         is dimmed under a much heavier indigo wash; inside
+         the column, this extra indigo layer softens the
+         photograph's saturation without changing a palette
+         colour */
+      --room-outer-grad:linear-gradient(180deg, rgba(5,8,26,.86) 0%, rgba(5,8,26,.93) 100%);
+      --room-night-soft:linear-gradient(180deg, rgba(13,18,48,.20) 0%, rgba(13,18,48,.20) 100%);
       --paper-low:var(--room-wash-low);
       --card:#171e42; --card-line:#303a75;
       --field:#20295c; --surface2:#20295c;
@@ -380,13 +391,15 @@
          soft wash keeps its prior lightness, hue-shifted
          from #0E2A47 to #0E2947 */
       --sign:#79b0ee; --sign-deep:#a9cdf5; --sign-soft:#0e2947;
-      /* outgoing at night: a LUMINOUS plum against the indigo
-         (v1.24 supersedes the deep green) — white text 5.73:1
-         on the light stop, 8.58:1 on the deep stop.
-         v1.29: saturation deepens a step at night too —
-         re-measured 5.14:1 / 7.42:1 */
-      --me:#843a72;
-      --me-grad:linear-gradient(160deg, #ac4795 0%, #843a72 100%);
+      /* outgoing at night: plum against the indigo (v1.24
+         supersedes the deep green). v1.38 deepens the night
+         gradient toward the day family's depth — on the
+         founder's desktop screenshot the luminous stops
+         read hot pink ("This looks baaaaddd!"). White text
+         re-measures 5.73:1 on the light stop and 8.58:1 on
+         the deep stop */
+      --me:#753468;
+      --me-grad:linear-gradient(160deg, #9c4787 0%, #753468 100%);
       --me-ink:#ffffff;
       /* the founder's baby blue keeps the same home at
          night — the composer's focus light, Record's
@@ -409,7 +422,7 @@
     }
   }
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%; height:100%}
+  html{text-size-adjust:100%; -webkit-text-size-adjust:100%; height:100%}
   body{
     margin:0; color:var(--ink);
     /* v1.32 — THE DOCK: the frame. Full height, no window
@@ -432,9 +445,12 @@
     background-attachment:fixed, fixed;
     font-family:var(--sans);
     /* v1.33: the sleek tuning — tight tracking on the body,
-       leading at 1.5 (was 26px ≈ 1.53) */
+       leading at 1.5 (was 26px ≈ 1.53). v1.37: the reading
+       scale steps down one step, 17px → 16px, on the
+       founder's "Is the font too big?" — controls keep
+       their sizes (see the V37 harness block). */
     letter-spacing:-.011em;
-    line-height:1.5; font-size:17px;
+    line-height:1.5; font-size:16px;
   }
   ::selection{background:var(--sign); color:var(--on-sign)}
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
@@ -496,7 +512,7 @@
   .card h3{font-size:1.02rem; margin:18px 0 6px; font-weight:700}
   .card h3:first-child{margin-top:0}
   .muted{color:var(--muted)} .small{font-size:.88rem}
-  .lede{font-size:1.06rem; line-height:1.5}
+  .lede{font-size:16px; line-height:1.5}
   .empty{color:var(--muted); font-style:italic}
   .field-label{font-weight:500; font-size:15px; margin:14px 0 6px}
   .field-label:first-child{margin-top:0}
@@ -650,7 +666,7 @@
        baby-blue family (5.49:1 light / 9.34:1 dark on card) */
     color:var(--sign-deep); font-weight:700; margin:0 0 8px; font-family:var(--sans);
   }
-  .hub-card .claim-text{font-size:1.08rem; line-height:1.45}
+  .hub-card .claim-text{font-size:16px; line-height:1.5}
 
   /* ---- tallies (ported) ---- */
   .tally{display:flex; gap:14px; flex-wrap:wrap; margin:0 0 14px}
@@ -663,7 +679,7 @@
   /* ---- claims ledger (ported from the local product build) ---- */
   .ledger-entry{border-top:1px solid var(--card-line); padding:14px 0}
   .ledger-entry:first-of-type{border-top:none}
-  .ledger-entry .claim-text{font-size:1.05rem}
+  .ledger-entry .claim-text{font-size:16px}
   .ledger-outcome{
     background:var(--sign-soft); border-radius:10px; padding:10px 14px; margin-top:10px;
   }
@@ -757,7 +773,7 @@
   /* the room speaks on neutral gray, marked with a baby-blue
      sign edge: visibly not ordinary talk, without a tint wash */
   .room-line{
-    font-family:var(--sans); font-size:1.08rem; line-height:1.55;
+    font-family:var(--sans); font-size:16px; line-height:1.5;
     background:var(--room-bg); border:1px solid var(--room-line);
     border-left:4px solid var(--sign);
     border-radius:12px; padding:12px 16px; margin:10px 0;
@@ -824,7 +840,7 @@
   .msg .bubble{
     background:var(--bubble-in); border:1px solid var(--card-line); border-radius:20px;
     padding:10px 14px; max-width:78%; white-space:pre-wrap;
-    font-size:17px; line-height:1.5;
+    font-size:16px; line-height:1.5;
     box-shadow:var(--shadow-bubble);
   }
   /* v1.21: the serif is out of the UI entirely — every voice is
@@ -868,12 +884,13 @@
     border-top-left-radius:21px; border-top-right-radius:21px;
   }
   /* display moments (v1.29): the welcome headline and the
-     room's own lines speak with the chest out — 21px, weight
-     700, tight leading. Ordinary bubbles keep the 17px body */
-  .display-line{font-size:21px; line-height:1.3; font-weight:700; letter-spacing:-.02em}
+     room's own lines speak with the chest out — 20px since
+     v1.37 (21px before), weight 700, tight leading.
+     Ordinary bubbles keep the 16px body */
+  .display-line{font-size:20px; line-height:1.3; font-weight:700; letter-spacing:-.02em}
   /* a journal prompt, quoted in the talk: sans, set apart by
      weight and the room's gray */
-  .jprompt{font-family:var(--sans); font-size:1.08rem; font-weight:500}
+  .jprompt{font-family:var(--sans); font-size:16px; font-weight:400}
   .msg .bubble .chiprow{margin-top:8px}
   .msg .bubble p{margin:0}
   /* the clearance under the last message — history: v1.26–
@@ -1048,7 +1065,7 @@
   .jitem{border-top:1px solid var(--card-line); padding:12px 0}
   .jitem:first-of-type{border-top:none}
   .jtag{font-size:.8125rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0 0 4px; font-family:var(--sans)}
-  .jwords{white-space:pre-wrap; font-size:1.06rem; line-height:1.53; margin:4px 0}
+  .jwords{white-space:pre-wrap; font-size:16px; line-height:1.5; margin:4px 0}
   .jblock{margin-top:14px}
   .jhidden{opacity:.55}
   .msg .bubble.wide{max-width:88%}
@@ -1079,18 +1096,76 @@
   .msg.them .bubble.room{border-radius:22px; max-width:88%; box-shadow:none; padding:16px; padding-top:0}
   .msg.them .bubble.wide.room{max-width:88%}
   /* the ONE TYPE SYSTEM inside companion boxes/cards
-     (v1.35): body is the base bubble's 17px / 400; a card's
-     lead line may take 600 (the templates' own strong
-     lines); secondary and quoted text is exactly one step
-     down — 15px in the muted ink; the small caps sign
-     stays 13px / 600 in sign-deep. The 21px / 700 display
+     (v1.35): body is the base bubble's 16px / 400 since
+     v1.37 (17px before); a card's lead line may take 600
+     (the templates' own strong lines); secondary and
+     quoted text is exactly one step down — 14px in the
+     muted ink (15px before v1.37); the small caps sign
+     stays 13px / 600 in sign-deep. The 20px / 700 display
      treatment is RESERVED for the welcome headline and the
      room's own lines — no other card borrows it. */
-  .msg .bubble .small{font-size:15px}
+  .msg .bubble .small{font-size:14px}
   .msg .bubble .hub-label{font-weight:600}
-  .msg .bubble .jprompt{font-size:17px; font-weight:400}
+  .msg .bubble .jprompt{font-size:16px; font-weight:400}
   .cardblock{border-top:1px solid var(--card-line); padding-top:10px; margin-top:10px}
   .cardblock:first-child{border-top:none; padding-top:0; margin-top:0}
+
+  /* ---- v1.38: the large-screen room + the quiet scrollbar ----
+     The founder's desktop screenshot ("This looks
+     baaaaddd!") showed three widths on one screen: the band
+     spanning the viewport, the talk in a narrower column,
+     and the composer on its own width. At 640px and up the
+     frame becomes ONE contained column — a phone standing
+     on a desk: band, scroll area and (inside it) the docked
+     composer all take the same 480px, full height, with
+     hairline sides and a soft side shadow. Outside it, the
+     body's photograph calms into a backdrop under the
+     heavier --room-outer-grad wash; inside it, .wrap carries
+     the room's normal wash + photo, continuous with the
+     band. Below 640px nothing in this block applies.
+     At night on the wide screen, one extra indigo layer
+     (--room-night-soft) sits over the column's photograph
+     — a background treatment that dims and desaturates the
+     blossoms without touching a palette colour.
+     The thread's scrollbar is styled everywhere a bar can
+     show: thin, a surface-2 thumb, a transparent track. */
+  .thread{scrollbar-width:thin; scrollbar-color:var(--surface2) transparent}
+  .thread::-webkit-scrollbar{width:8px}
+  .thread::-webkit-scrollbar-track{background:transparent}
+  .thread::-webkit-scrollbar-thumb{background:var(--surface2); border-radius:999px}
+  @media (min-width:640px){
+    body{
+      align-items:center;
+      background-image:var(--room-outer-grad), var(--room-photo);
+    }
+    .top-band, .wrap{
+      width:100%; max-width:480px;
+      border-left:1px solid var(--card-line); border-right:1px solid var(--card-line);
+      box-shadow:-28px 0 44px -30px rgba(20,20,20,.38), 28px 0 44px -30px rgba(20,20,20,.38);
+    }
+    .top-band-in{max-width:480px}
+    .wrap{
+      background-image:var(--room-wash-grad), var(--room-photo);
+      background-position:center center, center center;
+      background-size:auto, cover;
+      background-repeat:no-repeat, no-repeat;
+      background-attachment:fixed, fixed;
+    }
+  }
+  @media (min-width:640px) and (prefers-color-scheme: dark){
+    .top-band{
+      background-image:var(--room-night-soft), var(--room-veil-grad), var(--room-photo);
+      background-size:auto, auto, cover;
+      background-repeat:no-repeat, no-repeat, no-repeat;
+      background-attachment:fixed, fixed, fixed;
+    }
+    .wrap{
+      background-image:var(--room-night-soft), var(--room-wash-grad), var(--room-photo);
+      background-size:auto, auto, cover;
+      background-repeat:no-repeat, no-repeat, no-repeat;
+      background-attachment:fixed, fixed, fixed;
+    }
+  }
 
   /* ---- motion: tokenised — dynamic in arrivals and touches,
      never in ambience (v1.29, the founder: "bolder and more
