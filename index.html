@@ -2065,6 +2065,9 @@ if(thread.createOfferDay == null) thread.createOfferDay = ""; /* last day the cr
 if(thread.wordlessDay == null) thread.wordlessDay = ""; /* last day the wordless (music) door was offered (v1.14) */
 if(!thread.lifeShown) thread.lifeShown = {}; /* life topics already surfaced, by word, resting (v1.14) */
 if(thread.lifeFactDay == null) thread.lifeFactDay = ""; /* last day a life-topic fact rode an exchange (v1.14) */
+if(thread.briefingDay == null) thread.briefingDay = ""; /* last day the initiation briefing was brought (v2.1) */
+if(thread.floorDay == null) thread.floorDay = ""; /* the day the floor's digest links were last handed out (v2.1) */
+if(!thread.floorUsed) thread.floorUsed = {}; /* digest links already spoken by the floor today (v2.1) */
 /* a person who already began — companion or not — reopens inside the
    conversation, never back at the arrival gate (v1.12) */
 if(!companion && view === "arrival" && (thread.messages.length || thread.talkStarted)) view = "home";
@@ -3329,7 +3332,7 @@ function understandingBaseSentence(m, name, words){
   if(name) return "I heard " + name + " in that — not as a claim, just as something you said.";
   return "I heard that as something you said, not as a claim.";
 }
-function postUnderstanding(text, ev, evIds){
+function postUnderstanding(text, ev, evIds, forceKind){
   if(!ev || !ev.id) return null;
   if(sessionProposedIds[ev.id]){
     for(var i = thread.messages.length - 1; i >= 0; i--){
@@ -3343,7 +3346,10 @@ function postUnderstanding(text, ev, evIds){
   var evs = ids.map(function(id){ return eventById(id); }).filter(Boolean);
   var combined = text || evs.map(function(e){ return e.pourText || ""; }).join(" ");
   var mentioned = piecesMentionedIn(combined);
-  var kind = inferUnderstandingKind(combined);
+  /* v2.1: the relay path knows the job before the matchers run —
+     a third-person narration or a standing grade IS commentary,
+     and the playback says so, held open for his revision */
+  var kind = forceKind || inferUnderstandingKind(combined);
   if(!mentioned.length && kind === "none") return null;
   var ti = eventTimeInfo(ev);
   var m = pushMsg({
@@ -3644,6 +3650,139 @@ function dayShapeFb(){
   line = line.charAt(0).toUpperCase() + line.slice(1);
   return {kind:"dayshape", line:line};
 }
+/* ================= the journey digest + the initiation briefing (v2.1) =================
+   The founder's verdict on the bare-ack morning (2026-10-26):
+   "I don't like this exchange. The app should do much more than
+   [this]. Initiation, feedback, giving me context about my
+   journey entry yesterday and today so far." So the companion
+   now INITIATES: the first substantive turn of a day leads with
+   the journey so far — yesterday in a line or two, today's shape
+   so far, the week's pattern — all of it computed from the
+   record, none of it invented. One module (journeyDigest) feeds
+   the briefing, the shrug turn, and the feedback floor, so the
+   three never disagree about what the record holds. A day with
+   nothing in it is said plainly ("quiet in the record"); a record
+   with no earlier day at all gets no briefing — first-ever days
+   keep the arrival law exactly as it was. */
+function digestDayFacts(key){
+  var d = journalDayData(key);
+  var seenP = {}, pieceNames = [];
+  d.pours.forEach(function(ev){
+    (ev.whoIds || []).forEach(function(id){
+      if(seenP[id]) return;
+      seenP[id] = 1;
+      var nm = pieceName(id);
+      if(nm) pieceNames.push(nm);
+    });
+  });
+  var stillOpen = d.claimsLog.filter(function(e){ return !isChecked(e); });
+  return {
+    key:key,
+    writings:d.writings.length, pours:d.pours.length, clips:(d.clips || []).length,
+    taste: d.writings.length ? d.writings[d.writings.length - 1].text
+         : (d.pours.length ? evWords(d.pours[d.pours.length - 1]) : ""),
+    pieceNames:pieceNames,
+    claimsOpened:d.claimsLog.length,
+    claimsSettled:d.claimsClosed.length + d.moves.length,
+    claimsStillOpen:stillOpen.length,
+    firstOpenClaim: stillOpen[0] || null,
+    songs: playlist.songs.filter(function(s){ return dayKeyOf(s.ts) === key; })
+  };
+}
+function journeyDigest(){
+  var now = Date.now(), tk = dayKeyOf(now);
+  var yd = new Date(); yd.setDate(yd.getDate() - 1);
+  var Y = digestDayFacts(dayKeyOf(yd.getTime())), T = digestDayFacts(tk);
+  var since = now - 7 * 86400000;
+  var weekPieces = {}, weekKinds = {}, settledWeek = 0;
+  atlas.events.forEach(function(ev){
+    if(ev.ts >= since) (ev.whoIds || []).forEach(function(id){ weekPieces[id] = (weekPieces[id] || 0) + 1; });
+  });
+  ledger.entries.forEach(function(e){
+    if(e.ts >= since && e.kind) weekKinds[e.kind] = (weekKinds[e.kind] || 0) + 1;
+    if(isChecked(e) && (e.tsOutcome || 0) >= since) settledWeek++;
+  });
+  var topPiece = null, topPieceN = 0, topKind = null, topKindN = 0;
+  Object.keys(weekPieces).forEach(function(id){
+    if(weekPieces[id] > topPieceN){ topPieceN = weekPieces[id]; topPiece = pieceName(id); }
+  });
+  Object.keys(weekKinds).forEach(function(k){
+    if(weekKinds[k] > topKindN){ topKindN = weekKinds[k]; topKind = k; }
+  });
+  /* a briefing needs a journey to report: some footprint from
+     before today — an earlier journal day or an earlier song */
+  var hasPrior = journalDayKeys().some(function(k){ return k < tk; })
+    || playlist.songs.some(function(s){ return dayKeyOf(s.ts) < tk; });
+  return {
+    yesterday:Y, today:T, hasPrior:hasPrior,
+    week:{ topPiece:topPiece, topPieceN:topPieceN, topKind:topKind, topKindN:topKindN,
+           settled:settledWeek, openNow:openClaims().length }
+  };
+}
+function digestDayLine(f, label){
+  var parts = [];
+  if(f.pours) parts.push(f.pours + (f.pours === 1 ? " pour" : " pours"));
+  if(f.writings) parts.push(f.writings + (f.writings === 1 ? " thing written" : " things written"));
+  if(f.clips) parts.push(f.clips + (f.clips === 1 ? " recording" : " recordings"));
+  if(f.claimsOpened) parts.push(f.claimsOpened + (f.claimsOpened === 1 ? " claim" : " claims") + " said");
+  if(f.claimsSettled) parts.push(f.claimsSettled + " settled");
+  if(f.claimsStillOpen) parts.push(f.claimsStillOpen + " still open");
+  if(f.pieceNames.length) parts.push(f.pieceNames.slice(0, 3).join(", ") + " around");
+  if(f.songs.length) parts.push("you added “" + f.songs[f.songs.length - 1].title + "”");
+  var line = label + ": " + (parts.length ? parts.join("; ") : "quiet in the record") + ".";
+  if(f.taste) line += " In your words: “" + shortWords(f.taste, 70) + "”";
+  return line;
+}
+function digestWeekLine(w){
+  var parts = [];
+  if(w.topPiece && w.topPieceN >= 2) parts.push(w.topPiece + " around " + w.topPieceN + " times");
+  if(w.topKind && w.topKindN >= 2)
+    parts.push((KIND_SHORT[w.topKind] || "claims") + " is the running kind — " + w.topKindN + " of them");
+  if(w.settled) parts.push(w.settled + (w.settled === 1 ? " claim" : " claims") + " settled");
+  if(w.openNow) parts.push(w.openNow + (w.openNow === 1 ? " claim" : " claims") + " still open");
+  if(!parts.length) return "";
+  return "This week: " + parts.slice(0, 3).join("; ") + ".";
+}
+function briefingText(){
+  var dg = journeyDigest();
+  if(!dg.hasPrior) return ""; /* first-ever days keep the arrival law, untouched */
+  var lines = [digestDayLine(dg.yesterday, "Yesterday")];
+  var T = dg.today;
+  if(T.writings || T.pours || T.claimsOpened || T.songs.length || T.clips)
+    lines.push(digestDayLine(T, "Today so far"));
+  var wl = digestWeekLine(dg.week);
+  if(wl) lines.push(wl);
+  /* at most one door, and only one that arises from the record */
+  var oc = dg.yesterday.firstOpenClaim || T.firstOpenClaim;
+  if(oc){
+    lines.push("The open one — “" + shortWords(oc.claim, 60) + "” — is still waiting. Look at it, or let it ride?");
+  } else if(playlist.songs.length){
+    var lastSongTs = 0;
+    playlist.songs.forEach(function(s){ if((s.ts || 0) > lastSongTs) lastSongTs = s.ts || 0; });
+    if(lastSongTs && Date.now() - lastSongTs >= 7 * 86400000)
+      lines.push("Your playlist’s been standing at " + playlist.songs.length
+        + (playlist.songs.length === 1 ? " song" : " songs") + " a while — want to build it a little today?");
+  }
+  return lines.join(" ");
+}
+/* the briefing fires once a day, by whichever door the day opens
+   with: the standing opener on a new day (ensureThread), the
+   welcome greeting (folded into it), or — when he simply starts
+   talking — ahead of the first substantive reply. In live mode
+   the digest rides into the model's packet instead of posting
+   as a template line, so the live voice can lead with it. */
+function maybePostBriefing(){
+  var tk = dayKeyOf(Date.now());
+  if(thread.briefingDay === tk) return false;
+  thread.briefingDay = tk;
+  var text = briefingText();
+  if(!text){ saveThread(); return false; }
+  if(liveOn()){ queueOrgNote("Journey context — " + text); saveThread(); return true; }
+  pushMsg({type:"companion", briefing:true, text:text});
+  saveThread();
+  return true;
+}
+
 /* firsts inside a detail filing (Add detail): a channel or register
    this piece has never come through, figured from cap BEFORE
    fileCapture applies the tallies. Plain in every vibe. */
@@ -3725,6 +3864,7 @@ function ensureThread(){
   }
   if(thread.lastDay < today){
     sessionOpenerId = pushMsg({type:"companion", text:greetingText()}).id;
+    maybePostBriefing(); /* v2.1: the day opens with the journey so far, not a bare hello */
     thread.lastDay = today;
     bootInterruptChecked = true;
     var didInt = maybePostInterruption();
@@ -4080,6 +4220,7 @@ function welcomeHTML(m){
   var h = '<div class="msg them"><div class="bubble room"><p class="hub-label">Welcome</p>'
     + '<p class="display-line" style="margin:4px 0">'+esc(m.text)+'</p>';
   if(m.roomLine) h += '<p class="display-line" style="margin:4px 0"><span class="muted small">From the room:</span> '+esc(m.roomLine)+'</p>';
+  if(m.briefLine) h += '<p style="margin:4px 0">'+esc(m.briefLine)+'</p>';
   if(m.playlistLine) h += '<p style="margin:4px 0">'+esc(m.playlistLine)+'</p>';
   if(!m.dismissed && m.plState === "seed"){
     h += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':seedstart">Start my playlist</button>'
@@ -4634,6 +4775,199 @@ function flushPendingPour(){
 }
 var sessionAckStreak = false; /* a bare ack already covers this stretch of talk */
 function pickAck(){ return ACK_LINES[thread.messages.length % ACK_LINES.length]; }
+var sessionLiveFloorText = ""; /* the substantive text a live-mode exchange is answering — the failure fallback's floor (v2.1) */
+
+/* ================= the substance floor (v2.1) =================
+   The founder's verdict (2026-10-26): "I don't like this
+   exchange. The app should do much more than [this]." The bare
+   acknowledgment — "Heard." / "I hear you." / "Got it." standing
+   alone as the whole answer to something substantive — is
+   retired. Every non-social message now earns a reply holding
+   at least one element anchored in the record: a playback, a
+   count, a recurrence, a precedent, a link to yesterday or the
+   week from the journey digest, or a genuine question about
+   THIS message's content. Short stays the law — substance in
+   one line, never an essay. */
+function floorLinesUsedToday(){
+  var tk = dayKeyOf(Date.now());
+  if(thread.floorDay !== tk){ thread.floorDay = tk; thread.floorUsed = {}; }
+  if(!thread.floorUsed) thread.floorUsed = {};
+  return thread.floorUsed;
+}
+function floorDigestLink(){
+  /* a yesterday/week link from the digest, each spoken at most
+     once a day — the floor reaches for it only when nothing
+     closer to this message computed */
+  var used = floorLinesUsedToday();
+  var dg = journeyDigest();
+  var cands = [];
+  if(dg.hasPrior) cands.push(digestDayLine(dg.yesterday, "Yesterday"));
+  var wl = digestWeekLine(dg.week);
+  if(wl) cands.push(wl);
+  for(var i = 0; i < cands.length; i++){
+    if(cands[i] && !used[cands[i]]){ used[cands[i]] = 1; saveThread(); return cands[i]; }
+  }
+  return "";
+}
+function floorQuestionWord(text){
+  var words = lifeWords(text || "");
+  var best = "";
+  words.forEach(function(w){ if(w.length > best.length) best = w; });
+  return best;
+}
+function substanceFloor(text){
+  /* (1) a word from THIS message that keeps coming up in his
+     own journal talk — counted by days, the record speaking */
+  var words = lifeWords(text || "");
+  var now = Date.now(), bestW = null;
+  words.forEach(function(w){
+    var days = lifeWordDays(w, now - 30 * 86400000);
+    if(days >= 2 && (!bestW || days > bestW.days)) bestW = {word:w, days:days};
+  });
+  if(bestW)
+    return {kind:"floorrec", line:"“" + bestW.word.charAt(0).toUpperCase() + bestW.word.slice(1)
+      + "” has come up on " + bestW.days + " days now, in your own words."};
+  /* (2) a link to yesterday or the week, from the digest */
+  var link = floorDigestLink();
+  if(link) return {kind:"floordigest", line:link};
+  /* (3) a genuine question about this content, in his words */
+  var qw = floorQuestionWord(text);
+  if(qw){
+    var qs = ["How did the " + qw + " go?", "What’s the story with the " + qw + " today?",
+              "Tell me a little more about the " + qw + "."];
+    return {kind:"floorq", line:qs[thread.messages.length % qs.length]};
+  }
+  return null;
+}
+function isBareAckText(t){
+  t = String(t || "").trim().replace(/[’‘]/g, "'");
+  if(ACK_LINES.indexOf(t) !== -1) return true;
+  return ["Alright. I'm here.", "Good — I'm here when the next thing comes.", "Mm. I'm here."].indexOf(t) !== -1;
+}
+function lastCompanionWasBare(){
+  for(var i = thread.messages.length - 1; i >= 0; i--){
+    var m = thread.messages[i];
+    if(m.type === "person") continue;
+    if(m.type === "companion") return isBareAckText(m.text);
+    return false; /* any other companion surface is substance, not an ack */
+  }
+  return false;
+}
+
+/* ================= relay catches (v2.1) =================
+   Two shapes of relayed op-talk used to fall through to the
+   life lane and draw a bare ack. (1) Third-person self-reference:
+   they talk ABOUT him — by his own name, or he/him — as if he
+   weren't in the room ("Georgio is dismantling our system").
+   That is the narration job, and it is named as such. (2) Short
+   lexicon fragments (four words or fewer): a glossary term
+   standing alone, or a grade-word from their vocabulary —
+   disappointment, discipline, shame, proud — which is the
+   grading job, named as a grade. Both file as events and earn
+   the commentary playback with its revision chips: the reading
+   is spoken plainly and stays his to correct, as always. */
+var GRADE_WORDS = ["disappointment","disappointed","disappointing","discipline","disciplined",
+  "shame","ashamed","shameful","proud","failure","failed","weak","pathetic",
+  "guilt","guilty","disgrace","embarrassed","embarrassing","worthless","useless","hopeless"];
+function gradeWordIn(text){
+  var t = " " + String(text || "").toLowerCase().replace(/[^a-z0-9'\s]/g, " ") + " ";
+  for(var i = 0; i < GRADE_WORDS.length; i++)
+    if(t.indexOf(" " + GRADE_WORDS[i] + " ") !== -1) return GRADE_WORDS[i];
+  return "";
+}
+function relayKind(text){
+  var low = " " + String(text || "").toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z0-9'\s]/g, " ") + " ";
+  var name = (addressOf() || "").toLowerCase().replace(/[^a-z0-9'\s]/g, "").trim();
+  if(name && name.length >= 3 && low.indexOf(" " + name + " ") !== -1){
+    var esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if(new RegExp("\\b" + esc + "\\b\\s*(?:is|was|has|had|keeps|will|won|can|could|does|did|said|says|thinks|needs|wants|should|would|'s)")
+        .test(low.replace(/\s+/g, " ")))
+      return "thirdperson";
+    if(low.indexOf(" " + name + " ") === 1) return "thirdperson"; /* opens with his name — they are talking about him */
+  }
+  if(/\b(he|him)\b/.test(low)
+     && /\b(system|narrative|punish|punishment|obey|obedient|behave|behavior|behaviour)\b/.test(low))
+    return "thirdperson";
+  var words = low.trim().split(/\s+/).filter(Boolean);
+  if(words.length && words.length <= 4){
+    var joined = " " + words.join(" ") + " ";
+    for(var i = 0; i < atlas.glossary.length; i++){
+      var term = (atlas.glossary[i].term || "").toLowerCase().trim();
+      if(term && joined.indexOf(" " + term + " ") !== -1) return "lexicon";
+    }
+    if(gradeWordIn(text)) return "lexicon";
+  }
+  return "";
+}
+function noteRelayMessage(ev, rk){
+  sessionHold = true; /* received and held, like any voice material */
+  maybePostBriefing(); /* the day's first substantive turn still leads with the journey */
+  var text = ev.pourText || "";
+  var line;
+  if(rk === "thirdperson"){
+    line = "That’s them narrating you — talking about you in the third person, like you’re not in the room.";
+  } else {
+    var g = gradeWordIn(text);
+    line = g ? ("That’s a grade, in their words — " + g + ". Their commentary on the story, not the story itself.")
+             : "That’s their commentary standing alone — a line from the running grade, in their words.";
+  }
+  if(liveOn()){
+    queueOrgNote(line);
+    sessionAckStreak = false;
+    sessionLiveFloorText = text;
+    requestLiveReply();
+    liveChain = liveChain.then(function(){ postUnderstanding(text, ev, [ev.id], "commentary"); });
+    return;
+  }
+  sessionAckStreak = false;
+  pushMsg({type:"companion", noticed:true, fbKind:"relay", text:line});
+  postUnderstanding(text, ev, [ev.id], "commentary");
+}
+
+/* ================= the shrug report (v2.1) =================
+   "Business as usual" is not small talk and it is not nothing:
+   it is him reporting the ops' continuing activity in shrug
+   form. It files as its own journey entry and earns a real
+   turn — named as the datum it is, linked to yesterday's shape
+   or the week's pattern from the digest, or met with one
+   question when the record has no link to give. */
+var SHRUG_STRONG = ["business as usual","same as usual","at it again","still at it",
+  "back at it","they're at it","they are at it","the usual from them"];
+var SHRUG_SHORT = ["the usual","nothing new","same old"];
+function shrugReportIn(text){
+  var t = " " + String(text || "").toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z0-9'\s]/g, " ") + " ";
+  var i;
+  for(i = 0; i < SHRUG_STRONG.length; i++)
+    if(t.indexOf(" " + SHRUG_STRONG[i] + " ") !== -1) return true;
+  var words = t.trim().split(/\s+/).filter(Boolean);
+  if(words.length && words.length <= 5)
+    for(i = 0; i < SHRUG_SHORT.length; i++)
+      if(t.indexOf(" " + SHRUG_SHORT[i] + " ") !== -1) return true;
+  return false;
+}
+function noteShrugMessage(ev){
+  sessionHold = true;
+  maybePostBriefing();
+  var dg = journeyDigest();
+  var link = "";
+  if(dg.hasPrior) link = digestDayLine(dg.yesterday, "Yesterday");
+  if(!link || link.indexOf("quiet in the record") !== -1){
+    var wl = digestWeekLine(dg.week);
+    if(wl) link = wl;
+  }
+  var line = "Still at it, then — that goes on today’s page as an entry of its own.";
+  if(link && link.indexOf("quiet in the record") === -1) line += " " + link;
+  else line += " Anything about how today’s round is landing that you want down?";
+  if(liveOn()){
+    queueOrgNote(line);
+    sessionAckStreak = false;
+    sessionLiveFloorText = ev.pourText || "";
+    requestLiveReply();
+    return;
+  }
+  sessionAckStreak = false;
+  pushMsg({type:"companion", noticed:true, fbKind:"shrug", text:line});
+}
 
 /* ================= the life lane (v1.14) =================
    The founder: "The conversation is not just for recording the
@@ -4865,7 +5199,16 @@ function noteSocialMessage(kind, text){
   sessionAckStreak = false; /* a person answered — no ack bookkeeping rides on it */
   if(liveOn()){ requestLiveReply(); return; } /* the model converses; nothing piles on */
   if(kind === "greeting" && isFirstUserMsgToday()){ postWelcomeGreeting(text); return; }
-  pushMsg({type:"companion", social:true, text:socialReply(kind, text)});
+  var reply = socialReply(kind, text);
+  /* v2.1 streak limiter: two companion turns in a row may not
+     both be bare acknowledgments — if the last turn was one and
+     this answer is the ack form, the second turn adds an
+     anchored element or a real question */
+  if(kind === "ack" && isBareAckText(reply) && lastCompanionWasBare()){
+    var link = floorDigestLink();
+    reply += " " + (link || "What’s the next thing on your mind?");
+  }
+  pushMsg({type:"companion", social:true, text:reply});
 }
 /* ---- the welcome greeting (v1.16, founder addition) ----
    His words: "Hey should receive the welcome + playlist thing we
@@ -4923,9 +5266,18 @@ function postWelcomeGreeting(text){
   }
   nextRoomLine(); /* the shared rotation advances — the same state Help's room rung reads */
   var beat = welcomePlaylistBeat();
+  /* v2.1: the welcome also carries the journey so far — yesterday
+     and today in a line or two — folded into this one message,
+     never stacked as a second one. Once a day, like every path. */
+  var brief = "";
+  if(thread.briefingDay !== dayKeyOf(Date.now())){
+    brief = briefingText();
+    if(brief) thread.briefingDay = dayKeyOf(Date.now());
+  }
   pushMsg({type:"welcome", social:true, welcome:true,
     text: greetLead(text) + (addressOf() ? ", " + addressOf() : "") + ".",
     roomLine: roomLineText(),
+    briefLine: brief,
     playlistLine: beat ? beat.line : "",
     plState: beat ? beat.state : ""});
   saveThread();
@@ -4968,10 +5320,12 @@ function noteProtestMessage(text){
    more specific answer — then a listening mention's) */
 function noteLifeMessage(text){
   sessionHold = true; /* received and held — the same posture as a pour's aftermath */
+  maybePostBriefing(); /* v2.1: the day's first substantive turn leads with the journey */
   var lf = computeLifeFact(text);
   if(liveOn()){
     if(lf) queueOrgNote(lf.line);
     sessionAckStreak = false;
+    sessionLiveFloorText = text; /* if the model can't answer, the floor still holds (v2.1) */
     requestLiveReply();
     liveChain = liveChain.then(function(){ maybePostWordlessDoor(text); });
     liveChain = liveChain.then(function(){ maybePostMusicOffer(text); });
@@ -4981,9 +5335,22 @@ function noteLifeMessage(text){
   if(lf){
     pushMsg({type:"companion", noticed:true, fbKind:"lifetopic",
       text: sessionAckStreak ? lf.line : (pickAck() + " " + lf.line)});
-  } else if(!sessionAckStreak){
-    pushMsg({type:"companion", text:pickAck()});
-    bare = true;
+  } else {
+    /* v2.1 — template changed on the founder's verdict ("I don't
+       like this exchange. The app should do much more than
+       [this]"): where a bare ack used to stand alone, the
+       substance floor answers — a recurrence in his own words, a
+       digest link, or a genuine question about this content. A
+       bare ack remains only when the message carries no content
+       word at all and the record has nothing to link. */
+    var fl = substanceFloor(text);
+    if(fl){
+      pushMsg({type:"companion", noticed:true, fbKind:fl.kind,
+        text: sessionAckStreak ? fl.line : (pickAck() + " " + fl.line)});
+    } else if(!sessionAckStreak){
+      pushMsg({type:"companion", text:pickAck()});
+      bare = true;
+    }
   }
   sessionAckStreak = bare;
   if(!maybePostWordlessDoor(text)) maybePostMusicOffer(text);
@@ -4997,6 +5364,7 @@ function proposalWouldFire(text){
 function notePourMessage(ev){
   sessionHold = true; /* a pour's aftermath is HOLD posture */
   flushPendingPour(); /* a run left by an older version still lands its proposals */
+  maybePostBriefing(); /* v2.1: the day's first substantive turn leads with the journey */
   var text = ev.pourText || "";
   /* organize at the moment: figure what this message's moment holds */
   var fb = computeNoticed(ev, text);
@@ -5007,6 +5375,7 @@ function notePourMessage(ev){
        proposal — one conversation, the talk-back leading. */
     if(fb) queueOrgNote(fb.line);
     sessionAckStreak = false;
+    sessionLiveFloorText = text; /* if the model can't answer, the floor still holds (v2.1) */
     requestLiveReply();
     liveChain = liveChain.then(function(){ postImmediateProposal(ev, text); });
     /* the wordless door rides this exchange too (v1.14) — when the
@@ -5044,9 +5413,20 @@ function notePourMessage(ev){
       /* the floor rode in on this stretch's one reception, the way
          a bare ack would — a following quiet message adds nothing */
       if(!sessionAckStreak) bare = true;
-    } else if(!sessionAckStreak){
-      pushMsg({type:"companion", text:pickAck()});
-      bare = true;
+    } else {
+      /* v2.1 — template changed on the founder's verdict ("The
+         app should do much more than [this]"): the last-resort
+         bare ack is replaced by the substance floor — a digest
+         link or a genuine question about this content — whenever
+         the record or the message gives anything to stand on */
+      var fl2 = substanceFloor(text);
+      if(fl2){
+        pushMsg({type:"companion", noticed:true, fbKind:fl2.kind,
+          text: sessionAckStreak ? fl2.line : (pickAck() + " " + fl2.line)});
+      } else if(!sessionAckStreak){
+        pushMsg({type:"companion", text:pickAck()});
+        bare = true;
+      }
     }
   }
   sessionAckStreak = bare;
@@ -5384,9 +5764,16 @@ function requestLiveReply(){
       thread.messages = thread.messages.filter(function(x){ return x.id !== typing.id; });
       if(text){
         pushMsg({type:"companion", live:true, text:text});
+      } else if(sessionLiveFloorText){
+        /* v2.1: a failed live call answering something substantive
+           still meets the floor — never a bare ack alone */
+        var fl = substanceFloor(sessionLiveFloorText);
+        if(fl) pushMsg({type:"companion", noticed:true, fbKind:fl.kind, text:fl.line});
+        else pushMsg({type:"companion", text:ACK_LINES[thread.messages.length % ACK_LINES.length]});
       } else {
         pushMsg({type:"companion", text:ACK_LINES[thread.messages.length % ACK_LINES.length]});
       }
+      sessionLiveFloorText = "";
       render();
     }
     return Promise.resolve()
@@ -5520,6 +5907,30 @@ function sendThreadText(){
     return;
   }
   if(!voiceSignalIn(text)){
+    /* v2.1 relay catches: no voice signal by the old matchers,
+       but the shape gives it away — they are talking ABOUT him
+       in the third person, or a short lexicon fragment (a
+       glossary term, a grade-word) stands alone. Those are the
+       narration and grading jobs, and they file as voice
+       material with the commentary playback, not as life. */
+    var rk = relayKind(text);
+    if(rk){
+      var evR = filePourEvent(text);
+      pushMsg({type:"person", text:text, eventId:evR.id});
+      noteRelayMessage(evR, rk);
+      render();
+      return;
+    }
+    /* v2.1: the shrug report — "business as usual" is him
+       reporting the ops' continuing activity; it files as its
+       own journey entry and earns the digest-linked turn */
+    if(shrugReportIn(text)){
+      var evS = filePourEvent(text);
+      pushMsg({type:"person", text:text, eventId:evS.id});
+      noteShrugMessage(evS);
+      render();
+      return;
+    }
     /* the life lane (v1.14): ordinary talk — his day, feelings,
        thoughts, the interesting things — kept on the day's page
        in his own words and answered as conversation */
