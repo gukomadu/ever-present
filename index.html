@@ -212,7 +212,22 @@
      gray stays exactly #F0F0F0 by day and the night indigo
      bubble stays exactly #252E5E. Plum-band room cards are
      cards, not word-boxes, and keep their existing shadow
-     and geometry. */
+     and geometry.
+     v1.36 — THE FOUNDER'S BABY BLUE (2026-10-25): showing a
+     "Shop baby blue" cardstock swatch, he revised the blue
+     family only: "I'm looking for this color blue. It has
+     more live and energy and its brighter than the one I
+     currently have." This supersedes the v1.34 palette
+     freeze for blue alone; plum, crimson, grays, indigo
+     grounds and the photo room remain frozen. The fill is
+     tuned from his #79B5EE starting point to #79B0EE (hue
+     211.8°, ink on it 8.12:1; on the night paper 8.08:1).
+     Readable day text is #2F77C8 (4.57:1 on white); night
+     text is the family tint #A9CDF5 (11.11:1 on the paper,
+     9.79:1 on card, 8.31:1 on surface-2, 7.81:1 on the
+     bubbles). The soft washes keep their prior lightness
+     and shift hue with the family: #E0EEFE by day and
+     #0E2947 by night. */
   @font-face{font-family:"Inter"; src:url("fonts/inter-400.woff2") format("woff2"); font-weight:400; font-style:normal; font-display:swap}
   @font-face{font-family:"Inter"; src:url("fonts/inter-500.woff2") format("woff2"); font-weight:500; font-style:normal; font-display:swap}
   @font-face{font-family:"Inter"; src:url("fonts/inter-600.woff2") format("woff2"); font-weight:600; font-style:normal; font-display:swap}
@@ -254,14 +269,15 @@
     /* incoming bubbles: the gray he likes, kept */
     --bubble-in:#f0f0f0;
     --ink:#141414; --ink-soft:#595959; --muted:#6a6a6a;
-    /* SIGN HIGHLIGHTS = the blue family (founder's stated
-       preference; v1.27: "a brighter happier color" — the
-       family lifts to sky/azure). --sign is a FILL (badges,
-       selected chips, top lines) and always carries ink text
-       (8.60:1); --sign-deep is the same family as readable
-       TEXT on white (5.23:1) and carries white on filled
-       buttons (5.23:1) */
-    --sign:#38bdf8; --sign-deep:#0272ad; --sign-soft:#e0f2fe;
+    /* SIGN HIGHLIGHTS = the founder's baby-blue family
+       (v1.36: the cyan-leaning sky of v1.27 is superseded
+       by his swatch — a truer, livelier baby blue at hue
+       ~212). --sign is a FILL (badges, selected chips, top
+       lines) and always carries ink text (8.12:1);
+       --sign-deep is the same family as readable TEXT on
+       white (4.57:1); --sign-soft keeps the old wash's
+       lightness with the hue shifted into the family */
+    --sign:#79b0ee; --sign-deep:#2f77c8; --sign-soft:#e0eefe;
     /* outgoing: PLUM VIOLET (v1.24 — founder: "my message
        background to change from green to plum violet"). A warm
        reddish purple, not blue-violet, not lavender: white text
@@ -274,19 +290,19 @@
     --me:#63184f;
     --me-grad:linear-gradient(160deg, #932a73 0%, #63184f 100%);
     --me-ink:#ffffff;
-    /* THE COMPOSER GLOW (v1.24's home; v1.27's colour):
+    /* THE COMPOSER GLOW (v1.24's home; v1.36's colour):
        there is no send button (founder: "yours doesn't have
        a send button — remove it, and incorporate the color
        somewhere else"), so the blue lives in the composer:
        its focus light (border tint + soft glow) and the
-       Record button's pressed tint. Cornflower #6495ED is
-       SUPERSEDED by the founder's brighter-blue call —
-       --send now takes the same bright sky as the signs,
-       #38BDF8, in both schemes */
-    --send:#38bdf8;
-    /* primary actions: the family's readable azure — the
-       same value as --sign-deep, as before (white on it
-       5.23:1) */
+       Record button's pressed tint. Cornflower #6495ED and
+       the v1.27 bright sky are both SUPERSEDED by the
+       founder's baby-blue swatch — --send now takes the
+       same #79B0EE as the signs, in both schemes */
+    --send:#79b0ee;
+    /* primary actions retain the prior readable azure
+       #0272AD (white on it 5.23:1); v1.36 revises the
+       --sign/--send/--sign-deep/--sign-soft tokens only */
     --accent:#0272ad; --accent-soft:#e0f2fe; --on-accent:#ffffff;
     /* text links: the same readable azure */
     --link:#0272ad;
@@ -355,12 +371,15 @@
       --glyph:#f5f5f5;
       --hero:#060a24;
       --ink:#f5f5f5; --ink-soft:#aab3d8; --muted:#98a1c6;
-      /* signs in the dark (v1.27, the brighter family): the
-         fill stays the bright sky #38BDF8 and GLOWS on indigo
-         (8.55:1 on the paper); sign fills carry --on-sign
-         text; sign TEXT on indigo lightens further to
-         #7DD3FC (10.99:1 on the paper, 9.68:1 on card) */
-      --sign:#38bdf8; --sign-deep:#7dd3fc; --sign-soft:#0e2a47;
+      /* signs in the dark (v1.36, the founder's baby-blue
+         family): the fill is #79B0EE and GLOWS on indigo
+         (8.08:1 on the paper); sign fills carry --on-sign
+         text; sign TEXT on indigo takes the family tint
+         #A9CDF5 (11.11:1 on the paper, 9.79:1 on card,
+         8.31:1 on surface-2, 7.81:1 on the bubbles). The
+         soft wash keeps its prior lightness, hue-shifted
+         from #0E2A47 to #0E2947 */
+      --sign:#79b0ee; --sign-deep:#a9cdf5; --sign-soft:#0e2947;
       /* outgoing at night: a LUMINOUS plum against the indigo
          (v1.24 supersedes the deep green) — white text 5.73:1
          on the light stop, 8.58:1 on the deep stop.
@@ -369,9 +388,10 @@
       --me:#843a72;
       --me-grad:linear-gradient(160deg, #ac4795 0%, #843a72 100%);
       --me-ink:#ffffff;
-      /* cornflower keeps the same home at night — the
-         composer's focus light, Record's pressed tint */
-      --send:#38bdf8;
+      /* the founder's baby blue keeps the same home at
+         night — the composer's focus light, Record's
+         pressed tint */
+      --send:#79b0ee;
       --accent:#0b6fa4; --accent-soft:#0e2a47; --on-accent:#ffffff;
       --link:#7dd3fc;
       --sage:#6b74a3; --sage-soft:#252e5e; --sage-line:#323c74;
@@ -895,13 +915,13 @@
     padding:6px; box-shadow:var(--shadow-bar);
     transition:border-color var(--dur-press) var(--ease-std), box-shadow var(--dur-press) var(--ease-std);
   }
-  /* the focus light (v1.24's home; v1.27's colour): the
-     bright sky lives here — the send button's former home
-     (there is no send button; Enter sends). The border
-     tints sky with a soft sky glow outside it; a 1px
-     azure hairline sits INSIDE the glow, because the sky
-     alone measures 2.14:1 on white — the colour is the
-     founder's, the hairline is legibility */
+  /* the focus light (v1.24's home; v1.36's colour): the
+     founder's baby blue lives here — the send button's
+     former home (there is no send button; Enter sends).
+     The border tints baby blue with a soft glow outside
+     it; a 1px azure hairline sits INSIDE the glow, because
+     the baby blue alone measures 2.27:1 on white — the
+     colour is the founder's, the hairline is legibility */
   .composer-row:focus-within{
     border-color:var(--send);
     box-shadow:var(--shadow-bar), inset 0 0 0 1px var(--accent),
