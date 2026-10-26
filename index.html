@@ -202,7 +202,17 @@
      load; until the files land, the fallback stack renders
      and swaps in (font-display:swap). Sleekness comes from
      the letterforms and the tracking, NOT smaller type:
-     sizes and weight mappings are unchanged. */
+     sizes and weight mappings are unchanged.
+     v1.34 — SLEEK WORD-BOXES + PALETTE FREEZE (founder:
+     "I'm also talking about the gray highlight box that
+     house the words. It's sleek." — then, settling the
+     palette: "I like my colors."). The companion's word-
+     boxes become flat, wider and smoother-cornered; NO
+     colour changes anywhere in this pass. The companion
+     gray stays exactly #F0F0F0 by day and the night indigo
+     bubble stays exactly #252E5E. Plum-band room cards are
+     cards, not word-boxes, and keep their existing shadow
+     and geometry. */
   @font-face{font-family:"Inter"; src:url("fonts/inter-400.woff2") format("woff2"); font-weight:400; font-style:normal; font-display:swap}
   @font-face{font-family:"Inter"; src:url("fonts/inter-500.woff2") format("woff2"); font-weight:500; font-style:normal; font-display:swap}
   @font-face{font-family:"Inter"; src:url("fonts/inter-600.woff2") format("woff2"); font-weight:600; font-style:normal; font-display:swap}
@@ -782,9 +792,12 @@
      so a card still lands as an event in the talk */
   .thread .msg + .msg:has(> .bubble.wide), .thread .msg + .msg:has(> .bubble.room){margin-top:6px}
   /* incoming: the gray he likes (#F0F0F0) in the light scheme,
-     indigo-gray #252E5E on the indigo in the dark (v1.23);
-     one radius (20px) for every bubble —
-     the message markup carries no grouped-run class, so the spec's
+     indigo-gray #252E5E on the indigo in the dark (v1.23).
+     This is the base bubble geometry; v1.34's companion-only
+     word-box override (below, after .bubble.wide) widens and
+     smooths companion talk and removes its shadow, while the
+     palette freeze keeps both bubble colours exact. The
+     message markup carries no grouped-run class, so the spec's
      6px grouped corner is not applied rather than faked */
   .msg .bubble{
     background:var(--bubble-in); border:1px solid var(--card-line); border-radius:20px;
@@ -1013,6 +1026,17 @@
   .jblock{margin-top:14px}
   .jhidden{opacity:.55}
   .msg .bubble.wide{max-width:94%}
+  /* v1.34: the companion's WORD-BOXES are sleek slabs —
+     flat, wider, and smoother-cornered, like the reference
+     chat app's gray boxes. This geometry/flatness override
+     is companion-only: his plum bubbles keep their shadow,
+     and plum-band room cards keep theirs (next rule). No
+     colour changes: --bubble-in remains exactly #F0F0F0 by
+     day and #252E5E by night ("I like my colors"). */
+  .msg.them .bubble{border-radius:22px; max-width:88%; box-shadow:none}
+  .msg.them .bubble.wide{max-width:88%}
+  .msg.them .bubble.room{border-radius:20px; max-width:78%; box-shadow:var(--shadow-bubble)}
+  .msg.them .bubble.wide.room{max-width:94%}
   .cardblock{border-top:1px solid var(--card-line); padding-top:10px; margin-top:10px}
   .cardblock:first-child{border-top:none; padding-top:0; margin-top:0}
 
