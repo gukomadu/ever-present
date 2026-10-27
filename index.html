@@ -1384,7 +1384,9 @@ var K = {
   liveai:    "ever_present_v1_liveai",
   connections: "ever_present_v1_connections",
   playlist:  "ever_present_v1_playlist",
-  media:     "ever_present_v1_media"
+  media:     "ever_present_v1_media",
+  applock:   "ever_present_v1_applock", /* v2.7 (journal parity #14): device-only, like the live key — never exported, never imported */
+  prefs:     "ever_present_v1_prefs" /* v2.7 (journal parity #7): the person's own settings — today, the reminder hour */
 };
 function storeLoad(key, blank){
   try{
@@ -1400,11 +1402,13 @@ function atlasBlank(){ return {pieces:[], events:[], glossary:[]}; }
 function journalBlank(){ return {entries:[]}; }
 function ladderBlank(){ return {noteForHardDay:"", contacts:[], clinician:{name:"", phone:""}, roomIdx:-1}; }
 function ledgerBlank(){ return {entries:[]}; } /* ported shape */
-function djournalBlank(){ return {corrections:{}, hidden:{}, dayFig:{}, precedents:{}, knowledgeDays:{}}; }
+function djournalBlank(){ return {corrections:{}, hidden:{}, dayFig:{}, precedents:{}, knowledgeDays:{}, dayContext:{}}; }
 function liveaiBlank(){ return {provider:"anthropic", key:"", model:"claude-sonnet-4-5", on:false}; }
 function connectionsBlank(){ return {shown:{}, lastTs:0}; } /* connections already brought, by theme (v1.11.1) */
 function playlistBlank(){ return {songs:[], seed:"", seedRestUntil:0, growTs:0}; } /* the co-built playlist (v1.13): songs + the seed/growth doors' state */
 function mediaBlank(){ return {clips:[]}; } /* self-recordings (v1.17): metadata only — the clips themselves live in IndexedDB, never localStorage */
+function applockBlank(){ return {hash:"", salt:"", scheme:""}; } /* v2.7: only the scrambled form of the code is ever stored */
+function prefsBlank(){ return {reminderHour:-1}; } /* v2.7: -1 = no reminder (the default); 0–23 = the person's own hour */
 
 var companion = storeLoad(K.companion, companionBlank);
 var atlas     = storeLoad(K.atlas, atlasBlank);
@@ -1425,6 +1429,7 @@ if(!djournal.hidden) djournal.hidden = {};
 if(!djournal.dayFig) djournal.dayFig = {};
 if(!djournal.precedents) djournal.precedents = {};
 if(!djournal.knowledgeDays) djournal.knowledgeDays = {};
+if(!djournal.dayContext) djournal.dayContext = {}; /* v2.7 (#9): context he stated, held on the day — stated, never sensed */
 var liveai    = storeLoad(K.liveai, liveaiBlank);
 if(!liveai || typeof liveai !== "object") liveai = liveaiBlank();
 if(liveai.provider !== "openai") liveai.provider = "anthropic";
@@ -1444,6 +1449,13 @@ if(!playlist.growTs) playlist.growTs = 0;
 var media = storeLoad(K.media, mediaBlank);
 if(!media || typeof media !== "object") media = mediaBlank();
 if(!media.clips) media.clips = [];
+var applock = storeLoad(K.applock, applockBlank);
+if(!applock || typeof applock !== "object") applock = applockBlank();
+if(typeof applock.hash !== "string") applock.hash = "";
+if(typeof applock.salt !== "string") applock.salt = "";
+var prefs = storeLoad(K.prefs, prefsBlank);
+if(!prefs || typeof prefs !== "object") prefs = prefsBlank();
+if(typeof prefs.reminderHour !== "number") prefs.reminderHour = -1;
 
 function saveCompanion(){ storeSave(K.companion, companion); }
 function saveAtlas(){ storeSave(K.atlas, atlas); }
@@ -1455,6 +1467,8 @@ function saveLiveai(){ storeSave(K.liveai, liveai); }
 function saveConnections(){ storeSave(K.connections, connections); }
 function savePlaylist(){ storeSave(K.playlist, playlist); }
 function saveMedia(){ storeSave(K.media, media); }
+function saveApplock(){ storeSave(K.applock, applock); }
+function savePrefs(){ storeSave(K.prefs, prefs); }
 function mediaClipById(id){
   for(var i=0;i<media.clips.length;i++) if(media.clips[i].id === id) return media.clips[i];
   return null;
@@ -1714,7 +1728,8 @@ function render(){
   lastRenderedView = view;
   var h = "";
   if(toast){ h += '<div class="toast">'+esc(toast)+'</div>'; toast = ""; }
-  if(view === "arrival"){ v.className = "wrap"; v.innerHTML = h + viewArrival(); bindArrival(); }
+  if(view === "locked"){ v.className = "wrap"; v.innerHTML = h + viewLocked(); bindLocked(); }
+  else if(view === "arrival"){ v.className = "wrap"; v.innerHTML = h + viewArrival(); bindArrival(); }
   else if(view === "create"){ v.className = "wrap"; v.innerHTML = h + viewCreate(); bindCreate(); }
   else if(view === "help"){ v.className = "wrap"; v.innerHTML = headerHTML() + h + viewHelp(); bindHelp(); }
   else if(view === "ladder"){ v.className = "wrap"; v.innerHTML = headerHTML() + h + viewLadder(); bindLadder(); }
@@ -3561,6 +3576,36 @@ function maybePostMusicOffer(text){
   pushMsg({type:"musicoffer", title: p ? p.title : "", artist: p ? p.artist : "", dismissed:false});
   return true;
 }
+/* ---- the moment-born door (v2.7, journal parity #18 — ADAPT) ----
+   Other apps sell situation templates from a library (therapy
+   prep, a dream journal, a thought dump). EP's form is a door
+   shaped by the moment itself, born from what he just said: a
+   nightmare brings the dream pour; something ahead brings the
+   what-I-want-held writing. Conservative matchers, calm gates
+   like every door, each kind at most once a day, and never when
+   another door just opened on the same turn. */
+function momentDoorKind(text){
+  var t = " " + String(text || "").toLowerCase() + " ";
+  if(/\b(nightmare|bad dream|dreamt|dreamed)\b/.test(t)) return "dream";
+  if(/\b(appointment|therapy|counsell?or|doctor|dentist)\b/.test(t)
+     && /\b(today|tomorrow|tonight|later|before|at \d|this (morning|afternoon|evening))\b/.test(t)) return "appt";
+  return "";
+}
+function maybePostMomentDoor(text){
+  if(vibeOf() === "asked") return false;
+  if(knowledgeBlockedNow()) return false; /* HOLD wins, as with every door */
+  var kind = momentDoorKind(text);
+  if(!kind) return false;
+  if(!thread.momentDoors) thread.momentDoors = {};
+  var tk = dayKeyOf(Date.now());
+  if(thread.momentDoors[kind] === tk) return false;
+  var last = thread.messages[thread.messages.length - 1];
+  if(last && ["smalldoors","nextsteps","doors","momentdoor","musicoffer"].indexOf(last.type) !== -1) return false;
+  thread.momentDoors[kind] = tk;
+  pushMsg({type:"momentdoor", kind:kind, dismissed:false});
+  saveThread();
+  return true;
+}
 
 function postDailySurface(){
   if(vibeOf() === "asked") return;
@@ -5121,6 +5166,10 @@ function ensureThread(){
   /* a pour run left hanging across a pause gets its proposals on this open */
   var run = thread.pendingPour;
   if(run && run.ids && run.ids.length && (Date.now() - run.lastTs) > POUR_PAUSE_MS) flushPendingPour();
+  /* v2.7: the owner's reminder (#7) and the evening close (#4)
+     ride the day's opens — each gated, each at most once a day */
+  maybePostReminder();
+  maybePostEveningClose();
   maybeOfferCreation();
 }
 /* ---- creation, offered later (v1.12) ----
@@ -5574,6 +5623,39 @@ function threadMsgHTML(m){
       + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div></div></div>';
   }
   if(m.type === "journalcard"){ return journalCardHTML(m); }
+  /* v2.7 (journal parity): the media together (#12), retrieval
+     results (#13), companion-held threads (#17), the evening
+     close (#4), and the moment-born doors (#18) */
+  if(m.type === "mediacard"){ return mediaCardHTML(m); }
+  if(m.type === "foundcard"){
+    if(m.dismissed) return "";
+    return foundCardHTML(m);
+  }
+  if(m.type === "threadscard"){
+    if(m.dismissed) return "";
+    return threadsCardHTML(m);
+  }
+  if(m.type === "eveningclose"){
+    if(m.dismissed) return "";
+    var ec = '<p>' + esc(m.text) + '</p><div class="chiprow">';
+    if(m.openClaimId)
+      ec += '<button type="button" class="chip" data-tchip="'+m.id+':evreceipts">Look at the one still open</button>';
+    ec += '<button type="button" class="chip" data-tchip="'+m.id+':evjournal">Open the journal</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div>';
+    return cardBubble("The evening close", ec);
+  }
+  if(m.type === "momentdoor"){
+    if(m.dismissed) return "";
+    if(m.kind === "dream")
+      return cardBubble("From the night",
+        '<p>A dream like that can be poured out like anything else — in your words, on today’s page. Only if you want it held.</p>'
+        + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':mdoorpour">Pour the dream</button>'
+        + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div>');
+    return cardBubble("Before you go",
+      '<p>Something’s ahead. If you want, set down what you want held for it — it stays on today’s page, in your words.</p>'
+      + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':mdoorhold">Set down what I want held</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div>');
+  }
   if(m.type === "playlistcard"){ return playlistCardHTML(m); }
   if(m.type === "circlescard"){ return circlesCardHTML(m); }
   if(m.type === "recordcard"){ return recordCardHTML(m); }
@@ -6133,6 +6215,7 @@ function filePourEvent(text){
   if(tinfo) applyToldTime(ev, tinfo, toldTs);
   atlas.events.push(ev);
   saveAtlas();
+  noteStatedContext(text); /* v2.7 (#9): a pour's stated scenery rides with its day too */
   return ev;
 }
 var sessionProposedIds = {}; /* an event's filing is proposed once per session, never twice */
@@ -6416,7 +6499,49 @@ function fileLifeEntry(text){
   var en = {id:uid(), ts:Date.now(), prompt:"", text:text, life:true};
   journal.entries.push(en);
   saveJournal();
+  noteStatedContext(text);
   return en;
+}
+/* ---- stated context (v2.7, journal parity #9 — ADAPT) ----
+   What the person mentions rides with the day: weather, place,
+   company — in their words, held on the day page. Stated, never
+   sensed: a small set of plain phrases matched against what he
+   actually said, kept verbatim as short labels. No auto-harvest
+   from other apps, no activity-tag taxonomy to maintain, and
+   nothing here is ever counted back at him — it is the day's
+   scenery, in his own words, exactly as the map specifies. */
+var STATED_CONTEXT = [
+  {re:/\brain(ing|ed|s|y)?\b/i, label:"rain"},
+  {re:/\bsnow(ing|ed|y)?\b/i, label:"snow"},
+  {re:/\bsunny\b/i, label:"sunny"},
+  {re:/\bstorm(ing|y|s)?\b/i, label:"storm"},
+  {re:/\b(cold|freezing) (out|day|morning|night)\b/i, label:"cold out"},
+  {re:/\bat work\b/i, label:"at work"},
+  {re:/\bat home\b/i, label:"at home"},
+  {re:/\bat school\b/i, label:"at school"},
+  {re:/\bat church\b/i, label:"at church"},
+  {re:/\bat the (store|gym|park|hospital|clinic|office|library)\b/i, cap:1},
+  {re:/\bwith (my )?(mom|mother|dad|father|sister|brother|family|friends|kids|son|daughter|wife|husband|partner)\b/i, cap:0}
+];
+function statedContextIn(text){
+  var t = " " + String(text || "").toLowerCase() + " ";
+  var out = [];
+  STATED_CONTEXT.forEach(function(sc){
+    var m = t.match(sc.re);
+    if(!m) return;
+    var label = sc.label || (sc.cap === 1 ? "at the " + m[1] : "with " + m[2]);
+    if(label && out.indexOf(label) === -1) out.push(label);
+  });
+  return out.slice(0, 3);
+}
+function noteStatedContext(text){
+  var labels = statedContextIn(text);
+  if(!labels.length) return;
+  var key = dayKeyOf(Date.now());
+  var cur = djournal.dayContext[key] || [];
+  labels.forEach(function(l){ if(cur.indexOf(l) === -1 && cur.length < 6) cur.push(l); });
+  djournal.dayContext[key] = cur;
+  saveDjournal();
 }
 /* ---- life topics: the ordinary things that keep coming up ----
    Content words from his own journal words (life talk and
@@ -7024,6 +7149,7 @@ function noteLifeMessage(text){
     requestLiveReply();
     liveChain = liveChain.then(function(){ maybePostWordlessDoor(text); });
     liveChain = liveChain.then(function(){ maybePostMusicOffer(text); });
+    liveChain = liveChain.then(function(){ maybePostMomentDoor(text); }); /* v2.7 (#18) */
     return;
   }
   var bare = false;
@@ -7048,7 +7174,7 @@ function noteLifeMessage(text){
     }
   }
   sessionAckStreak = bare;
-  if(!maybePostWordlessDoor(text)) maybePostMusicOffer(text);
+  if(!maybePostWordlessDoor(text) && !maybePostMusicOffer(text)) maybePostMomentDoor(text); /* v2.7 (#18) */
 }
 /* would this message's filing be proposed? (the same matchers the
    proposal itself uses) — when it would, the proposal IS this
@@ -7078,6 +7204,7 @@ function notePourMessage(ev){
        playlist mention door (v1.13), after the playback */
     liveChain = liveChain.then(function(){ maybePostWordlessDoor(text); });
     liveChain = liveChain.then(function(){ maybePostMusicOffer(text); });
+    liveChain = liveChain.then(function(){ maybePostMomentDoor(text); }); /* v2.7 (#18) */
     return;
   }
   /* rule-based: ONE feedback rides this exchange, in this order —
@@ -7130,7 +7257,7 @@ function notePourMessage(ev){
      a song can hold what words can't; a listening mention earns
      its own door onto the playlist (v1.13). After the playback,
      never instead of it, and only one of them */
-  if(!maybePostWordlessDoor(text)) maybePostMusicOffer(text);
+  if(!maybePostWordlessDoor(text) && !maybePostMusicOffer(text)) maybePostMomentDoor(text); /* v2.7 (#18) */
 }
 /* ================= the live voice (optional, bring-your-own-key) =================
    The split is the design: THE CODE keeps the record — filing,
@@ -7430,6 +7557,11 @@ function liveHistoryNote(m){
   }
   if(m.type === "uchoice") return "";
   if(m.type === "journalcard") return br("You brought their journal card — the recent days, written from this talk");
+  if(m.type === "mediacard") return br("You brought their media together — every kept recording, photo, video and file, by day");
+  if(m.type === "foundcard") return br("You searched their record for “" + (m.topic || "") + "” at their asking and brought " + ((m.results || []).length) + " match(es)");
+  if(m.type === "threadscard") return br("You brought the threads you hold for them — pieces, topics, things still open");
+  if(m.type === "eveningclose") return br("You offered the evening close: " + (m.text || ""));
+  if(m.type === "momentdoor") return br("You offered a door shaped by the moment: " + (m.kind === "dream" ? "pour the dream" : "set down what they want held"));
   if(m.type === "mapcard") return br("You brought their map card — the pieces and how they see them");
   if(m.type === "piececard"){ var p = pieceById(m.pieceId); return br("You brought the card for " + (p ? p.name : "a piece")); }
   if(m.type === "receiptscard") return br("You brought the receipts card — the figured picture and the open claims");
@@ -7775,6 +7907,31 @@ function detectIntent(text){
   if(low.indexOf(" record me ") !== -1 || low.indexOf(" want to record ") !== -1
      || low.indexOf(" record myself ") !== -1)
     return {kind:"record"};
+  /* v2.7 (#13): retrieval by asking — "find when I wrote about X",
+     "search for X", "when did I say X". Checked before the broad
+     card intents, which would otherwise swallow the asking. */
+  var findM = String(text).match(/\b(?:find|search|look up)\s+(?:when\s+i\s+(?:wrote|said|poured|talked)\s+about|for|about|anything\s+about)\s+(.+)$/i)
+           || String(text).match(/\bwhen\s+did\s+i\s+(?:write|say|pour|talk)\s+about\s+(.+)$/i)
+           || String(text).match(/\bdid\s+i\s+(?:write|say)\s+anything\s+about\s+(.+)$/i);
+  if(findM){
+    var topic = findM[1].trim().replace(/[?.!\s]+$/, "");
+    if(topic && topic.length >= 2 && topic.toLowerCase() !== "it" && topic.toLowerCase() !== "that")
+      return {kind:"find", topic:topic};
+  }
+  /* v2.7 (#17): "my threads" — the separation the companion holds */
+  if(w("threads") || low.indexOf(" my threads ") !== -1 || low.indexOf(" what threads ") !== -1)
+    return {kind:"threads"};
+  /* v2.7 (#12): a named day — "show me Tuesday's journal" reaches
+     that day's page; the most recent such day, today included */
+  var DAY_NAMES = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  var dayHit = -1;
+  DAY_NAMES.forEach(function(nm, ix){ if(low.indexOf(" " + nm + " ") !== -1 || low.indexOf(" " + nm + "'s ") !== -1) dayHit = ix; });
+  if(dayHit !== -1 && (w("journal") || low.indexOf(" show me ") !== -1
+     || low.indexOf(" open ") !== -1 || low.indexOf(" bring ") !== -1)){
+    var dd = new Date();
+    while(dd.getDay() !== dayHit) dd.setDate(dd.getDate() - 1);
+    return {kind:"journalday", key:dayKeyOf(dd.getTime())};
+  }
   if(w("receipts") || w("claims") || low.indexOf(" track record ") !== -1
      || (pieceHit && (w("record") || w("claims") || w("receipts"))))
     return {kind:"receipts"};
@@ -7799,6 +7956,9 @@ function detectIntent(text){
 }
 function routeIntent(it){
   if(it.kind === "journal") postJournalCard("week");
+  else if(it.kind === "journalday") postJournalCard("day", it.key);
+  else if(it.kind === "find") postFoundCard(it.topic);
+  else if(it.kind === "threads") postThreadsCard();
   else if(it.kind === "map") postMapCard(0);
   else if(it.kind === "piece") postPieceCard(it.pieceId);
   else if(it.kind === "receipts") postReceiptsCard();
@@ -8165,6 +8325,49 @@ function bindThread(){
         pushMsg({type:"companion", text:"Your record is on its way to you — from this phone, and nowhere else."});
         render();
       }
+      /* ---- v2.7 chips: the readable exports (#15), the lock
+         (#14), the owner's reminder (#7), one named day (#12),
+         the media together (#12), the evening close's doors
+         (#4), the moment-born doors (#18), a thread topic (#17) ---- */
+      else if(act === "exporttxt" || act === "exportmd"){
+        exportReadable(act === "exportmd" ? "md" : "txt");
+        pushMsg({type:"companion", text:"Your record, in plain words — yours to keep anywhere, and to read without me."});
+        render();
+      }
+      else if(act === "lockset" || act === "lockchange"){
+        askText("lockpinnew", {}, lockIsSet()
+          ? "Say the new code — at least 4 characters. It lives only on this phone, scrambled; the code itself is never written down."
+          : "Say a code for this phone — at least 4 characters. It lives only on this phone, scrambled, and never in any export. And the plain deal: if it’s forgotten, the record stays locked.");
+        render();
+      }
+      else if(act === "lockoff"){
+        askText("lockoffpin", {}, "Say the current code, and I’ll turn the lock off.");
+        render();
+      }
+      else if(act === "remindset"){
+        askText("remindtime", {}, "Say the hour — like 7, or 7:30, or 19:00. It’s yours: set in a calm moment, and changed or cleared the same way.");
+        render();
+      }
+      else if(act === "remindoff"){
+        prefs.reminderHour = -1; savePrefs();
+        pushMsg({type:"companion", text:"The reminder is cleared. Nothing will name an hour at you — I’m here when you come."});
+        render();
+      }
+      else if(act === "jday"){ postJournalCard("day", parts[2]); render(); }
+      else if(act === "mediacard"){ postMediaCard(); render(); }
+      else if(act === "evreceipts"){ postReceiptsCard(); render(); }
+      else if(act === "evjournal"){ postJournalCard("week"); render(); }
+      else if(act === "mdoorpour" && m){
+        m.dismissed = true; saveThread();
+        startThreadWrite("The dream, in my words:");
+        render();
+      }
+      else if(act === "mdoorhold" && m){
+        m.dismissed = true; saveThread();
+        startThreadWrite("Before it — what I want held:");
+        render();
+      }
+      else if(act === "threadfind"){ postFoundCard(parts[2]); render(); }
       else if(act === "import"){
         pickImportFile();
       }
@@ -8946,6 +9149,20 @@ function journalPrompts(){
     var f = failed[failed.length - 1];
     pers.push((f.who ? f.who : "A voice") + " claimed \u201c" + f.claim + "\u201d \u2014 and it didn\u2019t happen. What does their record look like now?");
   }
+  /* v2.7 (#1): two more doors born from the record itself — a
+     piece on the map that nothing has been poured about yet
+     (unpoured atlas material), and yesterday's own writing, whose
+     thread may still be open. With these, the write choices lead
+     from the record whenever the record holds anything at all;
+     the curated rotation below remains only for an empty record,
+     where nothing can be born from it yet. */
+  var pouredIds = {};
+  atlas.events.forEach(function(ev){ (ev.whoIds || []).forEach(function(id){ pouredIds[id] = 1; }); });
+  var unpoured = atlas.pieces.filter(function(p){ return !pouredIds[p.id]; })[0];
+  if(unpoured) pers.push(unpoured.name + " is on your map, but nothing has been poured about them yet — only if you want.");
+  var yd = new Date(); yd.setDate(yd.getDate() - 1);
+  var yFacts = digestDayFacts(dayKeyOf(yd.getTime()));
+  if(yFacts.taste) pers.push("Yesterday, in your words: \u201c" + shortWords(yFacts.taste, 80) + "\u201d — one more line on it, only if you want.");
   return pers.concat(prompts);
 }
 function dayKeyOf(ts){
@@ -8972,7 +9189,8 @@ function journalToldKeyForEvent(ev){ return dayKeyOf(ev.toldTs || ev.ts); }
 function journalToldKeyForClaim(e){ return dayKeyOf(e.toldTs || e.ts); }
 function journalDayData(key){
   var d = {key:key, pours:[], writings:[], claimsLog:[], claimsClosed:[], moves:[],
-           fig:null, prec:[], know:null, corrections:[], hiddenItems:[], verbatim:[], clips:[]};
+           fig:null, prec:[], know:null, corrections:[], hiddenItems:[], verbatim:[], clips:[],
+           context:(djournal.dayContext[key] || []).slice()}; /* v2.7 (#9) */
   atlas.events.forEach(function(ev){
     if(journalToldKeyForEvent(ev) !== key) return;
     if(djournal.hidden[ev.id]){ d.hiddenItems.push({id:ev.id, text:evWords(ev)}); return; }
@@ -9012,7 +9230,7 @@ function journalDayData(key){
 function journalHasContent(d){
   return !!(d.pours.length || d.writings.length || d.claimsLog.length || d.claimsClosed.length
     || d.moves.length || d.fig || d.prec.length || d.know || d.corrections.length || d.hiddenItems.length
-    || (d.clips && d.clips.length));
+    || (d.clips && d.clips.length) || (d.context && d.context.length));
 }
 function journalDayKeys(){
   var seen = {};
@@ -9083,6 +9301,21 @@ function journalCardHTML(m){
   var keys = journalDayKeys();
   var wk = startOfWeekKey();
   var show = [], olderKey = "";
+  if(m.scope === "day"){
+    /* v2.7 (#12): one named day, reached by asking — the calendar
+       capability in conversation form, never a tab to browse */
+    var dk2 = m.beforeKey || "";
+    var dayBody = "";
+    if(dk2 && keys.indexOf(dk2) !== -1){
+      dayBody = journalCardDayHTML(m, dk2);
+    } else {
+      dayBody = '<p style="margin:4px 0">Nothing on that day’s page — the journal writes itself from the talk, and that day is quiet.</p>';
+    }
+    dayBody += '<div class="chiprow">'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':journal">The whole journal</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':mediacard">See the media together</button></div>';
+    return cardBubble("Journal — " + (dk2 ? dayLabel(dk2) : "one day"), dayBody);
+  }
   if(m.scope === "earlier"){
     var before = m.beforeKey || wk;
     show = keys.filter(function(k){ return k < before; }).slice(0, 7);
@@ -9098,10 +9331,142 @@ function journalCardHTML(m){
   if(!show.length)
     body = '<p style="margin:4px 0">Nothing there yet — the journal writes itself from our talk, day by day, your words first.</p>';
   show.forEach(function(k){ body += journalCardDayHTML(m, k); });
+  var nav = "";
   if(olderKey)
-    body += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':jearlier:'+olderKey+'">Earlier days</button></div>';
+    nav += '<button type="button" class="chip" data-tchip="'+m.id+':jearlier:'+olderKey+'">Earlier days</button>';
+  /* v2.7 (#12): the media, seen together — one tap from any journal card */
+  nav += '<button type="button" class="chip" data-tchip="'+m.id+':mediacard">See the media together</button>';
+  body += '<div class="chiprow">' + nav + '</div>';
   return cardBubble("Journal", body);
 }
+/* ---- the media, together (v2.7, journal parity #12 — ADAPT) ----
+   Every recording, photo, video and file he has kept, grouped by
+   its day — the gallery capability in card form. The clips render
+   through the same day-page renderer, so taking one off works
+   here exactly as it does on its day. */
+function postMediaCard(){
+  pushMsg({type:"mediacard"});
+}
+function mediaCardHTML(m){
+  if(!media.clips.length)
+    return cardBubble("Your media, together",
+      '<p style="margin:4px 0">Nothing kept yet — recordings, photos, videos and files you keep will gather here, day by day.</p>');
+  var byDay = {};
+  media.clips.forEach(function(c){
+    var k = dayKeyOf(c.ts);
+    (byDay[k] = byDay[k] || []).push(c);
+  });
+  var keys = Object.keys(byDay).sort().reverse();
+  var body = "", shown = 0;
+  keys.forEach(function(k){
+    if(shown >= 12) return;
+    body += '<div class="cardblock"><p style="margin:2px 0"><strong>' + esc(dayLabel(k)) + '</strong></p>';
+    byDay[k].sort(function(a, b){ return a.ts - b.ts; }).forEach(function(c){
+      if(shown >= 12) return;
+      body += mediaClipHTML(m, c);
+      shown++;
+    });
+    body += '</div>';
+  });
+  var more = media.clips.length - shown;
+  if(more > 0)
+    body += '<p class="small muted" style="margin:4px 0">…and ' + more + ' more, on their days in the journal.</p>';
+  return cardBubble("Your media, together", body);
+}
+/* ---- retrieval by asking (v2.7, journal parity #13 — ADAPT) ----
+   "Find when I wrote about X" — the companion searches the record
+   and brings what it finds into the thread. This is retrieval at
+   his asking, over his own words, in the open — the opposite of
+   the refused pattern (#19): nothing reads the journal in the
+   background, and hidden or disowned words stay out of the
+   results, as they do everywhere. Organizing is the app's job;
+   tag-maintenance is never his. */
+function searchRecord(topic){
+  var t = String(topic || "").toLowerCase().trim();
+  if(!t) return [];
+  var words = t.split(/\s+/).filter(function(w){ return w.length >= 3 && !CLAIM_STOPWORDS[w] && !LIFE_STOP[w]; });
+  function hit(text){
+    var lt = " " + String(text || "").toLowerCase() + " ";
+    if(lt.indexOf(" " + t) !== -1 || String(text || "").toLowerCase().indexOf(t) !== -1) return true;
+    return words.length > 0 && words.every(function(w){ return lt.indexOf(w) !== -1; });
+  }
+  var out = [];
+  journal.entries.forEach(function(en){
+    if(djournal.hidden[en.id] || isDisownedJournal(en.id) || isDisownedText(en.text)) return;
+    if(hit(en.text)) out.push({dayKey:dayKeyOf(en.ts), ts:en.ts, kind:"You wrote", text:en.text});
+  });
+  atlas.events.forEach(function(ev){
+    var w = evWords(ev);
+    if(!w || djournal.hidden[ev.id] || isDisownedEvent(ev.id) || isDisownedText(w)) return;
+    if(hit(w)) out.push({dayKey:journalToldKeyForEvent(ev), ts:ev.toldTs || ev.ts, kind:"You poured", text:w});
+  });
+  ledger.entries.forEach(function(e){
+    var joined = [e.claim, e.move || "", e.outcome || ""].join(" ");
+    if(isDisownedText(joined)) return;
+    if(hit(joined)) out.push({dayKey:journalToldKeyForClaim(e), ts:e.toldTs || e.ts, kind:"They said", text:e.claim});
+  });
+  out.sort(function(a, b){ return b.ts - a.ts; });
+  return out.slice(0, 6);
+}
+function postFoundCard(topic){
+  var found = searchRecord(topic);
+  if(!found.length){
+    pushMsg({type:"companion",
+      text:"I looked — nothing in your record mentions “" + topic + "”. It stays yours to add, whenever."});
+    return;
+  }
+  pushMsg({type:"foundcard", topic:topic, results:found, dismissed:false});
+}
+function foundCardHTML(m){
+  var body = "";
+  (m.results || []).forEach(function(r){
+    body += '<p class="small muted" style="margin:4px 0 0">' + esc(r.kind) + ' · ' + esc(dayLabel(r.dayKey)) + '</p>'
+      + '<p style="margin:2px 0">' + esc(shortWords(r.text, 140)) + '</p>';
+  });
+  var days = [];
+  (m.results || []).forEach(function(r){ if(days.indexOf(r.dayKey) === -1) days.push(r.dayKey); });
+  body += '<div class="chiprow">'
+    + days.slice(0, 3).map(function(k){
+        return '<button type="button" class="chip" data-tchip="'+m.id+':jday:'+k+'">Open ' + esc(dayLabel(k)) + '</button>';
+      }).join("")
+    + '<button type="button" class="chip" data-tchip="'+m.id+':dismiss">Not now</button></div>';
+  return cardBubble("In your record — “" + esc(m.topic) + "”", body);
+}
+/* ---- companion-held threads (v2.7, journal parity #17 — ADAPT) ----
+   The separation other apps make him maintain as notebooks, EP
+   holds for him: the map's pieces, the topics his own words keep
+   returning to, the things still open. Ask, and the threads come
+   as a card — each one a door (a piece opens; a topic is found;
+   the open things open the receipts), never a folder system. */
+function postThreadsCard(){
+  pushMsg({type:"threadscard", dismissed:false});
+}
+function threadsCardHTML(m){
+  var body = "";
+  if(atlas.pieces.length){
+    body += '<p class="hub-label">On the map</p><div class="chiprow">'
+      + atlas.pieces.slice(0, 8).map(function(p){
+          return '<button type="button" class="chip" data-tchip="'+m.id+':piece:'+p.id+'">' + esc(p.name) + '</button>';
+        }).join("") + '</div>';
+  }
+  var topics = lifeTopicCounts();
+  if(topics.length){
+    body += '<p class="hub-label">In your words, lately</p><div class="chiprow">'
+      + topics.map(function(t){
+          return '<button type="button" class="chip" data-tchip="'+m.id+':threadfind:'+esc(t.word)+'">' + esc(t.word) + '</button>';
+        }).join("") + '</div>';
+  }
+  var open = openClaims();
+  if(open.length){
+    body += '<p style="margin:4px 0">' + open.length + (open.length === 1 ? " thing they said is" : " things they said are")
+      + ' still open.</p><div class="chiprow">'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':seereceipts">Check the receipts</button></div>';
+  }
+  if(!body)
+    body = '<p style="margin:4px 0">No threads yet — they gather as we talk: pieces on the map, topics in your words, things still open.</p>';
+  return cardBubble("Your threads, held for you", body);
+}
+
 /* one recording on the day's page (v1.17): its label above it, the
    player under it — the element renders with no src and is pointed
    at its IndexedDB blob once the thread binds (hydrateMediaElements),
@@ -9164,6 +9529,9 @@ function journalCardDayHTML(m, key){
       + (atlas.pieces.length ? " The map holds " + atlas.pieces.length
         + (atlas.pieces.length === 1 ? " piece." : " pieces.") : "") + '</p>';
   }
+  /* v2.7 (#9): the day's stated scenery, in his words — held, never sensed */
+  if(d.context && d.context.length)
+    h += '<p class="small muted" style="margin:2px 0">Context you mentioned: ' + esc(d.context.join(" · ")) + '</p>';
   var items = 0;
   /* the day's moments in the order they were told — pours,
      writings, and his recordings in one timeline (v1.17). Text
@@ -9480,6 +9848,169 @@ function claimWhoHTML(m){
 }
 
 /* ---- the settings card: reshape, ladder, export, erase — all in-thread ---- */
+/* ================= v2.7 — THE JOURNAL PARITY PASS =================
+   The founder's journal audit (2026-10-27, journal-parity-map.md):
+   what the top journal apps already proved, landed in EP's shapes.
+   The two plain adopts — an app lock (#14) and a readable export
+   (#15, at exportReadable) — and the adaptations: record-born
+   doors (#1), the evening close (#4), the owner's reminder (#7),
+   stated context (#9, at noteStatedContext), reach by asking
+   (#12/#13/#17), and the moment-born door (#18). The five refusals
+   stay refused: nothing here streaks, scores, counts him back at
+   himself, reads his journal in the background, or affirms from a
+   library. */
+
+/* ---- #14 (ADOPT): the app lock ----
+   A code for this phone, his choice, set and cleared in calm
+   times. Only a scrambled form is stored (a salted, iterated
+   FNV-1a mix — a local gate, not a credential), on-device only:
+   the lock store is excluded from export and import exactly like
+   the live key, so no file can carry it or set it. Forgotten is
+   final, and the settings copy says so plainly before he sets
+   one: there is no account and no recovery — the record stays
+   locked. The gate is per session: unlock once, and the session
+   is open; a fresh session asks again. Help is never locked
+   away from a person who hasn't opened the record — the lock
+   guards the record, and the locked screen itself says how to
+   reach people. */
+function pinHash(pin, salt){
+  var s = salt + "" + pin, h1 = 0x811c9dc5, h2 = 0x9e3779b1;
+  for(var r = 0; r < 10000; r++){
+    for(var i = 0; i < s.length; i++){
+      h1 ^= s.charCodeAt(i); h1 = Math.imul(h1, 0x01000193);
+      h2 = Math.imul(h2, 31) + s.charCodeAt(s.length - 1 - i);
+    }
+    h1 = Math.imul(h1 ^ (h2 >>> 8), 0x01000193);
+    h2 = Math.imul(h2 ^ (h1 >>> 16), 31);
+  }
+  return ("0000000" + (h1 >>> 0).toString(16)).slice(-8) + ("0000000" + (h2 >>> 0).toString(16)).slice(-8);
+}
+function lockIsSet(){ return !!(applock && applock.hash); }
+function lockSessionOpen(){
+  try{ return !!sessionStorage.getItem("ep_unlocked"); }catch(e){ return false; }
+}
+function lockEngaged(){ return lockIsSet() && !lockSessionOpen(); }
+function verifyPin(pin){
+  if(!lockIsSet() || !pin) return false;
+  return pinHash(pin, applock.salt) === applock.hash;
+}
+var lockError = "";
+function viewLocked(){
+  var h = '<div class="card" style="margin-top:26px">';
+  h += '<h2>Ever Present</h2>';
+  h += '<p class="lede">This record is locked. The code is yours — set on this phone, kept on this phone.</p>';
+  if(lockError) h += '<p class="small" style="margin:4px 0">' + esc(lockError) + '</p>';
+  h += '<p class="field-label">Your code</p>';
+  h += '<input type="password" class="txt" id="lockPin" placeholder="Your code" autocomplete="off" aria-label="Your code">';
+  h += '<div class="btnrow"><button class="btn" id="lockGo" type="button">Open it</button></div>';
+  h += '<p class="muted small">If the code is forgotten, the record stays locked — there is no account and no way back in from outside. That is the deal the lock makes. If you need a person right now, your own phone’s calls and messages are never locked.</p>';
+  h += '</div>';
+  return h;
+}
+function bindLocked(){
+  function tryOpen(){
+    var inp = el("lockPin");
+    var val = inp ? inp.value : "";
+    if(verifyPin(val)){
+      try{ sessionStorage.setItem("ep_unlocked", "1"); }catch(e){}
+      lockError = "";
+      view = companion ? "home" : "arrival";
+      render(); scrollViewTop();
+    } else {
+      lockError = "That’s not the code. Nothing is erased, and nothing is counted — try again whenever you’re ready.";
+      render();
+    }
+  }
+  var go = el("lockGo");
+  if(go) go.addEventListener("click", tryOpen);
+  var inp2 = el("lockPin");
+  if(inp2) inp2.addEventListener("keydown", function(ev){ if(ev.key === "Enter") tryOpen(); });
+}
+function lockSettingsHTML(m){
+  var h = '<hr class="divider"><p style="margin:4px 0"><strong>App lock</strong></p>';
+  if(lockIsSet()){
+    h += '<p class="small" style="margin:4px 0">A code is set on this phone. Opening the app asks for it, once a session. Only a scrambled form is kept here — the code itself is never written down, never exported, and a record file can never set it.</p>'
+      + '<div class="chiprow">'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':lockchange">Change the code</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':lockoff">Turn the lock off</button></div>';
+  } else {
+    h += '<p class="small" style="margin:4px 0">No code is set. With one set, opening the app asks for it before your record shows. One thing to know first, plainly: if the code is forgotten, the record stays locked — there is no account and no recovery. That is the deal the lock makes.</p>'
+      + '<div class="chiprow">'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':lockset">Set a code</button></div>';
+  }
+  return h;
+}
+/* ---- #7 (ADAPT): the owner's reminder ----
+   A reminder may exist only as the person's own setting: chosen
+   by them in a calm time, content-free, cleared the same way —
+   never app-chosen, never escalating, never about a missed day,
+   and by default there is none. EP's initiation happens in
+   conversation, not by notification, so the reminder's form is
+   conversational: on a day when his hour has come and he hasn't
+   talked yet, one plain line rides the opening — the hour he set
+   for himself, nothing about content, nothing about yesterday. */
+function reminderSettingsHTML(m){
+  var h = '<hr class="divider"><p style="margin:4px 0"><strong>Your reminder</strong></p>';
+  if(prefs.reminderHour >= 0){
+    var hh = prefs.reminderHour;
+    var label = ((hh + 11) % 12 + 1) + (hh < 12 ? " AM" : " PM");
+    h += '<p class="small" style="margin:4px 0">Your hour is ' + label + '. On a day when it has come and we haven’t talked yet, I’ll name it once — the hour you set for yourself, nothing more. It never mentions a missed day.</p>'
+      + '<div class="chiprow">'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':remindset">Change the hour</button>'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':remindoff">Clear the reminder</button></div>';
+  } else {
+    h += '<p class="small" style="margin:4px 0">No reminder is set — that’s the default, and nothing will ever nag you here. If you set an hour, it is yours: set in a calm moment, changed or cleared the same way, and it never says anything about a missed day.</p>'
+      + '<div class="chiprow">'
+      + '<button type="button" class="chip" data-tchip="'+m.id+':remindset">Set my hour</button></div>';
+  }
+  return h;
+}
+function maybePostReminder(){
+  if(!companion && !thread.talkStarted) return false;
+  if(prefs.reminderHour < 0) return false;
+  var tk = dayKeyOf(Date.now());
+  if(thread.reminderDay === tk) return false;
+  if(new Date().getHours() < prefs.reminderHour) return false;
+  var talkedToday = thread.messages.some(function(mm){
+    return mm.type === "person" && dayKeyOf(mm.ts) === tk;
+  });
+  if(talkedToday) return false;
+  thread.reminderDay = tk;
+  pushMsg({type:"companion", reminder:true,
+    text:"The hour you set for yourself — I’m here when you’re ready."});
+  saveThread();
+  return true;
+}
+
+/* ---- #4 (ADAPT): the evening close ----
+   Stoic and the Five Minute Journal prove a closing shape helps;
+   EP's form is conversational, not a form: once a day, in the
+   evening, at a calm open — and inside the same initiation budget
+   as everything else the companion starts — the day is told back
+   in a line or two, and a door still open is NAMED as open, free
+   to ride to tomorrow. Offered, never required; a quiet day and
+   a spent budget both mean silence. */
+function maybePostEveningClose(){
+  if(!companion && !thread.talkStarted) return false;
+  var tk = dayKeyOf(Date.now());
+  if(thread.eveningDay === tk) return false;
+  if(new Date().getHours() < 19) return false;
+  if(!parityCalm()) return false;
+  if(initBudgetLeft() <= 0) return false;
+  var f = digestDayFacts(tk);
+  if(!(f.writings || f.pours || f.claimsOpened || f.songs.length || f.clips)) return false;
+  thread.eveningDay = tk;
+  var text = digestDayLine(f, "Today");
+  if(f.firstOpenClaim)
+    text += " One is still open — “" + shortWords(f.firstOpenClaim.claim, 60)
+      + "”. It can ride to tomorrow, exactly as it stands.";
+  pushMsg({type:"eveningclose", text:text,
+    openClaimId: f.firstOpenClaim ? f.firstOpenClaim.id : "", dismissed:false});
+  spendInit();
+  saveThread();
+  return true;
+}
+
 function postSettingsCard(){
   pushMsg({type:"settingscard"});
 }
@@ -9504,9 +10035,14 @@ function settingsCardHTML(m){
     + '<button type="button" class="chip" data-tchip="'+m.id+':reshape">Reshape companion</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':ladder">Arrange my ladder</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':export">Export my record</button>'
+    + '<button type="button" class="chip" data-tchip="'+m.id+':exporttxt">Export as plain text</button>'
+    + '<button type="button" class="chip" data-tchip="'+m.id+':exportmd">Export as Markdown</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':import">Import a record</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':eraseask">Erase everything</button></div>';
+  h += '<p class="small muted" style="margin:4px 0">Plain text and Markdown are yours to read anywhere — the journal and the receipts, in words, not the app’s internal format. The full export above is the one that can come back through Import.</p>';
   h += liveSettingsHTML(m);
+  h += lockSettingsHTML(m); /* v2.7 (#14) */
+  h += reminderSettingsHTML(m); /* v2.7 (#7) */
   /* v2.0 (parity map row 6): the wordmark titles Settings */
   return cardBubble("Ever Present · Settings", h);
 }
@@ -9550,6 +10086,7 @@ function exportRecord(){
   var data = {};
   Object.keys(K).forEach(function(name){
     var key = K[name];
+    if(key === K.applock) return; /* v2.7: the lock belongs to this device, like the live key — it never travels */
     var raw = null;
     try{ raw = localStorage.getItem(key); }catch(e){}
     if(raw === null || raw === undefined) return;
@@ -9570,6 +10107,93 @@ function exportRecord(){
   setTimeout(function(){ try{ URL.revokeObjectURL(a.href); }catch(e){} a.remove(); }, 400);
 }
 
+/* ---- the readable export (v2.7, journal parity #15 — ADOPT) ----
+   The record is the person's property in readable form, not only
+   the app's internal JSON: the journal and the receipts as plain
+   text or Markdown, assembled from the same day data the journal
+   card reads — his words verbatim, the figuring connective only.
+   Media bytes stay on the phone (they are named, not embedded);
+   the live key and the app lock never appear here at all. */
+function exportReadable(format){
+  var md = format === "md";
+  var L = [];
+  function h1(t){ L.push(md ? "# " + t : t.toUpperCase()); L.push(""); }
+  function h2(t){ L.push(md ? "## " + t : t); L.push(""); }
+  function h3(t){ L.push(md ? "### " + t : t); }
+  function line(t){ L.push(t); }
+  function blank(){ L.push(""); }
+  h1("Ever Present — my record");
+  line("Exported " + new Date().toLocaleDateString(undefined, {weekday:"long", year:"numeric", month:"long", day:"numeric"}) + ".");
+  blank();
+  h2("Journal");
+  var keys = journalDayKeys().slice().reverse(); /* oldest first — a record reads forward */
+  if(!keys.length){ line("Nothing yet — the journal writes itself from the talk, day by day."); blank(); }
+  keys.forEach(function(key){
+    var d = journalDayData(key);
+    h3(dayLabel(key));
+    var moments = [];
+    d.pours.forEach(function(ev){ moments.push({ts:ev.toldTs || ev.ts, text:evWords(ev)}); });
+    d.writings.forEach(function(en){ moments.push({ts:en.ts, text:en.text}); });
+    moments.sort(function(a, b){ return a.ts - b.ts; });
+    moments.forEach(function(mo){
+      if(mo.text) line("- " + fmtTime(mo.ts) + " — " + mo.text);
+    });
+    (d.clips || []).forEach(function(c){
+      line("- " + fmtTime(c.ts) + " — [" + (c.kind || "recording") + " kept on the phone" + (c.label ? ": " + c.label : "") + "]");
+    });
+    if(d.context && d.context.length) line("- Context you mentioned: " + d.context.join(", "));
+    d.moves.forEach(function(e){
+      line("- Your move — on “" + e.claim + "”: " + e.move + (isChecked(e) ? " It ended: " + outcomeShort(e) + "." : ""));
+    });
+    if(d.fig) d.fig.forEach(function(fl){ line("- Receipts, figured: " + fl); });
+    d.corrections.forEach(function(c){ line("- Your correction: " + c.text); });
+    blank();
+  });
+  h2("The things they said");
+  if(!ledger.entries.length){ line("Nothing said yet."); blank(); }
+  ledger.entries.slice().sort(function(a, b){ return a.ts - b.ts; }).forEach(function(e){
+    var s = "- “" + e.claim + "”";
+    if(e.who) s += " — " + e.who;
+    s += " · told " + dayLabel(journalToldKeyForClaim(e));
+    s += isChecked(e) ? " · checked: " + outcomeLabel(e) : " · still open";
+    if(e.move && e.move.trim()) s += " · your move: " + e.move;
+    line(s);
+  });
+  blank();
+  h2("The map");
+  if(!atlas.pieces.length){ line("No pieces yet."); }
+  atlas.pieces.forEach(function(p){
+    var s = "- " + p.name;
+    var r = receiptsForPiece(p);
+    if(r.total) s += " — " + r.total + " said, " + r.checked + " checked";
+    if(p.seeing) s += " · how you see them: " + p.seeing;
+    line(s);
+  });
+  blank();
+  if(atlas.glossary.length){
+    h2("Their words, in yours");
+    atlas.glossary.forEach(function(g){
+      line("- " + (g.term || "") + (g.does ? " — " + g.does : "")
+        + (g.doesOwn ? " — " + g.doesOwn : "") + (g.whoText ? " (about " + g.whoText + ")" : ""));
+    });
+    blank();
+  }
+  h2("Playlist");
+  if(!playlist.songs.length){ line("No songs yet."); }
+  playlist.songs.forEach(function(s){
+    line("- " + s.title + (s.artist ? " — " + s.artist : "") + (s.note ? " · " + s.note : ""));
+  });
+  blank();
+  line("This record is yours. It was made on your phone, and it leaves only when you send it.");
+  var blob = new Blob([L.join("\n")], {type: md ? "text/markdown" : "text/plain"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = md ? "ever-present-record.md" : "ever-present-record.txt";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ try{ URL.revokeObjectURL(a.href); }catch(e){} a.remove(); }, 400);
+}
+
 /* ---- import: bring a record home from an export file ----
    The file must be what Export writes — an object keyed by store
    names. Anything else is refused, plainly, and nothing changes.
@@ -9580,7 +10204,7 @@ var pendingImport = null;
 /* recordings don't travel yet (v1.17): the media store is left out
    of import entirely — a file's recording index is simply not read */
 var IMPORT_KEYS = Object.keys(K).map(function(name){ return K[name]; })
-  .filter(function(key){ return key !== K.media; });
+  .filter(function(key){ return key !== K.media && key !== K.applock; }); /* v2.7: a file can never set this device's lock */
 function importParse(text){
   var data;
   try{ data = JSON.parse(text); }catch(e){ return null; }
@@ -9739,7 +10363,48 @@ function handleTextAsk(text){
   var ask = textAsk;
   textAsk = null;
   if(!ask) return;
-  if(ask.kind === "move"){
+  /* ---- v2.7 text asks: the lock's code (set in two sayings, so a
+     slip can't lock him out of his own record) and the reminder's
+     hour — both answered in the talk, like everything else ---- */
+  if(ask.kind === "lockpinnew"){
+    var pin1 = String(text || "").trim();
+    if(pin1.length < 4){
+      pushMsg({type:"companion", text:"A little longer — at least 4 characters, so the code holds. Nothing was set."});
+      return;
+    }
+    askText("lockpinnew2", {pin:pin1}, "Once more — the same code, so I know it’s the one you meant.");
+  } else if(ask.kind === "lockpinnew2"){
+    if(String(text || "").trim() === ask.pin){
+      applock = {salt:uid(), hash:"", scheme:"fnv1a-10k"};
+      applock.hash = pinHash(ask.pin, applock.salt);
+      saveApplock();
+      pushMsg({type:"companion", text:"The lock is set. Opening the app will ask for your code, once a session — and only the scrambled form is kept here."});
+    } else {
+      pushMsg({type:"companion", text:"Those two didn’t match, so nothing was set. The lock is exactly as it was."});
+    }
+  } else if(ask.kind === "lockoffpin"){
+    if(verifyPin(String(text || "").trim())){
+      applock = applockBlank(); saveApplock();
+      pushMsg({type:"companion", text:"The lock is off. The app opens straight to us, the way it did before."});
+    } else {
+      pushMsg({type:"companion", text:"That’s not the code — the lock stays on, and nothing is counted against you."});
+    }
+  } else if(ask.kind === "remindtime"){
+    var rm = String(text || "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    var hr = -1;
+    if(rm){
+      hr = parseInt(rm[1], 10);
+      if(rm[3]){ var pm = rm[3].toLowerCase() === "pm"; if(hr === 12) hr = pm ? 12 : 0; else if(pm) hr += 12; }
+      if(hr < 0 || hr > 23) hr = -1;
+    }
+    if(hr === -1){
+      pushMsg({type:"companion", text:"I couldn’t read that as an hour — the reminder is unchanged. An hour looks like 7, 7:30, or 19:00."});
+    } else {
+      prefs.reminderHour = hr; savePrefs();
+      var hlabel = ((hr + 11) % 12 + 1) + (hr < 12 ? " AM" : " PM");
+      pushMsg({type:"companion", text:"Your hour is " + hlabel + ". On a day when it has come and we haven’t talked yet, I’ll name it once — nothing more, and never a word about a missed day."});
+    }
+  } else if(ask.kind === "move"){
     saveMove(ask.claimId, text);
     var e1 = ledgerEntryById(ask.claimId);
     if(e1){ e1.moveAsked = true; saveLedger(); }
@@ -10475,6 +11140,7 @@ function bindLadder(){
 
 /* ================= boot ================= */
 el("helpBtn").addEventListener("click", function(){
+  if(view === "locked") return; /* v2.7 (#14): the doors stay shut while the record is locked */
   if(view !== "help"){ helpReturn = view; }
   helpBar = ""; /* a fresh press of Help starts at the three bars */
   view = "help";
@@ -10483,6 +11149,7 @@ el("helpBtn").addEventListener("click", function(){
 /* the side doors: back to the talk, the card comes into the
    thread, and the talk rests at its end (v1.29) */
 function doorIntoThread(postFn){
+  if(view === "locked") return; /* v2.7 (#14) */
   view = "home";
   postFn();
   render();
@@ -10504,6 +11171,9 @@ el("playlistBtn").addEventListener("click", function(){ doorIntoThread(postPlayl
   setTimeout(function(){ bv.classList.add("gone"); }, 150);
   setTimeout(function(){ if(bv.parentNode) bv.parentNode.removeChild(bv); }, 620);
 })();
+/* v2.7 (#14): a set lock greets the session before anything of
+   the record does — no greeting, no thread, nothing leaks first */
+if(lockEngaged()) view = "locked";
 render();
 </script>
 
