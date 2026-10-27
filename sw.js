@@ -1,7 +1,7 @@
 /* Ever Present — service worker.
    Network-first for the app so updates always land; cache is the offline fallback.
    User data never passes through here — it lives in localStorage on the device. */
-const CACHE = "ever-present-v42";
+const CACHE = "ever-present-v43";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./bg-day.jpg", "./bg-night.jpg", "./fonts/inter-400.woff2", "./fonts/inter-500.woff2", "./fonts/inter-600.woff2", "./fonts/inter-700.woff2"];
 
 self.addEventListener("install", (e) => {
