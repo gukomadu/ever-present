@@ -1406,7 +1406,7 @@ function atlasBlank(){ return {pieces:[], events:[], glossary:[], effigy: effigy
    filed under — many costumes, one rack (cast collapse). No
    ritual content, no surface reads or writes it yet beyond the
    filing path below. */
-function effigyBlank(){ return {id:"halloween", name:"Halloween"}; }
+function effigyBlank(){ return {id:"halloween", name:"Halloween", highWater:{stage:0, settled:0, costumes:0, stock:0, ts:0}}; }
 function journalBlank(){ return {entries:[]}; }
 function ladderBlank(){ return {noteForHardDay:"", contacts:[], clinician:{name:"", phone:""}, roomIdx:-1}; }
 function ledgerBlank(){ return {entries:[]}; } /* ported shape */
@@ -1426,6 +1426,8 @@ if(!atlas.glossary) atlas.glossary = [];
 if(!atlas.effigy || typeof atlas.effigy !== "object") atlas.effigy = effigyBlank(); /* v2.9: the standing effigy node (structure only) */
 if(!atlas.effigy.id) atlas.effigy.id = "halloween";
 if(!atlas.effigy.name) atlas.effigy.name = "Halloween";
+if(!atlas.effigy.highWater || typeof atlas.effigy.highWater !== "object") atlas.effigy.highWater = {stage:0, settled:0, costumes:0, stock:0, ts:0}; /* v3.2: the ratchet's high-water mark (the demotion model, below) */
+if(typeof atlas.effigy.highWater.stage !== "number") atlas.effigy.highWater.stage = 0;
 var journal   = storeLoad(K.journal, journalBlank);
 if(!journal.entries) journal.entries = [];
 var ladder    = storeLoad(K.ladder, ladderBlank);
@@ -1485,6 +1487,92 @@ function filePieceUnderEffigy(pieceId){
 }
 function piecesUnderEffigy(){
   return atlas.pieces.filter(function(p){ return p.effigyId === atlas.effigy.id; });
+}
+
+/* ================= v3.2 — THE EFFIGY DISPLAY (Gap 5) =================
+   The founder's coupling, made visible (his words, 2026-10-28):
+   "I want all my day's effort, soothe and drive to affect the
+   effigy. The more I soothe myself and improve my drive, the
+   more the effigy is being demoted, dismantled, devalued." The
+   demotion is figured from what the record already holds —
+   nothing new is counted about the person:
+     · settled receipts — things they said, checked against what
+       happened: the mulch. Each one takes the most off the post.
+     · costumes on the rack (piecesUnderEffigy) — a named figure
+       hung outside the house, where it can be seen.
+     · the stocked shelves — his playlist, his note for a hard
+       day, his people on the ladder: the soothe/drive stock
+       his days are made of.
+   THE RATCHET IS LAW: the condition shown is the deepest ever
+   reached — a high-water mark kept on the effigy node itself.
+   New deposits can only advance it; taking things out of the
+   record never puts straw back. It can pause; it can never
+   reverse. The condition describes the effigy — never the
+   person: no score, no grade, no percentage of him appears
+   anywhere in this section's words. */
+var EFFIGY_STAGES = [
+  {min:0,  name:"Standing whole",    line:"The post stands whole — nothing has come off it yet."},
+  {min:3,  name:"Weathered",         line:"The post is weathered — the shine has come off it."},
+  {min:8,  name:"Missing pieces",    line:"Pieces are missing off the post — it isn’t all there anymore."},
+  {min:15, name:"Sagging",           line:"The post is sagging — it doesn’t hold its shape the way it did."},
+  {min:25, name:"Coming apart",      line:"The post is coming apart — more of it lies on the ground than stands on the frame."},
+  {min:40, name:"Down to the frame", line:"The post is down to the frame — mostly sticks now."},
+  {min:60, name:"Mostly mulch",      line:"The post is mostly mulch — what’s left of it is feeding your field."}
+];
+function effigyCounts(){
+  var stock = playlist.songs.length
+    + ((ladder.noteForHardDay && ladder.noteForHardDay.trim()) ? 1 : 0)
+    + ladder.contacts.length;
+  return {
+    settled: ledger.entries.filter(isChecked).length,
+    costumes: piecesUnderEffigy().length,
+    stock: stock
+  };
+}
+/* demotion points: a settled thing and a hung costume take the
+   most off the post (2 each); a stocked shelf item takes 1 */
+function effigyPoints(c){ return c.settled * 2 + c.costumes * 2 + c.stock; }
+function effigyComputedStage(c){
+  var pts = effigyPoints(c), s = 0;
+  for(var i = 0; i < EFFIGY_STAGES.length; i++) if(pts >= EFFIGY_STAGES[i].min) s = i;
+  return s;
+}
+/* the standing state of the post. Reading it works the ratchet:
+   when the figured condition has deepened past the high-water
+   mark, the mark moves and is kept; it never moves back */
+function effigyState(){
+  var c = effigyCounts();
+  var computed = effigyComputedStage(c);
+  var hw = atlas.effigy.highWater || {stage:0, settled:0, costumes:0, stock:0, ts:0};
+  if(computed > (hw.stage || 0)){
+    hw = {stage:computed, settled:c.settled, costumes:c.costumes, stock:c.stock, ts:Date.now()};
+    atlas.effigy.highWater = hw;
+    saveAtlas();
+  }
+  var stage = Math.max(computed, hw.stage || 0);
+  return {counts:c, points:effigyPoints(c), computed:computed, stage:stage,
+          name:EFFIGY_STAGES[stage].name, line:EFFIGY_STAGES[stage].line};
+}
+/* the mulch, in his words: the most recent settled things whose
+   outcome he wrote himself — his words for what is true now.
+   (App-talk never lands here: an outcome is written in the
+   receipts flow, about his life, in his own words — and a thing
+   settled by a tap alone, with no words of his on it, is
+   counted in the mulch but never quoted.) */
+function effigyMulch(){
+  return ledger.entries.filter(function(e){
+    return isChecked(e) && e.outcome && e.outcome.trim();
+  }).sort(function(a, b){ return (b.tsOutcome || 0) - (a.tsOutcome || 0); }).slice(0, 2);
+}
+/* one line of fact for the live voice — the same facts the card
+   carries, so live mode speaks from the record, not from air */
+function effigyFactsLine(){
+  var st = effigyState();
+  var names = piecesUnderEffigy().map(function(p){ return p.name; });
+  return "The post (his standing effigy of Halloween), as it stands: " + st.line
+    + " Hanging on it: " + (names.length ? names.join(", ") : "nothing yet") + "."
+    + " Gone to mulch: " + st.counts.settled + (st.counts.settled === 1 ? " thing" : " things")
+    + " they said, checked against what happened. What comes off the post never goes back on.";
 }
 function saveJournal(){ storeSave(K.journal, journal); }
 function saveLadder(){ storeSave(K.ladder, ladder); }
@@ -5744,6 +5832,13 @@ function threadMsgHTML(m){
         + '<button type="button" class="chip" data-tchip="'+m.id+':imptalk">Talk it through</button></div>';
     }
     if(m.imposedRest) ch += '<div style="margin-top:6px">'+esc(m.imposedRest)+'</div>';
+    /* the post's offer (v3.2): one quiet door on its own bubble —
+       a costume was just hung and Keeper offers the showing;
+       once he answers, the chips rest */
+    if(m.fbKind === "effigyoffer" && !m.effDone){
+      ch += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':effsee">See the post</button>'
+        + '<button type="button" class="chip" data-tchip="'+m.id+':effpass">Not now</button></div>';
+    }
     return ch + '</div></div>';
   }
   if(m.type === "offer"){
@@ -6024,6 +6119,7 @@ function threadMsgHTML(m){
   if(m.type === "mapcard"){ return mapCardHTML(m); }
   if(m.type === "piececard"){ return pieceCardHTML(m); }
   if(m.type === "receiptscard"){ return receiptsCardHTML(m); }
+  if(m.type === "effigycard"){ return effigyCardHTML(m); }
   if(m.type === "settingscard"){ return settingsCardHTML(m); }
   if(m.type === "moveask"){ return moveAskHTML(m); }
   if(m.type === "claimkind"){ return claimKindHTML(m); }
@@ -8936,6 +9032,18 @@ function detectIntent(text){
     while(dd.getDay() !== dayHit) dd.setDate(dd.getDate() - 1);
     return {kind:"journalday", key:dayKeyOf(dd.getTime())};
   }
+  /* v3.2: the post — asking after the effigy brings its card.
+     "effigy" is a distinctive noun and stands on its own (the
+     doctrine of this matcher); "Halloween" and "the post" ask
+     alongside a request word, so a pour that talks about
+     Halloween — most of them — stays a pour */
+  if(w("effigy")) return {kind:"effigy"};
+  if(w("halloween") && (w("show") || w("see") || w("open") || w("bring") || w("check")))
+    return {kind:"effigy"};
+  if(low.indexOf(" the post ") !== -1 && req) return {kind:"effigy"};
+  if(low.indexOf(" how is it standing ") !== -1 || low.indexOf(" how's it standing ") !== -1
+     || (low.indexOf(" halloween standing ") !== -1 && req))
+    return {kind:"effigy"};
   if(w("receipts") || w("claims") || low.indexOf(" track record ") !== -1
      || (pieceHit && (w("record") || w("claims") || w("receipts"))))
     return {kind:"receipts"};
@@ -8959,7 +9067,8 @@ function detectIntent(text){
   return null;
 }
 function routeIntent(it){
-  if(it.kind === "journal") postJournalCard("week");
+  if(it.kind === "effigy") postEffigyCard();
+  else if(it.kind === "journal") postJournalCard("week");
   else if(it.kind === "journalday") postJournalCard("day", it.key);
   else if(it.kind === "find") postFoundCard(it.topic);
   else if(it.kind === "threads") postThreadsCard();
@@ -9210,6 +9319,14 @@ function bindThread(){
       }
       else if(act === "mapmore" && m){ postMapCard((m.offset || 0) + 6); render(); }
       else if(act === "piece"){ postPieceCard(parts[2]); render(); }
+      else if(act === "phang" && m){
+        /* v3.2: hanging a costume on the post — his tap puts the
+           piece under the effigy (the v2.9 path); the showing is
+           offered once, under the standing gates (see
+           maybePostEffigyOffer) */
+        if(filePieceUnderEffigy(m.pieceId)) maybePostEffigyOffer(pieceById(m.pieceId));
+        render();
+      }
       else if(act === "addmap"){ startDetailSession(null); }
       else if(act === "detail"){
         var dev = eventById(parts[2]);
@@ -9724,6 +9841,16 @@ function bindThread(){
         m.imposedDone = true;
         m.imposedRest = "I’m here — say it the way it’s arriving, piece by piece if it comes that way. We can take it apart together.";
         saveThread(); render();
+      }
+      /* ---- v3.2 chips: the post's offer, answered ---- */
+      else if(act === "effsee" && m){
+        m.effDone = true; saveThread();
+        postEffigyCard();
+        render();
+      }
+      else if(act === "effpass" && m){
+        /* not now — the chips rest; the post keeps standing */
+        m.effDone = true; saveThread(); render();
       }
       else if(act === "dismiss"){
         if(m){
@@ -10754,8 +10881,11 @@ function pieceCardHTML(m){
         + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':detail:'+ev.id+'">Add detail</button></div></div>';
     });
   }
+  if(p.effigyId === atlas.effigy.id)
+    h += '<p class="small" style="margin:10px 0 0"><strong>On the post</strong> — hanging in Halloween’s wardrobe, out of the house.</p>';
   h += '<div class="chiprow" style="margin-top:10px">'
     + '<button type="button" class="chip" data-tchip="'+m.id+':psetseeing">How I see them</button>'
+    + (p.effigyId === atlas.effigy.id ? '' : '<button type="button" class="chip" data-tchip="'+m.id+':phang">Hang it on the post</button>')
     + '<button type="button" class="chip" data-tchip="'+m.id+':pgloss">File a word they use</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':prename">Rename</button>'
     + '<button type="button" class="chip" data-tchip="'+m.id+':pdelask">Remove this piece</button></div>';
@@ -10785,6 +10915,68 @@ function glossDoesHTML(m){
   return '<div class="msg them"><div class="bubble"><p class="hub-label">Their own words</p>'
     + '<p style="margin:4px 0">&ldquo;'+esc(m.term)+'&rdquo; — what does it do?</p>'
     + '<div class="chiprow">'+chips+'</div></div></div>';
+}
+
+/* ---- v3.2: the post card — the effigy, shown standing ----
+   Keeper brings it when he asks (the effigy ask, in
+   detectIntent), and offers it once when a costume is hung
+   (below). It shows the post's condition in words, the
+   wardrobe by name, and the mulch in his words. Nothing on it
+   grades or counts the person — the only things counted here
+   belong to the post. */
+function postEffigyCard(){
+  if(liveOn()) queueOrgNote(effigyFactsLine()); /* live parity: the facts ride the packet; the card is the floor */
+  pushMsg({type:"effigycard"});
+}
+function effigyCardHTML(m){
+  var st = effigyState();
+  var rack = piecesUnderEffigy();
+  var h = '<p style="margin:4px 0">' + esc(st.line) + '</p>';
+  h += '<p class="hub-label" style="margin-top:12px">Hanging on it' + (rack.length ? ' (' + rack.length + ')' : '') + '</p>';
+  if(rack.length){
+    h += '<p style="margin:4px 0">' + rack.map(function(p){ return esc(p.name); }).join(' · ') + '</p>';
+  } else {
+    h += '<p class="small muted" style="margin:4px 0">Nothing is hanging on it yet. When a figure on the map is one of Halloween’s costumes, it can be hung here from its own card — out of the house, on the post, where it can be seen for what it is.</p>';
+  }
+  h += '<p class="hub-label" style="margin-top:12px">Gone to mulch</p>';
+  var mulch = effigyMulch();
+  if(mulch.length){
+    mulch.forEach(function(e){
+      h += '<div class="cardblock"><p class="small" style="margin:2px 0">&ldquo;' + esc(shortWords(e.outcome, 110)) + '&rdquo;</p>'
+        + '<p class="muted small" style="margin:2px 0">What’s true now — it answered: &ldquo;' + esc(shortWords(e.claim, 80)) + '&rdquo;</p></div>';
+    });
+    if(st.counts.settled > mulch.length)
+      h += '<p class="small muted" style="margin:4px 0">…and ' + (st.counts.settled - mulch.length) + ' more, gone the same way.</p>';
+  } else if(st.counts.settled){
+    h += '<p class="small" style="margin:4px 0">' + st.counts.settled + (st.counts.settled === 1 ? ' thing they said has' : ' things they said have') + ' been checked against what happened, and gone to mulch.</p>';
+  } else {
+    h += '<p class="small muted" style="margin:4px 0">Nothing has gone to mulch yet. It starts the first time something they said is checked against what happened — what comes off the post becomes part of your field.</p>';
+  }
+  h += '<p class="small" style="margin:10px 0 4px">What comes off the post doesn’t go back on. Your songs, your note from a calm day, your people, the things they said that didn’t hold — all of it takes the post down a little. A hard day never builds it back up.</p>';
+  return cardBubble("The post", h);
+}
+/* the offer, once, when a costume is hung: Keeper names what
+   just happened and offers the showing. It is an initiation, so
+   it keeps the standing gates — never mid-arrangement (all
+   initiation is silent while he organizes), never inside a
+   HOLD window (knowledgeBlockedNow carries the fresh blast,
+   the burst, and "only when I ask"), never with a pour still
+   landing, never while an earlier offer stands unanswered, and
+   never past the day's initiation budget. His tap hung the
+   costume either way — the offer is only the showing. */
+function maybePostEffigyOffer(p){
+  if(!p) return false;
+  if(organizingOpen()) return false;
+  if(knowledgeBlockedNow()) return false;
+  if(thread.pendingPour && thread.pendingPour.ids && thread.pendingPour.ids.length) return false;
+  if(thread.messages.some(function(m){ return m.fbKind === "effigyoffer" && !m.effDone; })) return false;
+  if(initBudgetLeft() <= 0) return false;
+  var st = effigyState();
+  if(liveOn()) queueOrgNote("He just hung " + p.name + " on the post — a costume of Halloween's, out of the house. The post as it stands: " + st.line);
+  pushMsg({type:"companion", fbKind:"effigyoffer", effDone:false, effPieceId:p.id,
+    text:p.name + " is on the post now — hanging where it can be seen, with the rest of Halloween's wardrobe. The post as it stands: " + st.line + " Want to see it?"});
+  spendInit();
+  return true;
 }
 
 /* ---- the receipts card: the figured picture + every open claim, live ---- */
