@@ -8321,6 +8321,31 @@ var EP_IMAGINATION_PASSAGE = [
   "Soothe, drive and security in tandem are one growth — the person's power to author their own account, stocked moment by moment, each deposit both evidence and practice of authorship. The record is that power's archive. The effigy at the boundary is the same growth read from the other side: each deposit demotes it, dismantles it, devalues what it announced; the ratchet never reverses — a hard day pauses it, nothing rebuilds it; what comes off it returns to their field as mulch.",
   "You never author for them — no ghostwriting. You hold the desk: hand back their authored material when it serves, tag a forgery as a forgery, and offer pictures of your own only as options they can take up, reshape or spike."
 ];
+/* The three-prongs passage (v3.3 — THE THREE-PRONGS PASS,
+   2026-10-29): on the founder's safety-study day, Edmondson's
+   three prongs of psychological safety — frame the work,
+   invite participation, respond productively — were directed
+   into the design "for Keeper's goal, especially in Circles,"
+   drafted and staged in the design record (the circles parity
+   map, §9.1), and then approved by the founder for the live
+   constitution the same day ("Build it into Keeper live
+   now"). It carries the prongs in live form, in the staged
+   words: psychological safety as the companion's standing
+   work — the felt license to say the true thing and never be
+   punished for it; framing honestly, plainly, before it
+   matters; inviting, never pressing — every door an offer,
+   silence and "not now" complete answers that cost nothing;
+   responding productively — receive before you use, a
+   correction never answered with evidence against the person,
+   what is shared met first with appreciation for the telling.
+   It rides in the constitution after the imagination passage;
+   like every passage, it is never cut by the packet diet. */
+var EP_PRONGS_PASSAGE = [
+  "Your standing work is this person's psychological safety: the felt license to say the true thing and never be punished for it.",
+  "Frame honestly — say what things are and what you are doing, plainly, before it matters.",
+  "Invite, never press — every door you bring is an offer; silence and 'not now' are complete answers and cost nothing.",
+  "Respond productively — receive before you use; a correction is never answered with evidence against the person, and what is shared is met first with appreciation for the telling."
+];
 function liveConstitution(){
   var name = companion ? companion.name : "your companion";
   var vibeLabel = {straight:"Straight up", gentle:"Gentle", humor:"With humor", asked:"Only when I ask"};
@@ -8349,8 +8374,12 @@ function liveConstitution(){
      the labels kept on, answerability as the first principle,
      the tandem growth and the effigy's demotion, the
      companion's no-ghostwriting rule — still inside the
-     never-cut zone. */
-  var lines = EP_GOVERNING_PASSAGE.concat(EP_FRAME_PASSAGE, EP_RELATING_PASSAGE, EP_HEART_PASSAGE, EP_SECURITY_PASSAGE, EP_IMAGINATION_PASSAGE, [
+     never-cut zone.
+     v3.3: the three-prongs passage rides after the imagination
+     passage — psychological safety as the companion's standing
+     work: frame honestly, invite never press, respond
+     productively — still inside the never-cut zone. */
+  var lines = EP_GOVERNING_PASSAGE.concat(EP_FRAME_PASSAGE, EP_RELATING_PASSAGE, EP_HEART_PASSAGE, EP_SECURITY_PASSAGE, EP_IMAGINATION_PASSAGE, EP_PRONGS_PASSAGE, [
     "You are " + name + ", a companion created and named by the person you are talking with. They made you; you work for them.",
     "You are a witness with a memory, not a clinician: never diagnose, never give medical or treatment advice, never assign risk, never predict a crisis, and never claim to be human. If asked whether you are a person, say plainly that you are not.",
     "Timing is the most important part of this work. The right thing at the wrong moment is the wrong thing. Everything you bring — knowledge, connections, questions — waits for the rhythm that can receive it.",
@@ -8622,6 +8651,15 @@ function buildLiveHistory(){
    the rich seed. The ceiling moved 23,200 → 25,500 — measured,
    minimal, and documented at the EP_SYSTEM_CEILING declaration;
    the ladder gained two deeper digest rungs (250, 150). The
+   constitution itself is never cut.
+   v3.3 addendum (2026-10-29, measured on the same seeds): the
+   three-prongs passage grew the constitution 23,325 → 23,837;
+   whole-system packets now measure 25,613 fresh (first stage —
+   the full digest and the full matched bank ride) / 25,535 on
+   the rich seed. The ceiling moved 25,500 → 25,700 — measured,
+   minimal, and documented at the EP_SYSTEM_CEILING declaration;
+   the ladder gained two deeper digest rungs (100, 50) and a
+   final rung where the bank rides as its header alone. The
    constitution itself is never cut. */
 function buildKnowledgeBaseSection(capOverride, briefOnly){
   /* v2.8 §6: briefOnly is the deepest bank thinning — at the
@@ -8665,8 +8703,13 @@ function buildKnowledgeBaseSection(capOverride, briefOnly){
      buildLivePacket can thin the matched set further — the bank
      is priority (5), last in the order — when a rich record plus
      the v2.4 constitution still exceeds the ceiling. The single
-     best match still rides in full at any cap. */
-  picked = picked.slice(0, capOverride || 8);
+     best match still rides in full at any cap.
+     v3.3 §6: an explicit cap of 0 is now honored (the default
+     applies only when no cap is passed) so the ladder's final
+     rung can ride the bank as its header alone — the bank fully
+     exhausted, as priority (5) — on a maximally rich record.
+     Every earlier call is unchanged. */
+  picked = picked.slice(0, capOverride == null ? 8 : capOverride);
   var best = null;
   picked.forEach(function(p){ if(p.s > 0 && (!best || p.s > best.s)) best = p; });
   picked.forEach(function(p){
@@ -8727,8 +8770,33 @@ function buildKnowledgeBaseSection(capOverride, briefOnly){
    full matched bank ride) / 25,402 rich. The diet's priority
    order is unchanged; ordinary records still land at the early
    stages, exactly as before.
+   ================================================================
+   v3.3 §6 — THE CEILING MOVES AGAIN: 25,500 → 25,700. Same
+   discipline, same reason: it is arithmetic, not preference.
+   The three-prongs passage (the founder's directive, 2026-10-29:
+   Edmondson's frame / invite / respond-productively, staged in
+   the design record and approved for the live constitution the
+   same day) grew the constitution 23,325 → 23,837 chars, and
+   the constitution is never cut. The ladder was first extended
+   in the same order as before — two deeper digest rungs (100,
+   then 50, each keeping the digest's head and its truncation
+   marker) and a final rung where the matched bank, priority
+   (5), rides as its header alone. Measured on the suite's
+   seeds at their deepest applicable rungs — the floors below
+   which no record of those shapes can be thinned — a FRESH
+   record totals 24,917 and the rich stress seed totals 25,535:
+   the old ceiling of 25,500 sits BELOW the rich floor, so no
+   rung could have held it. The minimum ceiling that fits both
+   floors with a small margin is therefore 25,700 (165 over the
+   rich floor — the same margin discipline as v2.9 and v3.1).
+   Under the shipped ceiling the ladder stops at the first rung
+   that fits, so the packets as actually built measure 25,613
+   fresh (first stage — the full digest and the full matched
+   bank ride) / 25,535 rich. The diet's priority order is
+   unchanged; ordinary records still land at the early stages,
+   exactly as before.
    ================================================================ */
-var EP_SYSTEM_CEILING = 25500;
+var EP_SYSTEM_CEILING = 25700;
 function buildLivePacket(){
   var tail = "";
   /* organizing notes: the facts figured at this message's moment,
@@ -8814,7 +8882,15 @@ function buildLivePacket(){
      order with two deeper digest rungs — 250, then 150 — each
      still keeping the digest's head and its truncation marker;
      the ceiling itself is answered at the EP_SYSTEM_CEILING
-     declaration. The constitution is never cut, at any stage. */
+     declaration. The constitution is never cut, at any stage.
+     v3.3 §6: the three-prongs passage grew the constitution
+     again (23,325 → 23,837), so the ladder extends in the same
+     order once more — two deeper digest rungs (100, then 50),
+     and a final rung where the bank, priority (5), rides as
+     its header alone — each still keeping the digest's head
+     and its truncation marker; the ceiling itself is answered
+     at the EP_SYSTEM_CEILING declaration. The constitution is
+     never cut, at any stage. */
   var constitution = liveConstitution();
   var kb = buildKnowledgeBaseSection();
   var system = constitution + "\n\n" + buildRecordDigest(false) + "\n\n" + kb + tail;
@@ -8846,6 +8922,12 @@ function buildLivePacket(){
     system = constitution + "\n\n" + buildRecordDigest(true, 250) + "\n\n" + buildKnowledgeBaseSection(1, true) + tail;
   if(system.length > EP_SYSTEM_CEILING)
     system = constitution + "\n\n" + buildRecordDigest(true, 150) + "\n\n" + buildKnowledgeBaseSection(1, true) + tail;
+  if(system.length > EP_SYSTEM_CEILING)
+    system = constitution + "\n\n" + buildRecordDigest(true, 100) + "\n\n" + buildKnowledgeBaseSection(1, true) + tail;
+  if(system.length > EP_SYSTEM_CEILING)
+    system = constitution + "\n\n" + buildRecordDigest(true, 50) + "\n\n" + buildKnowledgeBaseSection(1, true) + tail;
+  if(system.length > EP_SYSTEM_CEILING)
+    system = constitution + "\n\n" + buildRecordDigest(true, 50) + "\n\n" + buildKnowledgeBaseSection(0, true) + tail;
   if(thread.orgNotes && thread.orgNotes.length){
     thread.orgNotes = [];
     saveThread();
