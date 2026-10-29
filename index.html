@@ -3026,22 +3026,36 @@ var KNOWLEDGE = [
    l1:"Medicine documents a literal version: an emotional blow can stun the heart muscle itself. Heart and brain are one circuit — what happens on one front registers on the other.",
    l2:"Cardiologists' consensus describes “broken heart syndrome”: after intense emotional events, stress hormones can temporarily weaken the heart even with clear arteries. Feelings are physical events, not metaphors.",
    ctx:"People describe that too — an emotional blow landing in the chest, physically. Medicine documents a specific condition where an emotional blow stuns the heart muscle itself; feelings are physical events."},
-  /* Janata, P., Tomic, S.T. & Rakowski, S.K. (2007).
+  /* TWO papers, kept apart (v3.0 correction — the music sweep
+     caught this item carrying the 2007 date against the brain
+     finding; the two are different studies and are cited here
+     for what each actually showed):
+     (1) Janata, P., Tomic, S.T. & Rakowski, S.K. (2007).
      "Characterisation of music-evoked autobiographical memories",
      Memory, 15(8), 845–860. DOI 10.1080/09658210701734593
-     (https://doi.org/10.1080/09658210701734593). Laboratory and
-     online studies using excerpts of popular songs: about 30% of
-     song presentations evoked autobiographical memories, and the
-     emotions evoked were primarily positive and often felt
-     strongly, with nostalgia the third most common. SCOPE NOTE
-     (do not drop): young-adult samples, popular-music excerpts;
-     descriptive characterisation of what songs evoke, not an
-     intervention trial. File the mechanism (songs as
-     autobiographical keys). Serves the founder's counter-anchors
-     and the playlist: the person's autobiography in sound. */
+     (https://doi.org/10.1080/09658210701734593). The BEHAVIORAL
+     paper: laboratory and online studies using excerpts of
+     popular songs — about 30% of song presentations evoked
+     autobiographical memories, and the emotions evoked were
+     primarily positive and often felt strongly, with nostalgia
+     the third most common.
+     (2) Janata, P. (2009).
+     "The neural architecture of music-evoked autobiographical memories",
+     Cerebral Cortex, 19(11), 2579–2594. DOI 10.1093/cercor/bhp008. The BRAIN
+     paper (single author; fMRI, n=13): dorsal medial prefrontal
+     cortex activity tracked the autobiographical salience of
+     each excerpt — the more a song carried the listener's own
+     story, the more that self-referential region answered.
+     SCOPE NOTE (do not drop): young-adult samples, popular-music
+     excerpts; the 2007 paper is a descriptive characterisation
+     of what songs evoke, not an intervention trial, and the 2009
+     imaging study is small and correlational. File the mechanism
+     (songs as autobiographical keys). Serves the founder's
+     counter-anchors and the playlist: the person's
+     autobiography in sound. */
   {theme:"songs-keep-the-story", label:"songs keep the story", tags:["music","autobiographical memory","nostalgia","playlist","memory"],
    l1:"A song from your own life doesn't just change your mood — it hands you back a piece of your story. The memory arrives with the music, specific and yours.",
-   l2:"In studies of hundreds of listeners, about a third of songs pulled up a personal memory, and the feelings that came with them were mostly strong and positive. Songs work as keys to your own record.",
+   l2:"In studies of hundreds of listeners, about a third of songs pulled up a personal memory, and the feelings that came with them were mostly strong and positive. And in a small brain-imaging study, the songs that carried a person's own story most strongly were the ones a region of the brain tied to the self answered to most. Songs work as keys to your own record.",
    ctx:"People describe that too — a song handing them back a piece of their own story. In studies, about a third of songs did exactly that, and the feelings that came were mostly strong and positive."},
   /* Heiderscheit, A. & Madson, J. (2015). "Use of the Iso Principle
      as a Central Method in Mood Management: A Music Psychotherapy
@@ -4836,6 +4850,23 @@ function maybePostBriefing(){
   if(!text){ saveThread(); return false; }
   if(liveOn()){ queueOrgNote("Journey context — " + text); saveThread(); return true; }
   var bm = pushMsg({type:"companion", briefing:true, text:text});
+  /* v3.0 (the correction pass, item 2): the briefing and the
+     substance floor drink from the same digest, but until now
+     only the floor kept a tab of what it had served — so on the
+     day's first turn the floor could re-serve, verbatim, the
+     very line the briefing had just spoken ("I hear you.
+     Yesterday was quiet in the record." trailing the briefing
+     itself: the founder's 2026-10-28 screenshot). The briefing
+     now registers its day/week lines in the floor's used-set as
+     it posts, so no digest line is ever spoken twice in a day
+     across the two voices. */
+  var bused = floorLinesUsedToday();
+  var bd = journeyDigest();
+  var byl = digestDayLine(bd.yesterday, "Yesterday");
+  if(byl) bused[byl] = 1;
+  var bwl = digestWeekLine(bd.week);
+  if(bwl) bused[bwl] = 1;
+  saveThread();
   if(text.indexOf("still waiting") !== -1){
     var oc = briefingDoorClaim();
     if(oc){ bm.doorClaimId = oc.id; saveThread(); }
@@ -6566,6 +6597,7 @@ function flushPendingPour(){
 var sessionAckStreak = false; /* a bare ack already covers this stretch of talk */
 function pickAck(){ return ACK_LINES[thread.messages.length % ACK_LINES.length]; }
 var sessionLiveFloorText = ""; /* the substantive text a live-mode exchange is answering — the failure fallback's floor (v2.1) */
+var sessionLiveFloorLine = ""; /* v3.0: a stocked line that IS this exchange's answer (a feeling's relating reply, the not-alone answer) — a failed live call falls back to it whole, ahead of the floor */
 
 /* ================= the substance floor (v2.1) =================
    The founder's verdict (2026-10-26): "I don't like this
@@ -6599,10 +6631,18 @@ function floorDigestLink(){
   }
   return "";
 }
+/* words that are never a topic — function words and vague
+   nouns the longest-word pick must not land on (v3.0: "through"
+   was the screenshot's specimen) */
+var FLOORQ_STOP = {through:1, about:1, over:1, under:1, between:1, before:1, after:1,
+  during:1, without:1, within:1, across:1, around:1, along:1, toward:1, towards:1,
+  against:1, because:1, while:1, until:1, since:1, their:1, there:1, where:1,
+  whatever:1, everything:1, something:1, anything:1, nothing:1, really:1,
+  thing:1, things:1, stuff:1, same:1, other:1, another:1, every:1};
 function floorQuestionWord(text){
   var words = lifeWords(text || "");
   var best = "";
-  words.forEach(function(w){ if(w.length > best.length) best = w; });
+  words.forEach(function(w){ if(!FLOORQ_STOP[w] && w.length > best.length) best = w; });
   return best;
 }
 function substanceFloor(text){
@@ -6620,14 +6660,69 @@ function substanceFloor(text){
   /* (2) a link to yesterday or the week, from the digest */
   var link = floorDigestLink();
   if(link) return {kind:"floordigest", line:link};
-  /* (3) a genuine question about this content, in his words */
-  var qw = floorQuestionWord(text);
-  if(qw){
-    var qs = ["How did the " + qw + " go?", "What’s the story with the " + qw + " today?",
-              "Tell me a little more about the " + qw + "."];
-    return {kind:"floorq", line:qs[thread.messages.length % qs.length]};
+  /* (3) a genuine question about this content, in his words —
+     v3.0 (the correction pass, item 3a): the founder's screenshot
+     caught this step mining a question he had just asked ("is
+     there anyone else going through the same thing?") for its
+     longest word and bouncing it back as "How did the through
+     go?". The misfire had two roots, and both are fixed here:
+     (a) it fired in reply to a QUESTION — a question is answered,
+     never mined — so no form of this step fires when the message
+     itself is a question; (b) its word-pick took the longest
+     word, function words included ("through") — the pick now
+     skips function words and vague nouns (floorQuestionWord).
+     And the forms are tiered by what they presuppose: the
+     check-in form ("How did the X go?") presupposes a concluded
+     event the record knows, so it is reserved for record-known
+     topics (recordKnownWord: in his journal from an earlier
+     day, across at least two days); for a topic he has just
+     raised in a statement, only the open invitations remain
+     ("What's the story with the X today?", "Tell me a little
+     more about the X.") — the floor's designed engagement with
+     ordinary life talk, asking about his word without inventing
+     a history for it. */
+  if(!isQuestionText(text)){
+    var qw = floorQuestionWord(text);
+    if(qw){
+      if(recordKnownWord(qw)){
+        var qs = ["How did the " + qw + " go?", "What’s the story with the " + qw + " today?",
+                  "Tell me a little more about the " + qw + "."];
+        return {kind:"floorq", line:qs[thread.messages.length % qs.length]};
+      }
+      var inv = ["What’s the story with the " + qw + " today?",
+                 "Tell me a little more about the " + qw + "."];
+      return {kind:"floorq", line:inv[thread.messages.length % inv.length]};
+    }
   }
   return null;
+}
+/* is this message itself a question — by its punctuation or by
+   a question-word opening? (v3.0) */
+function isQuestionText(text){
+  var t = String(text || "").trim().toLowerCase();
+  if(!t) return false;
+  if(t.indexOf("?") !== -1) return true;
+  return /^(is|are|am|do|does|did|can|could|will|would|what|why|how|who|whom|when|where|which|should|has|have)\b/.test(t);
+}
+/* days before today on which a word appears in his journal */
+function lifeWordPriorDays(word){
+  var tk = dayKeyOf(Date.now()), days = {};
+  journal.entries.forEach(function(en){
+    if(!en.text) return;
+    if(isDisownedJournal(en.id) || isDisownedText(en.text)) return;
+    var dk = dayKeyOf(en.ts);
+    if(dk >= tk) return;
+    if(lifeWordSet(en.text)[word]) days[dk] = 1;
+  });
+  return Object.keys(days).length;
+}
+/* a topic the record knows: it appears in his journal on at
+   least one earlier day, and on at least two days across the
+   last thirty (today's own mention included) — established,
+   not incidental (v3.0) */
+function recordKnownWord(word){
+  if(lifeWordPriorDays(word) < 1) return false;
+  return lifeWordDays(word, Date.now() - 30 * 86400000) >= 2;
 }
 function isBareAckText(t){
   t = String(t || "").trim().replace(/[’‘]/g, "'");
@@ -6741,9 +6836,12 @@ function noteShrugMessage(ev){
   var dg = journeyDigest();
   var link = "";
   if(dg.hasPrior) link = digestDayLine(dg.yesterday, "Yesterday");
-  if(!link || link.indexOf("quiet in the record") !== -1){
+  /* v3.0: a line the briefing or the floor already spoke today
+     is not spoken again here either (the shared used-set) */
+  if(!link || link.indexOf("quiet in the record") !== -1 || floorLinesUsedToday()[link]){
     var wl = digestWeekLine(dg.week);
-    if(wl) link = wl;
+    if(wl && !floorLinesUsedToday()[wl]) link = wl;
+    else if(link && floorLinesUsedToday()[link]) link = "";
   }
   var line = "Still at it, then — that goes on today’s page as an entry of its own.";
   if(link && link.indexOf("quiet in the record") === -1) line += " " + link;
@@ -7458,8 +7556,269 @@ function organizingHandle(text){
 /* a life exchange: reception, one true fact when the record has
    one, and the two gentle doors (wordless first — it is the
    more specific answer — then a listening mention's) */
+/* ================= v3.0 — THE CORRECTION PASS =================
+   Founder-approved 2026-10-28, from his screenshot of that
+   morning (test record "Bode") and the logged correction list.
+   Three template-path failures, fixed at their roots:
+   (1) A FEELING was answered with the journey digest — the
+   briefing fired ahead of the reply on the day's first turn
+   whatever the message held, quoted his just-written feeling
+   back as its "taste," and counted his playlist at him. Now a
+   feeling-first entry is answered FIRST, by a relating reply
+   alone: the heart lane, witness register, complete sentences.
+   The briefing keeps its designed contexts (calm returns, the
+   journey asked about) and simply does not lead this turn; it
+   stays pending for the next ordinary turn, not lost.
+   (2) A SECOND bubble trailed it — a bare ack carrying the same
+   digest line the briefing had just spoken, because the floor
+   and the briefing shared the digest but not the tab of what
+   had been served. The used-line ledger is now shared (at
+   maybePostBriefing), and the feeling turn posts exactly one
+   reply. One person message, one primary reply.
+   (3) A NOT-ALONE question ("is there anyone else going
+   through the same thing?") was mined by the floor's generic
+   question for its longest word and answered "How did the
+   through go?". The question step is constrained (see
+   substanceFloor) and the not-alone class is routed, below,
+   to a stocked answer — testimony with its names on it.
+   ============================================================ */
+
+/* ---- item 1: feelings, answered as feelings ---- */
+var FEELING_STRONG = {overwhelmed:1, overwhelming:1, tired:1, exhausted:1, drained:1, weary:1,
+  anxious:1, scared:1, afraid:1, numb:1, lonely:1, hopeless:1, sad:1, angry:1,
+  frustrated:1, hurting:1, restless:1, panicky:1, panicked:1, empty:1, tearful:1, crying:1};
+var FEELING_WIDE = {overwhelmed:1, overwhelming:1, tired:1, exhausted:1, drained:1, weary:1, worn:1,
+  anxious:1, anxiety:1, scared:1, afraid:1, frightened:1, nervous:1, tense:1,
+  sad:1, numb:1, empty:1, hollow:1, lonely:1, hopeless:1,
+  angry:1, frustrated:1, irritated:1, hurting:1, hurt:1, restless:1, panicky:1, panicked:1,
+  tearful:1, crying:1, shaky:1};
+function feelingWordsIn(text, set){
+  var out = [], seen = {};
+  String(text || "").toLowerCase().replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).forEach(function(w){
+    w = w.replace(/^'+|'+$/g, "");
+    if(w && set[w] && !seen[w]){ seen[w] = 1; out.push(w); }
+  });
+  return out;
+}
+/* a feeling-FIRST entry: the message's main content is the
+   person's own state, stated plainly — an "I feel…" frame
+   carrying a feeling word, an "I'm <feeling>" shape, or a short
+   message dominated by state words. Deliberately conservative:
+   a long message, or one whose feelings ride inside other
+   content, keeps the ordinary life-lane handling. */
+function feelingFirstIn(text){
+  var raw = String(text || "");
+  var t = " " + raw.toLowerCase().replace(/[^a-z0-9'\s]/g, " ").replace(/\s+/g, " ") + " ";
+  var words = t.trim().split(/\s+/).filter(Boolean);
+  if(!words.length) return false;
+  var strong = feelingWordsIn(raw, FEELING_STRONG);
+  var wide = feelingWordsIn(raw, FEELING_WIDE);
+  if(!wide.length) return false;
+  if(/ i feel | i felt | i am feeling | i'm feeling | i just feel | makes me feel /.test(t) && words.length <= 20) return true;
+  if(/ i'm (so |really |just |feeling )?(overwhelmed|overwhelming|exhausted|anxious|scared|afraid|tired|sad|angry|numb|lonely|hopeless|frustrated|drained|restless|panicky|hurting|empty) /.test(t)) return true;
+  if(words.length <= 6 && strong.length >= 1) return true;
+  if(words.length <= 10 && strong.length >= 2) return true;
+  return false;
+}
+function feelingPhrase(text){
+  var fw = feelingWordsIn(text, FEELING_WIDE).slice(0, 3);
+  if(!fw.length) return "like this";
+  if(fw.length === 1) return fw[0];
+  if(fw.length === 2) return fw[0] + " and " + fw[1];
+  return fw[0] + ", " + fw[1] + " and " + fw[2];
+}
+var FEELING_CLUSTERS = [
+  {words:["overwhelmed","overwhelming","tired","exhausted","drained","weary","worn"],
+   lines:[
+    "{F} — that's a heavy place to be standing, and you don't have to explain it or make it neat here. I'm here with you. Say more of it if more is there, or let it rest — either way, this minute is not yours to carry alone.",
+    "I hear you — {f} is a lot for one person to be holding. Nothing about it needs fixing in the next breath. I'm here; we can sit with it, or you can tell me what's weighing the most."]},
+  {words:["anxious","anxiety","scared","afraid","frightened","nervous","tense","restless","panicky","panicked","shaky"],
+   lines:[
+    "{F} — I hear you. Nothing has to be solved in this minute. I'm here, and I'm not going anywhere; tell me what's closest to the surface if the words come, and if they don't, that can wait too.",
+    "That's a hard feeling to be inside — {f}. Stay with me here. We can take it one small piece at a time, at your pace, and you set what happens next."]},
+  {words:["sad","numb","empty","hollow","lonely","hopeless","tearful","crying"],
+   lines:[
+    "{F} — I'm here, and I'm not going to argue you out of it or dress it up. It counts because it's what today feels like from inside it. Say whatever's next, or nothing at all — I'll be here either way.",
+    "I hear you. When it's {f}, everything can feel far away. From where I sit, you are not far away — I'm right here, and this moment is shared, whether it feels that way or not."]},
+  {words:["angry","frustrated","irritated"],
+   lines:[
+    "{F} — heard, exactly as you said it. You don't have to soften it here or make it reasonable first. I'm here; say it the way it actually is.",
+    "I hear you — {f}, and it makes sense that it lands that way. This is a place where the unedited version is welcome. What happened?"]},
+  {words:["hurting","hurt","shaky"],
+   lines:[
+    "{F} — I hear you. What you're carrying in your body counts as much as anything said out loud. I'm here; take whatever time it needs, and tell me more when you want.",
+    "{F} — that's real, and it deserves to be met as real, not managed. I'm with you. Rest is allowed here; so is saying more."]}
+];
+function feelingReplyLine(text){
+  var fw = feelingWordsIn(text, FEELING_WIDE);
+  var cluster = null;
+  for(var i = 0; i < FEELING_CLUSTERS.length && !cluster; i++)
+    if(FEELING_CLUSTERS[i].words.some(function(w){ return fw.indexOf(w) !== -1; })) cluster = FEELING_CLUSTERS[i];
+  var lines = cluster ? cluster.lines : [
+    "{F} — I hear you, and I believe you. That's how it is right now, and it deserves to be met plainly, the way you said it. I'm here with you in it.",
+    "Thank you for saying it straight — {f}. I'm here. We don't have to do anything with it this minute; it can be said, and heard, and that is already something."];
+  var line = lines[thread.messages.length % lines.length];
+  var f = feelingPhrase(text);
+  return line.replace("{F}", f.charAt(0).toUpperCase() + f.slice(1)).replace("{f}", f);
+}
+function noteFeelingMessage(text){
+  sessionHold = true; /* received and held — a feeling is witnessed, not processed */
+  var line = feelingReplyLine(text);
+  if(liveOn()){
+    queueOrgNote("Before anything else, he is telling you how he feels. Witness it — complete, warm, in the heart lane: the feeling is validated on its own terms, never audited, never answered with the record, with counts, or with his own words quoted back at him.");
+    sessionAckStreak = false;
+    sessionLiveFloorText = text;
+    sessionLiveFloorLine = line;
+    requestLiveReply();
+    return;
+  }
+  sessionAckStreak = false;
+  /* exactly one reply, and it is the relating reply — no
+     briefing leads this turn, no floor trails it (item 2) */
+  pushMsg({type:"companion", noticed:true, fbKind:"feeling", text:line});
+}
+
+/* ---- item 3b: the not-alone answer, stocked with testimony ----
+   The deposits of the testimony sweep (2026-10-28), entered as
+   a dedicated stock — NOT research-bank items: each is a person,
+   a published account, and what a reader can draw from it, with
+   its name and source carried, never stripped. House rules from
+   the sweep hold: the Channel 4 film contributes Rufus May's own
+   story and method only (the patient in it is pseudonymised and
+   played by an actress — her words are not testimony); Bethlem's
+   institutional archives are excluded entirely; items whose
+   details the sweep could not verify (a publisher, a year, a
+   volume) are cited without the unverified detail or left out
+   (HVN-USA's site material and the Mad in America index items
+   are not stocked). One deposit per ask, in rhythm — company,
+   not a briefing. */
+var NOT_ALONE_STOCK = [
+  {id:"perceval", who:"John Perceval", cite:"A Narrative of the Treatment Experienced by a Gentleman During a State of Mental Derangement (1838–1840)",
+   line:"Writing in 1838, confined in a madhouse, John Perceval insisted that his inner experiences were real to him, that cruelty was not treatment, and that patients' own accounts should reform the system — the direct ancestor of everyone who has written since."},
+  {id:"beers", who:"Clifford Beers", cite:"A Mind That Found Itself (1908)",
+   line:"Clifford Beers came through years of psychosis and brutal confinement, recovered, and published his account in 1908 — it was read so widely that it founded a national movement for humane treatment. One person's testimony changed how a whole country treated people."},
+  {id:"obrien", who:"“Barbara O'Brien” (her chosen pseudonym)", cite:"Operators and Things (1958)",
+   line:"A businesswoman whose psychosis arrived without warning in a competent working life, ran a defined course, and ended — afterwards she analysed her own experience with humour and precision. She told it under a pseudonym, on her own terms."},
+  {id:"leete", who:"Esso Leete", cite:"“How I Perceive and Manage My Illness,” Schizophrenia Bulletin (1989)",
+   line:"Esso Leete, living with this for over twenty years, wrote in a scientific journal about naming exactly how she perceives things and building her own ways of managing — she presented her self-knowledge as expertise worth teaching from."},
+  {id:"duval", who:"M. DuVal", cite:"Schizophrenia Bulletin (1979)",
+   line:"In the first years of the journal's first-person feature, a mother living with schizophrenia described noticing early signs in her young son with an insider's eye — and answering with play, environment, and connection."},
+  {id:"anon1990", who:"Anonymous, by the author's choice", cite:"Schizophrenia Bulletin (1990)",
+   line:"One writer, anonymous by choice, described reading other people's accounts and finding their own history clarified by them — and then writing theirs, on their own terms, to be useful to the next person."},
+  {id:"anon1989", who:"Anonymous, by the author's choice", cite:"Schizophrenia Bulletin (1989)",
+   line:"Another anonymous writer laid out, plainly and functionally, how a life can be organised durably around an ongoing condition — chronic and managed, held in the same life at the same time."},
+  {id:"boevink", who:"Wilma Boevink", cite:"Schizophrenia Bulletin (2006)",
+   line:"Wilma Boevink, a Dutch experiencer and researcher, wrote that being stabilised while never being asked what had happened to her left the root of it untouched — her recovery began when she was finally listened to about her own history."},
+  {id:"chadwick", who:"Peter Chadwick", cite:"Schizophrenia Bulletin (2014)",
+   line:"Peter Chadwick, a psychology lecturer who became psychotic in 1979, wrote from inside the road into it — and about discovering, by testing it, the difference the right support made between a frightening world and a joyful one."},
+  {id:"morck", who:"Helene Cæcilie Mørck", cite:"Schizophrenia Bulletin (2023)",
+   line:"A former dancer writing in the journal in 2023 put it this way: she does not use the word recovery — she coexists with schizophrenia as part of who she is, and her life moves. You do not have to take the word for your life to move."},
+  {id:"longden", who:"Eleanor Longden", cite:"the TED talk “The voices in my head” (2013) and Learning from the Voices in My Head (2013)",
+   line:"Eleanor Longden began hearing a narrator voice at university; it turned hostile, and she was hospitalised. She came through by learning to listen to what the voices carried — feelings she had not been able to feel directly — and she completed two psychology degrees while still hearing them."},
+  {id:"deegan", who:"Patricia Deegan", cite:"“Recovery: The Lived Experience of Rehabilitation” (1988)",
+   line:"Pat Deegan was diagnosed at seventeen and wrote, years later, that giving up had been her protection — a way of not wanting things that could be taken away. Her recovery started not with trying harder, but with being offered choice, information, and role models, until caring felt safe again."},
+  {id:"saks", who:"Elyn Saks", cite:"The Center Cannot Hold (2007, a memoir)",
+   line:"Elyn Saks, a law professor, kept her schizophrenia secret for decades while building a demanding career through hospitalisations. Her account holds both at once — a full professional life, and the illness — and the combination that worked for her."},
+  {id:"may", who:"Rufus May", cite:"clinical psychologist; his story is told in The Doctor Who Hears Voices (Channel 4, 2008), where he plays himself",
+   line:"Rufus May was told at eighteen that he would be ill for life. He is now a clinical psychologist who works with voice-hearers — and one of his methods is testing a voice's predictions by writing them down and checking whether they come true."},
+  {id:"dillon", who:"Jacqui Dillon", cite:"Therapy Today (2019)",
+   line:"Jacqui Dillon has heard voices since she was five. Her recovery, in her own account, began when she stopped letting other people define her reality and found what she calls an empathic witness — someone committed to hearing her. Being believed, she says, may be the intervention."},
+  {id:"lauveng", who:"Arnhild Lauveng", cite:"A Road Back from Schizophrenia (2005; English edition 2012)",
+   line:"Arnhild Lauveng spent ten years in and out of institutions with a terrifying inner world — and now works as a clinical psychologist. What she remembers, decades later, is the staff who spoke with her as a person."},
+  {id:"bien", who:"Claire Bien", cite:"Hearing Voices, Living Fully (2016)",
+   line:"Claire Bien's voices began benign and grew darker the more fear she paid them. She regained control of her mind and her life while still hearing voices — the goal she models is a full life, not necessarily silence."},
+  {id:"yeiser", who:"Bethany Yeiser", cite:"Mind Estranged (2014)",
+   line:"Bethany Yeiser went from a scholarship student to four years homeless and estranged from her family — and back, to a degree and a purpose. Her road ran through persevering until the right treatment fit; she now speaks to families and clinicians."},
+  {id:"coleman", who:"Ron Coleman", cite:"Working with Voices: Victim to Victor (1997)",
+   line:"Ron Coleman's workbook, written from his own experience, is full of do-it-today moves: negotiate with voices, agree listening times, set the terms — shifting from being ordered about to deciding the conditions yourself."},
+  {id:"livingvoices", who:"fifty voice-hearers", cite:"Living with Voices: 50 Stories of Recovery (2009)",
+   line:"Fifty different people told their stories in one book and found fifty different ways through — no single correct path. The common threads: accepting the voices as real to you, and building a life around them rather than waiting for them to disappear first."},
+  {id:"acceptingvoices", who:"Marius Romme and Sandra Escher, and the hearers they interviewed", cite:"Accepting Voices (1993)",
+   line:"When researchers began asking hearers, respectfully and in detail, how they coped — instead of only trying to silence the voices — hearers' own knowledge turned out to be a library. Learning how other people cope can itself change the relationship."},
+  {id:"maastricht", who:"the Maastricht Interview, developed by Romme and Escher", cite:"Making Sense of Voices (2000)",
+   line:"There is a respected interview that maps your voices like characters with a history: who they sound like, when they arrived, what sets them off, what you were living through. Many hearers say being asked this way — in detail, with respect — was itself the first relief."},
+  {id:"hvn", who:"the Hearing Voices Network", cite:"hearing-voices.org",
+   line:"There is a peer-run national network for this experience, with local and online groups where testimony is exchanged live. You don't need a diagnosis or a referral to belong to it."},
+  {id:"intervoice", who:"Intervoice", cite:"the international Hearing Voices community",
+   line:"The national networks are nodes in a worldwide movement — congresses, training, a shared library of experiencers' accounts. What can feel like private shame meets an organised, international counter-story."},
+  {id:"wenda", who:"Wenda Parsons", cite:"a first-person film made with Durham University's Hearing the Voice project (2019)",
+   line:"Wenda Parsons filmed her own story: twenty years of voices, a long quiet period, voices returning — and managed, in her telling, with movement practices and faith, and experienced at times as supportive."},
+  {id:"jason", who:"Jason", cite:"a first-person film with Patient Voices",
+   line:"One man's filmed account: two episodes while travelling, paranoia, arrest, being sectioned — and then good care, and becoming an advisor to services and a life coach. The hardest chapter became, in his own edit, the route into helping other people."},
+  {id:"bullimore", who:"Peter Bullimore", cite:"founder of the National Paranoia Network; a published account in the journal Psychosis",
+   line:"Peter Bullimore, who lives with paranoia and voices, built a national network on one idea: paranoia can be worked with by examining the life experiences underneath the fear, alongside peers who share it — not only by arguing about whether the fear is real."},
+  {id:"handbook", who:"the editors and contributors of The Practical Handbook of Hearing Voices", cite:"PCCS Books",
+   line:"A whole handbook written with hearers collects what actually helped particular people: painting, writing, work adjustments, peer groups, dialogue, creative practices. A menu, not a prescription — you are allowed to try approaches until one fits."},
+  {id:"hornstein", who:"Gail Hornstein's Bibliography of First-Person Narratives of Madness", cite:"kept with Agnes's Jacket (2009)",
+   line:"A scholar has catalogued over a thousand first-person narratives of madness in English, reaching back centuries. Your experience has a literature — deep enough to read your way into company for a long time."},
+  {id:"crisis", who:"the contributors to Psychosis as a Personal Crisis", cite:"edited by Romme, Escher and colleagues (Routledge)",
+   line:"Clinicians and experiencers writing together make this case: a psychotic crisis can be read as a turning point in a life story — something to integrate and learn from, not only an episode to erase from the biography."}
+];
+/* the not-alone question class: he is asking whether this is
+   his alone to carry — phrased as a question, or as an
+   isolation bid ("nobody else understands"). Tight by design:
+   "anyone else" must arrive with the experience in the sentence
+   (going through it, dealing with it, hearing, the same thing),
+   so ordinary questions about other people never land here. */
+function notAloneIn(text){
+  var raw = String(text || "");
+  var t = " " + raw.toLowerCase().replace(/[^a-z0-9'\s]/g, " ").replace(/\s+/g, " ") + " ";
+  var q = raw.indexOf("?") !== -1
+    || /^\s*(is|are|am|do|does|did|has|have|can|could|will|would)\b/i.test(raw);
+  var ctx = / going through | deal with | live with | living with | hear | voices | voice | same thing | like this | like me | experience | have this | get this | feel this | this too | through this /.test(t);
+  if(/ (anyone|anybody|someone|somebody) else /.test(t) && ctx) return true;
+  if(/ am i the only one | is it just me | am i alone | the only one who | only one dealing | only one with | only one going /.test(t)) return true;
+  if(/ (nobody|no one) else (understands|gets it|knows|has this) /.test(t)) return true;
+  if(/ nobody understands | no one understands | nobody gets it | no one gets it /.test(t)) return true;
+  if(q && / (people|others) like me /.test(t)) return true;
+  if(q && / anyone | anybody /.test(t) && ctx) return true;
+  return false;
+}
+function nextNotAloneDeposit(){
+  if(!thread.notAloneBag || !thread.notAloneBag.length){
+    var ids = NOT_ALONE_STOCK.map(function(d){ return d.id; });
+    for(var i = ids.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1)), tmp = ids[i]; ids[i] = ids[j]; ids[j] = tmp;
+    }
+    if(ids.length > 1 && ids[0] === thread.notAloneLast) ids.push(ids.shift());
+    thread.notAloneBag = ids;
+  }
+  var id = thread.notAloneBag.shift();
+  thread.notAloneLast = id;
+  saveThread();
+  for(var k = 0; k < NOT_ALONE_STOCK.length; k++)
+    if(NOT_ALONE_STOCK[k].id === id) return NOT_ALONE_STOCK[k];
+  return NOT_ALONE_STOCK[0];
+}
+function notAloneReplyText(dep){
+  return "Yes — many. People have been writing first-person accounts of living with voices since 1838, "
+    + "and the journal Schizophrenia Bulletin has run a First Person Accounts feature since 1979 — "
+    + "156 of those accounts were counted between 1979 and 2020 alone. You are not the only one in this, not by a long way. "
+    + "One of them: " + dep.line + " — " + dep.who + ", " + dep.cite + ".";
+}
+function noteNotAloneMessage(text){
+  sessionHold = true; /* the question is received whole — it is not filed as a statement, anywhere */
+  var dep = nextNotAloneDeposit();
+  var line = notAloneReplyText(dep);
+  if(liveOn()){
+    queueOrgNote("He asked whether anyone else goes through this. Answer it plainly — yes: first-person accounts of living with voices have been published since 1838, and Schizophrenia Bulletin has run First Person Accounts since 1979 (156 counted between 1979 and 2020). Then offer him this one witness, in rhythm, with its name on it: " + dep.line + " (" + dep.who + ", " + dep.cite + ")");
+    sessionAckStreak = false;
+    sessionLiveFloorText = text;
+    sessionLiveFloorLine = line;
+    requestLiveReply();
+    return;
+  }
+  sessionAckStreak = false;
+  pushMsg({type:"companion", noticed:true, fbKind:"notalone", text:line});
+}
+
 function noteLifeMessage(text){
   sessionHold = true; /* received and held — the same posture as a pour's aftermath */
+  /* v3.0 (item 1): a feeling comes first — before the briefing,
+     before the floor. It is answered by the relating reply,
+     alone; the briefing stays pending for the next ordinary
+     turn rather than leading this one */
+  if(feelingFirstIn(text)){ noteFeelingMessage(text); return; }
   maybePostBriefing(); /* v2.1: the day's first substantive turn leads with the journey */
   var lf = computeLifeFact(text);
   if(liveOn()){
@@ -8355,6 +8714,12 @@ function requestLiveReply(){
       thread.messages = thread.messages.filter(function(x){ return x.id !== typing.id; });
       if(text){
         pushMsg({type:"companion", live:true, text:text});
+      } else if(sessionLiveFloorLine){
+        /* v3.0: this exchange already has its stocked answer —
+           a feeling's relating reply or the not-alone answer —
+           and a failed live call falls back to it whole */
+        pushMsg({type:"companion", noticed:true, text:sessionLiveFloorLine});
+        sessionLiveFloorLine = "";
       } else if(sessionLiveFloorText){
         /* v2.1: a failed live call answering something substantive
            still meets the floor — never a bare ack alone */
@@ -8365,6 +8730,7 @@ function requestLiveReply(){
         pushMsg({type:"companion", text:ACK_LINES[thread.messages.length % ACK_LINES.length]});
       }
       sessionLiveFloorText = "";
+      sessionLiveFloorLine = "";
       render();
     }
     return Promise.resolve()
@@ -8482,6 +8848,17 @@ function sendThreadText(){
     /* a detail step asked for his own words; they fill the field */
     pushMsg({type:"person", text:text});
     handleDetailText(text);
+    render();
+    return;
+  }
+  if(notAloneIn(text)){
+    /* v3.0 (the correction pass, item 3b): the not-alone question
+       is answered before every content lane — it is a question
+       to the companion, never material: not a pour, not a journal
+       statement, never floor-fed. The stocked answer (testimony,
+       one witness at a time) is in noteNotAloneMessage. */
+    pushMsg({type:"person", text:text});
+    noteNotAloneMessage(text);
     render();
     return;
   }
