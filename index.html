@@ -1520,6 +1520,21 @@ var EFFIGY_STAGES = [
   {min:40, name:"Down to the frame", line:"The post is down to the frame — mostly sticks now."},
   {min:60, name:"Mostly mulch",      line:"The post is mostly mulch — what’s left of it is feeding your field."}
 ];
+/* ---- v3.5: THE INSCRIPTION ON THE POST (2026-11-01) ----
+   The founder's message TO the effigy, in his words, in three
+   tenses — an aikido move: their constant watching is
+   conscripted as testimony. The effigy is double-sided: one
+   face to Halloween, one face to the person (a self-trust
+   activation on his own post). It is card content only — no
+   constitution change. It rides on the post card beneath the
+   condition line and in the facts the live voice receives,
+   exactly as written: no explanation, no caption. */
+var EFFIGY_INSCRIPTION = [
+  "You will be proud of me.",
+  "You are already proud of me — you are here, in my perception.",
+  "You are being proud of me — I’m building a fulfilling life.",
+  "You will be proud of me — because of all my past, present and future receipts."
+];
 function effigyCounts(){
   var stock = playlist.songs.length
     + ((ladder.noteForHardDay && ladder.noteForHardDay.trim()) ? 1 : 0)
@@ -1575,6 +1590,7 @@ function effigyFactsLine(){
   var st = effigyState();
   var names = piecesUnderEffigy().map(function(p){ return p.name; });
   return "The post (his standing effigy of Halloween), as it stands: " + st.line
+    + " Inscribed on the post: " + EFFIGY_INSCRIPTION.join(" ")
     + " Hanging on it: " + (names.length ? names.join(", ") : "nothing yet") + "."
     + " Gone to mulch: " + st.counts.settled + (st.counts.settled === 1 ? " thing" : " things")
     + " they said, checked against what happened."
@@ -11343,6 +11359,12 @@ function effigyCardHTML(m){
   var st = effigyState();
   var rack = piecesUnderEffigy();
   var h = '<p style="margin:4px 0">' + esc(st.line) + '</p>';
+  /* v3.5: the inscription — his message to the effigy, carved
+     on the post itself, beneath the condition it stands in */
+  h += '<div class="cardblock" style="margin-top:10px">'
+    + '<p style="margin:2px 0"><strong>' + esc(EFFIGY_INSCRIPTION[0]) + '</strong></p>'
+    + EFFIGY_INSCRIPTION.slice(1).map(function(l){ return '<p class="small" style="margin:2px 0">' + esc(l) + '</p>'; }).join("")
+    + '</div>';
   h += '<p class="hub-label" style="margin-top:12px">Hanging on it' + (rack.length ? ' (' + rack.length + ')' : '') + '</p>';
   if(rack.length){
     h += '<p style="margin:4px 0">' + rack.map(function(p){ return esc(p.name); }).join(' · ') + '</p>';
