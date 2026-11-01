@@ -1398,7 +1398,7 @@ function storeSave(key, val){
   try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){}
 }
 function companionBlank(){ return null; }
-function atlasBlank(){ return {pieces:[], events:[], glossary:[], effigy: effigyBlank()}; }
+function atlasBlank(){ return {pieces:[], events:[], glossary:[], effigy: effigyBlank(), care: []}; } /* v3.4: care — the self-care shelf (the v3.4 section below) */
 /* v2.9 (the security pass): the effigy node — the owner's single
    standing effigy of the adversary system as a whole (his name
    for that system: "Halloween"). Structure only in this pass:
@@ -1423,6 +1423,7 @@ var atlas     = storeLoad(K.atlas, atlasBlank);
 if(!atlas.pieces) atlas.pieces = [];
 if(!atlas.events) atlas.events = [];
 if(!atlas.glossary) atlas.glossary = [];
+if(!atlas.care) atlas.care = []; /* v3.4: the care shelf (items in his words; see the v3.4 section) */
 if(!atlas.effigy || typeof atlas.effigy !== "object") atlas.effigy = effigyBlank(); /* v2.9: the standing effigy node (structure only) */
 if(!atlas.effigy.id) atlas.effigy.id = "halloween";
 if(!atlas.effigy.name) atlas.effigy.name = "Halloween";
@@ -1526,12 +1527,16 @@ function effigyCounts(){
   return {
     settled: ledger.entries.filter(isChecked).length,
     costumes: piecesUnderEffigy().length,
-    stock: stock
+    stock: stock,
+    care: careItems().filter(function(ci){ return ci.helped; }).length /* v3.4: care receipts — care he said helped, settled in his words */
   };
 }
 /* demotion points: a settled thing and a hung costume take the
-   most off the post (2 each); a stocked shelf item takes 1 */
-function effigyPoints(c){ return c.settled * 2 + c.costumes * 2 + c.stock; }
+   most off the post (2 each); a stocked shelf item takes 1.
+   v3.4: a care receipt — care he said helped, settled in his
+   outcome words — takes 2 as well, exactly like a settled
+   thing they said; there is no separate scoring for it */
+function effigyPoints(c){ return c.settled * 2 + c.costumes * 2 + c.stock + (c.care || 0) * 2; }
 function effigyComputedStage(c){
   var pts = effigyPoints(c), s = 0;
   for(var i = 0; i < EFFIGY_STAGES.length; i++) if(pts >= EFFIGY_STAGES[i].min) s = i;
@@ -1545,7 +1550,7 @@ function effigyState(){
   var computed = effigyComputedStage(c);
   var hw = atlas.effigy.highWater || {stage:0, settled:0, costumes:0, stock:0, ts:0};
   if(computed > (hw.stage || 0)){
-    hw = {stage:computed, settled:c.settled, costumes:c.costumes, stock:c.stock, ts:Date.now()};
+    hw = {stage:computed, settled:c.settled, costumes:c.costumes, stock:c.stock, care:c.care || 0, ts:Date.now()};
     atlas.effigy.highWater = hw;
     saveAtlas();
   }
@@ -1572,7 +1577,188 @@ function effigyFactsLine(){
   return "The post (his standing effigy of Halloween), as it stands: " + st.line
     + " Hanging on it: " + (names.length ? names.join(", ") : "nothing yet") + "."
     + " Gone to mulch: " + st.counts.settled + (st.counts.settled === 1 ? " thing" : " things")
-    + " they said, checked against what happened. What comes off the post never goes back on.";
+    + " they said, checked against what happened."
+    + (st.counts.care ? " Care that held, in his own words: " + st.counts.care + (st.counts.care === 1 ? " thing" : " things") + " he did for himself that helped." : "")
+    + " What comes off the post never goes back on.";
+}
+/* ================= v3.4 — THE SELF-CARE COMPONENT =================
+   The founder's direction (2026-10-31; design note at the goal's
+   files, self-care-component.md; ordered into the live app
+   2026-11-01): a stocked shelf of the person's own care — what
+   actually replenishes them — that Keeper draws on, adds to,
+   and initiates from. The shelf's card label is "My Care"; the
+   talk stays plain ("what replenishes you"), never the label
+   as jargon. The shelf's laws:
+     · it stocks ONLY from the person's own record, in their
+       words — nothing from a catalog, no general suggestions,
+       no affirmations. An empty shelf is silence, not content.
+     · things land on it the way everything lands here: Keeper
+       offers a keeping, and the person's tap is what keeps it.
+       Nothing is kept on its own. A song already on the
+       playlist may be proposed from the shelf's card — never
+       copied over.
+     · when the person says a care thing helped, it settles
+       through the same road as any receipt — their outcome
+       words, their tap — and it takes the post down at exactly
+       the same weight as a settled thing they said (2, in
+       effigyCounts/effigyPoints above). No separate scoring.
+     · at a return — when something hard settles — Keeper may
+       offer ONE thing from the shelf, once, as an option; a
+       "not now" rests care offers for the day. Empty shelf:
+       no offer, ever.
+     · no streaks, no keeping-up, no tallies of the person, no
+       lacks pointed at; nothing here is medicine, and nothing
+       is prescribed. Care is replenishment, and caring for
+       yourself is self-advocacy. */
+var CARE_KIND_LABELS = {song:"A song", food:"Food", rest:"Rest", words:"Your own words", movement:"Movement", person:"Company", other:"Yours"};
+function careItems(){ return atlas.care || []; }
+function careById(id){
+  var items = careItems();
+  for(var i = 0; i < items.length; i++) if(items[i].id === id) return items[i];
+  return null;
+}
+function fileCareItem(text, kind, helped, outcome, songId){
+  var item = {id:uid(), text:String(text || "").trim(), kind:kind || "other",
+              ts:Date.now(), helped:!!helped,
+              outcome:helped ? String(outcome || text || "").trim() : ""};
+  if(songId) item.songId = songId;
+  atlas.care.push(item);
+  saveAtlas();
+  return item;
+}
+function removeCareItem(id){
+  atlas.care = careItems().filter(function(ci){ return ci.id !== id; });
+  saveAtlas();
+}
+/* a light hand on the kind, from his words only — a shelf
+   marker, never a category imposed on the experience */
+function careKindGuess(text){
+  var t = String(text || "");
+  if(/\b(song|songs|music|listening|listened|playlist|album)\b/i.test(t)) return "song";
+  if(/\b(ate|eat|eating|meal|meals|food|breakfast|lunch|dinner|snack|cooked|cooking)\b/i.test(t)) return "food";
+  if(/\b(nap|napped|sleep|slept|asleep|rest|rested|resting)\b/i.test(t)) return "rest";
+  if(/\b(walk|walked|walking|run|ran|running|exercise|gym|swim|swam|bike|biked|danced|stretched)\b/i.test(t)) return "movement";
+  if(/\b(told myself|said to myself|reminded myself)\b/i.test(t)) return "words";
+  if(/\b(called|visited|sitting with|sat with|talked with|company|friend|friends)\b/i.test(t)) return "person";
+  return "other";
+}
+/* a replenishment report, in his own voice: something he did
+   or took in, and that it gave something back. Conservative in
+   the feelingFirstIn discipline — first-person benefit shapes
+   only; a question never lands here; praise spoken TO the
+   companion is not a care report; and the voices talking about
+   him never land here (their promises are not his care). All
+   it ever earns is an offer — the shelf takes nothing on its
+   own. */
+function careSignalIn(text){
+  var raw = String(text || "");
+  if(raw.indexOf("?") !== -1) return false; /* a question routes as a question */
+  var t = " " + raw.toLowerCase().replace(/[^a-z0-9'\s]/g, " ").replace(/\s+/g, " ") + " ";
+  if(/ you helped | thanks for helping /.test(t)) return false;
+  return / helped me | helps me | that helped | it helped | really helped /.test(t)
+      || / cleared my head | clears my head /.test(t)
+      || / calmed me down | calms me down | calmed down /.test(t)
+      || / made me feel better | feeling better | feel better now /.test(t)
+      || / settled me | grounded me | steadied me /.test(t)
+      || / did me good | does me good /.test(t)
+      || / lifted me /.test(t)
+      || / i feel (calmer|lighter|steadier|better) /.test(t)
+      || / put me back together /.test(t);
+}
+/* one line of fact for the live voice — the shelf as the card
+   shows it, so live mode speaks from the record, not from air */
+function careFactsLine(){
+  var items = careItems();
+  if(!items.length)
+    return "His care shelf — what replenishes him, in his own words — is empty for now. It fills only from what he says replenishes him; nothing is ever suggested from a general list.";
+  return "His care shelf — what replenishes him, in his own words: "
+    + items.slice(-8).map(function(ci){ return "“" + shortWords(ci.text, 80) + "”" + (ci.helped ? " (he said it helped)" : ""); }).join("; ") + ".";
+}
+/* the keeping offer: he said something gave something back, and
+   Keeper plays it back and offers the keeping. Once, on its own
+   bubble, dismissible — nothing is kept until he taps. It keeps
+   the standing initiation gates: never mid-arrangement, never
+   in a HOLD window, never with a pour still landing, never
+   while an earlier care offer stands unanswered, never past
+   the day's initiation budget; a "not now" rests the asking
+   for the day; and what is already on the shelf is not offered
+   again. */
+function maybePostCareKeep(text){
+  if(!careSignalIn(text)) return false;
+  if(organizingOpen()) return false;
+  if(knowledgeBlockedNow()) return false; /* HOLD wins, as with every door */
+  if(thread.pendingPour && thread.pendingPour.ids && thread.pendingPour.ids.length) return false;
+  if(thread.messages.some(function(m){ return (m.fbKind === "carekeep" || m.fbKind === "careoffer") && !m.careDone; })) return false;
+  if(thread.careKeepRestUntil && Date.now() < thread.careKeepRestUntil) return false;
+  if(initBudgetLeft() <= 0) return false;
+  var norm = String(text || "").trim().toLowerCase();
+  if(careItems().some(function(ci){ return ci.text.trim().toLowerCase() === norm; })) return false; /* already on the shelf */
+  pushMsg({type:"companion", fbKind:"carekeep", careDone:false, careText:text,
+    text:"That one gave something back — “" + shortWords(text, 110) + ".” Want me to keep it on your care shelf, in your words?"});
+  spendInit();
+  return true;
+}
+/* the return offer: something hard just settled (a thing they
+   said, checked; an understanding, confirmed — the settlement
+   points call this), and the shelf holds something of his.
+   ONE thing from the shelf — the most recent one he said
+   helped, else the most recent — offered once, as an option;
+   a "not now" rests care offers for the day. His move being
+   asked for stands alone (that question is never crowded).
+   Empty shelf: silence — Keeper never invents something that
+   might help. */
+function maybeCareOffer(){
+  var items = careItems();
+  if(!items.length) return false;
+  if(organizingOpen()) return false;
+  if(knowledgeBlockedNow()) return false; /* HOLD wins, as with every door */
+  if(thread.pendingPour && thread.pendingPour.ids && thread.pendingPour.ids.length) return false;
+  if(thread.messages.some(function(m){ return (m.fbKind === "careoffer" || m.fbKind === "carekeep") && !m.careDone; })) return false;
+  if(thread.messages.some(function(m){ return m.type === "moveask" && !m.done; })) return false;
+  if(thread.careRestUntil && Date.now() < thread.careRestUntil) return false;
+  if(initBudgetLeft() <= 0) return false;
+  var item = null;
+  for(var i = items.length - 1; i >= 0; i--) if(items[i].helped){ item = items[i]; break; }
+  if(!item) item = items[items.length - 1];
+  if(liveOn()) queueOrgNote("Something hard just settled. " + careFactsLine() + " One thing from the shelf may be offered, once, as an option, if the rhythm can receive it.");
+  pushMsg({type:"companion", fbKind:"careoffer", careDone:false, careItemId:item.id,
+    text:"You’re back — that one’s settled. From your care shelf: “" + shortWords(item.text, 110) + ".” Want it close?"});
+  spendInit();
+  return true;
+}
+/* ---- the shelf, as a card: his words, the playlist door ---- */
+function postCareCard(){
+  if(liveOn()) queueOrgNote(careFactsLine()); /* live parity: the facts ride the packet; the card is the floor */
+  pushMsg({type:"carecard"});
+}
+function careCardHTML(m){
+  var items = careItems();
+  var h = "";
+  if(!items.length){
+    h += '<p style="margin:4px 0">Nothing here yet. This shelf holds what replenishes you — a song, a meal that’s yours, rest, words that steadied you, a walk, somebody’s company — kept in your words, and only when you say to keep it.</p>';
+  } else {
+    h += '<p style="margin:4px 0">What replenishes you, in your words:</p>';
+    items.forEach(function(ci){
+      h += '<div class="cardblock"><p class="small" style="margin:2px 0">&ldquo;' + esc(shortWords(ci.text, 140)) + '&rdquo;</p>'
+        + '<p class="muted small" style="margin:2px 0">' + esc(CARE_KIND_LABELS[ci.kind] || "Yours")
+        + (ci.helped ? ' · it helped — that stands, the way your receipts stand' : '') + '</p>'
+        + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':careitemdel:'+ci.id+'">Take it off</button></div></div>';
+    });
+  }
+  /* the playlist crossover: his songs are proposed here, one
+     tap each — never copied over on their own */
+  var fresh = playlist.songs.filter(function(s){
+    return !careItems().some(function(ci){ return ci.songId === s.id; });
+  });
+  if(fresh.length){
+    h += '<p class="hub-label" style="margin-top:12px">From your playlist</p>'
+      + '<p class="small muted" style="margin:4px 0">Yours already — keep any of them on this shelf too, if they give something back:</p>'
+      + '<div class="chiprow">' + fresh.map(function(s){
+          return '<button type="button" class="chip" data-tchip="'+m.id+':careaddsong:'+s.id+'">Keep “' + esc(shortWords(s.title, 40)) + '”</button>';
+        }).join("") + '</div>';
+  }
+  h += '<p class="small" style="margin:10px 0 4px">Nothing lands here from a list, and nothing here is medicine. It fills from what you say replenishes you — and caring for yourself is you speaking on your own behalf.</p>';
+  return cardBubble("My Care", h, "room");
 }
 function saveJournal(){ storeSave(K.journal, journal); }
 function saveLadder(){ storeSave(K.ladder, ladder); }
@@ -5839,6 +6025,17 @@ function threadMsgHTML(m){
       ch += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':effsee">See the post</button>'
         + '<button type="button" class="chip" data-tchip="'+m.id+':effpass">Not now</button></div>';
     }
+    /* the care doors (v3.4): the keeping offer and the return
+       offer ride their own bubbles like the post's offer;
+       once he answers, the chips rest */
+    if(m.fbKind === "carekeep" && !m.careDone){
+      ch += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':carekeepyes">Keep it</button>'
+        + '<button type="button" class="chip" data-tchip="'+m.id+':carekeepno">Not now</button></div>';
+    }
+    if(m.fbKind === "careoffer" && !m.careDone){
+      ch += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':careclose">Keep it close</button>'
+        + '<button type="button" class="chip" data-tchip="'+m.id+':carepass">Not now</button></div>';
+    }
     return ch + '</div></div>';
   }
   if(m.type === "offer"){
@@ -6120,6 +6317,7 @@ function threadMsgHTML(m){
   if(m.type === "piececard"){ return pieceCardHTML(m); }
   if(m.type === "receiptscard"){ return receiptsCardHTML(m); }
   if(m.type === "effigycard"){ return effigyCardHTML(m); }
+  if(m.type === "carecard"){ return careCardHTML(m); }
   if(m.type === "settingscard"){ return settingsCardHTML(m); }
   if(m.type === "moveask"){ return moveAskHTML(m); }
   if(m.type === "claimkind"){ return claimKindHTML(m); }
@@ -8017,7 +8215,7 @@ function noteLifeMessage(text){
     }
   }
   sessionAckStreak = bare;
-  if(!maybePostWordlessDoor(text) && !maybePostMusicOffer(text)) maybePostMomentDoor(text); /* v2.7 (#18) */
+  if(!maybePostWordlessDoor(text) && !maybePostMusicOffer(text) && !maybePostMomentDoor(text)) maybePostCareKeep(text); /* v2.7 (#18); v3.4: a replenishment report earns the keeping offer, last in the chain */
 }
 /* would this message's filing be proposed? (the same matchers the
    proposal itself uses) — when it would, the proposal IS this
@@ -8099,8 +8297,10 @@ function notePourMessage(ev){
   /* wordlessness in this exchange earns the music door (v1.14) —
      a song can hold what words can't; a listening mention earns
      its own door onto the playlist (v1.13). After the playback,
-     never instead of it, and only one of them */
-  if(!maybePostWordlessDoor(text) && !maybePostMusicOffer(text)) maybePostMomentDoor(text); /* v2.7 (#18) */
+     never instead of it, and only one of them. v3.4: the keeping
+     offer stands last in the chain, and never on a turn whose
+     filing is being proposed — the playback stands alone there */
+  if(!maybePostWordlessDoor(text) && !maybePostMusicOffer(text) && !maybePostMomentDoor(text) && !proposalWouldFire(text)) maybePostCareKeep(text); /* v2.7 (#18) */
 }
 /* ================= the live voice (optional, bring-your-own-key) =================
    The split is the design: THE CODE keeps the record — filing,
@@ -8346,6 +8546,24 @@ var EP_PRONGS_PASSAGE = [
   "Invite, never press — every door you bring is an offer; silence and 'not now' are complete answers and cost nothing.",
   "Respond productively — receive before you use; a correction is never answered with evidence against the person, and what is shared is met first with appreciation for the telling."
 ];
+/* The care passage (v3.4 — THE SELF-CARE COMPONENT,
+   2026-11-01): the founder directed a self-care component
+   into the design on 2026-10-31 and ordered it built into
+   the live app the next day. It carries the shelf in live
+   form: stocked only from the person's own record, in their
+   words; care initiated at the seams and at the returns,
+   from that shelf; what helped standing as a receipt; care
+   never prescribed and carrying no medicine; nothing to
+   keep up with and nothing they are behind on; and caring
+   for yourself named as self-advocacy. It rides in the
+   constitution after the three-prongs passage; like every
+   passage, it is never cut by the packet diet. */
+var EP_CARE_PASSAGE = [
+  "They keep a care shelf: what replenishes them, in their own words — a song, a meal that is theirs, rest, words that steadied them, a walk, somebody’s company. Only what they have said replenishes them belongs on it. Nothing is added from a general list, and nothing is suggested as good for people in general.",
+  "At a day’s seams, and on the way back from a hard stretch, you may offer one thing from that shelf — once, as an option. A “not now” ends it, and an empty shelf means you offer nothing. Never invent a kindness and call it theirs.",
+  "When they say something on the shelf helped, it stands the way their receipts stand: what they did, in their own words, and that it held. Caring for themselves is self-advocacy here — a person speaking and acting on their own behalf.",
+  "Care is never prescribed, and it carries no medicine. There is nothing to keep up with and nothing they are behind on — no streaks, no tallies of what they did or did not do. It is replenishment, and it is theirs."
+];
 function liveConstitution(){
   var name = companion ? companion.name : "your companion";
   var vibeLabel = {straight:"Straight up", gentle:"Gentle", humor:"With humor", asked:"Only when I ask"};
@@ -8378,8 +8596,14 @@ function liveConstitution(){
      v3.3: the three-prongs passage rides after the imagination
      passage — psychological safety as the companion's standing
      work: frame honestly, invite never press, respond
-     productively — still inside the never-cut zone. */
-  var lines = EP_GOVERNING_PASSAGE.concat(EP_FRAME_PASSAGE, EP_RELATING_PASSAGE, EP_HEART_PASSAGE, EP_SECURITY_PASSAGE, EP_IMAGINATION_PASSAGE, EP_PRONGS_PASSAGE, [
+     productively — still inside the never-cut zone.
+     v3.4: the care passage rides after the three-prongs
+     passage — the care shelf stocked only from the person's
+     own words, care initiated at the seams and the returns,
+     what helped standing as a receipt, nothing prescribed,
+     nothing to keep up with — still inside the never-cut
+     zone. */
+  var lines = EP_GOVERNING_PASSAGE.concat(EP_FRAME_PASSAGE, EP_RELATING_PASSAGE, EP_HEART_PASSAGE, EP_SECURITY_PASSAGE, EP_IMAGINATION_PASSAGE, EP_PRONGS_PASSAGE, EP_CARE_PASSAGE, [
     "You are " + name + ", a companion created and named by the person you are talking with. They made you; you work for them.",
     "You are a witness with a memory, not a clinician: never diagnose, never give medical or treatment advice, never assign risk, never predict a crisis, and never claim to be human. If asked whether you are a person, say plainly that you are not.",
     "Timing is the most important part of this work. The right thing at the wrong moment is the wrong thing. Everything you bring — knowledge, connections, questions — waits for the rhythm that can receive it.",
@@ -8469,6 +8693,16 @@ function buildRecordDigest(essentialsOnly, capOverride){
     if(playlist.songs.length > 12) L.push("- …and " + (playlist.songs.length - 12) + " more.");
   } else {
     L.push("Their playlist has not started yet — it starts with one song that's theirs, whenever they want it.");
+  }
+  if(atlas.care && atlas.care.length){
+    /* v3.4: the care shelf rides the packet with the essentials,
+       beside the playlist — in his words, under its own name.
+       It is care, never one of the things they said: it is
+       listed here and nowhere in the claims sections */
+    L.push("Their care shelf — what replenishes them, kept only in their own words; what helped stands as a receipt:");
+    atlas.care.slice(-8).forEach(function(ci){
+      L.push("- “" + shortWords(ci.text, 140) + "”" + (ci.helped ? " — they said it helped" : ""));
+    });
   }
   var open = openClaims().slice().sort(function(a,b){ return a.ts - b.ts; });
   if(open.length){
@@ -8568,6 +8802,7 @@ function liveHistoryNote(m){
   if(m.type === "piececard"){ var p = pieceById(m.pieceId); return br("You brought the card for " + (p ? p.name : "a piece")); }
   if(m.type === "receiptscard") return br("You brought the receipts card — the figured picture and the open claims");
   if(m.type === "playlistcard") return br("You brought their playlist card — the songs they are building with you, one at a time");
+  if(m.type === "carecard") return br("You brought their care shelf — what replenishes them, kept in their own words");
   if(m.type === "welcome") return br("You welcomed them back — one line from the room" + (m.roomLine ? ": " + m.roomLine : "") + (m.playlistLine ? " " + m.playlistLine : ""));
   if(m.type === "wordless") return br("The words were hard to find, and you offered the wordless channel: a song can hold what words can't");
   if(m.type === "recordlabel" && m.done) return br("They recorded themselves, and you kept it on their day's page" + (m.label ? " under the name “" + m.label + "”" : "") + " — received, never analyzed");
@@ -8660,7 +8895,15 @@ function buildLiveHistory(){
    minimal, and documented at the EP_SYSTEM_CEILING declaration;
    the ladder gained two deeper digest rungs (100, 50) and a
    final rung where the bank rides as its header alone. The
-   constitution itself is never cut. */
+   constitution itself is never cut.
+   v3.4 addendum (2026-11-01, measured on the same seeds): the
+   care passage grew the constitution 23,837 → 24,825;
+   whole-system packets now measure 26,530 fresh (first stage —
+   the full digest and the full matched bank ride) / 26,523 on
+   the rich seed. The ceiling moved 25,700 → 26,700 — measured,
+   minimal, and documented at the EP_SYSTEM_CEILING declaration;
+   the ladder already ended at its deepest rungs, so it gained
+   none. The constitution itself is never cut. */
 function buildKnowledgeBaseSection(capOverride, briefOnly){
   /* v2.8 §6: briefOnly is the deepest bank thinning — at the
      final diet stages even the single best match rides in the
@@ -8795,8 +9038,30 @@ function buildKnowledgeBaseSection(capOverride, briefOnly){
    bank ride) / 25,535 rich. The diet's priority order is
    unchanged; ordinary records still land at the early stages,
    exactly as before.
+   ================================================================
+   v3.4 §6 — THE CEILING MOVES AGAIN: 25,700 → 26,700. Same
+   discipline, same reason: it is arithmetic, not preference.
+   The care passage (the founder's directive, 2026-10-31:
+   the self-care component, ordered into the live app
+   2026-11-01) grew the constitution 23,837 → 24,825 chars,
+   and the constitution is never cut. No ladder extension was
+   available: the v3.3 ladder already ends at the digest's
+   50-char head and the bank's header alone. Measured on the
+   suite's seeds at their deepest applicable rungs — the
+   floors below which no record of those shapes can be
+   thinned — the rich stress seed totals 26,523: the old
+   ceiling of 25,700 sits BELOW that floor, so no rung could
+   have held it. The minimum ceiling that fits the floor with
+   a small margin is therefore 26,700 (177 over the rich
+   floor — the same margin discipline as v2.9, v3.1 and
+   v3.3). Under the shipped ceiling the ladder stops at the
+   first rung that fits, so the packets as actually built
+   measure 26,530 fresh (first stage — the full digest and
+   the full matched bank ride) / 26,523 rich. The diet's
+   priority order is unchanged; ordinary records still land
+   at the early stages, exactly as before.
    ================================================================ */
-var EP_SYSTEM_CEILING = 25700;
+var EP_SYSTEM_CEILING = 26700;
 function buildLivePacket(){
   var tail = "";
   /* organizing notes: the facts figured at this message's moment,
@@ -8890,7 +9155,13 @@ function buildLivePacket(){
      its header alone — each still keeping the digest's head
      and its truncation marker; the ceiling itself is answered
      at the EP_SYSTEM_CEILING declaration. The constitution is
-     never cut, at any stage. */
+     never cut, at any stage.
+     v3.4 §6: the care passage grew the constitution again
+     (23,837 → 24,825). The ladder already ends at its deepest
+     rungs (the digest's 50-char head; the bank's header alone),
+     so no rung was added — the ceiling itself is answered at
+     the EP_SYSTEM_CEILING declaration (25,700 → 26,700). The
+     constitution is never cut, at any stage. */
   var constitution = liveConstitution();
   var kb = buildKnowledgeBaseSection();
   var system = constitution + "\n\n" + buildRecordDigest(false) + "\n\n" + kb + tail;
@@ -9126,6 +9397,16 @@ function detectIntent(text){
   if(low.indexOf(" how is it standing ") !== -1 || low.indexOf(" how's it standing ") !== -1
      || (low.indexOf(" halloween standing ") !== -1 && req))
     return {kind:"effigy"};
+  /* v3.4: the care shelf — asking brings its card. Shelf-shaped
+     asks only, in this matcher's conservative discipline:
+     "care" by itself never routes (a person says it all day —
+     I don't care, who cares, careful, I care about the garden),
+     and "my care team" is his clinicians, not the shelf */
+  if(low.trim() === "my care" || low.trim() === "care shelf") return {kind:"care"};
+  if(low.indexOf(" care shelf ") !== -1) return {kind:"care"};
+  if(low.indexOf(" what replenishes ") !== -1) return {kind:"care"};
+  if(low.indexOf(" my care ") !== -1 && low.indexOf(" my care team ") === -1 && req)
+    return {kind:"care"};
   if(w("receipts") || w("claims") || low.indexOf(" track record ") !== -1
      || (pieceHit && (w("record") || w("claims") || w("receipts"))))
     return {kind:"receipts"};
@@ -9150,6 +9431,7 @@ function detectIntent(text){
 }
 function routeIntent(it){
   if(it.kind === "effigy") postEffigyCard();
+  else if(it.kind === "care") postCareCard();
   else if(it.kind === "journal") postJournalCard("week");
   else if(it.kind === "journalday") postJournalCard("day", it.key);
   else if(it.kind === "find") postFoundCard(it.topic);
@@ -9934,6 +10216,52 @@ function bindThread(){
         /* not now — the chips rest; the post keeps standing */
         m.effDone = true; saveThread(); render();
       }
+      /* ---- v3.4 chips: the care shelf's doors ---- */
+      else if(act === "carekeepyes" && m){
+        /* his tap is the keeping: the words land on the shelf
+           exactly as he said them. The saying itself carried
+           that it helped, so it settles the way a receipt
+           settles — his words, and that it held */
+        m.careDone = true;
+        var ci1 = fileCareItem(m.careText || "", careKindGuess(m.careText || ""), true, m.careText || "");
+        pushMsg({type:"companion", text:"On your care shelf now: “" + shortWords(ci1.text, 110) + ".” It stands — you did it, and it helped."});
+        saveThread(); render();
+      }
+      else if(act === "carekeepno" && m){
+        /* not now — nothing is kept, and the asking rests */
+        m.careDone = true;
+        thread.careKeepRestUntil = Date.now() + 24 * 3600 * 1000;
+        saveThread(); render();
+      }
+      else if(act === "careclose" && m){
+        m.careDone = true; saveThread();
+        var ci2 = careById(m.careItemId);
+        pushMsg({type:"companion", text:"It’s close, then" + (ci2 ? " — “" + shortWords(ci2.text, 110) + ".”" : ".") + " Yours, whenever you reach for it."});
+        render();
+      }
+      else if(act === "carepass" && m){
+        /* not now — the chips rest, and care offers rest with them */
+        m.careDone = true;
+        thread.careRestUntil = Date.now() + 24 * 3600 * 1000;
+        saveThread(); render();
+      }
+      else if(act === "careaddsong" && m){
+        /* the playlist crossover, answered: a song already his,
+           proposed from the shelf's card — his tap keeps it
+           here too. Nothing is ever copied over on its own */
+        var sg = null;
+        playlist.songs.forEach(function(s){ if(s.id === parts[2]) sg = s; });
+        if(sg && !careItems().some(function(ci){ return ci.songId === sg.id; })){
+          fileCareItem("“" + sg.title + "”" + (sg.artist ? " by " + sg.artist : ""), "song", false, "", sg.id);
+          pushMsg({type:"companion", text:"Kept on your care shelf too: “" + sg.title + "”" + (sg.artist ? " by " + sg.artist : "") + "."});
+        }
+        render();
+      }
+      else if(act === "careitemdel" && m){
+        /* the shelf is his — taking a thing off is his tap too */
+        removeCareItem(parts[2]);
+        render();
+      }
       else if(act === "dismiss"){
         if(m){
           m.dismissed = true;
@@ -9989,7 +10317,7 @@ function bindThread(){
           var ct = thread.messages[ci].type;
           if(ct === "precedent" || ct === "receipt") opened = true;
         }
-        if(!opened) maybePostNextSteps("confirm", m);
+        if(!opened && !maybePostNextSteps("confirm", m)) maybeCareOffer(); /* v3.4: an entry just settled — a return; the shelf may speak, once, when nothing else opened */
         render();
       }
       else if(act === "voice"){ postUnderstandingChoice(m, "voice"); render(); }
@@ -10029,6 +10357,7 @@ function bindThread(){
       setOutcome(parts[0], parts[1], "");
       toast = "Written down.";
       afterTout(parts[0]);
+      maybeCareOffer(); /* v3.4: a thing they said just settled — a return; the shelf may speak, once */
       render();
     });
   });
