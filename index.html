@@ -1435,6 +1435,7 @@ var ladder    = storeLoad(K.ladder, ladderBlank);
 if(!ladder.contacts) ladder.contacts = [];
 if(!ladder.clinician) ladder.clinician = {name:"", phone:""};
 if(typeof ladder.roomIdx !== "number") ladder.roomIdx = -1; /* the room's last-shown line on the help ladder (v1.15) */
+if(typeof ladder.benchIdx !== "number") ladder.benchIdx = -1; /* v3.7: the bench's last-shown witness on the help ladder */
 var ledger    = storeLoad(K.ledger, ledgerBlank); /* ported load */
 if(!ledger.entries) ledger.entries = [];
 var djournal  = storeLoad(K.djournal, djournalBlank);
@@ -12832,6 +12833,46 @@ function nextRoomLine(){
   ladder.roomIdx = (cur + 1) % KNOWLEDGE.length; /* rotates; never the same line twice in a row */
   saveLadder();
 }
+/* ---- v3.7: THE BENCH PRE-STOCK (decided 2026-10-31, built
+   2026-11-21) ----
+   "A new user's Help opens pre-stocked with the bench
+   (published testimony, provenance carried); the person's
+   own record (songs, people, calm-day words, receipts)
+   grows over it and takes the front, bench staying as
+   floor — nobody starts at zero."
+   The stock is the testimony sweep's NOT_ALONE_STOCK: each
+   deposit is a person, a published account, and what a
+   reader can draw from it, entered with its name and source
+   carried, never stripped — the same discipline that stocks
+   the not-alone answer. For Help the order is fixed, the
+   bench's named witnesses first (Longden, Coleman, Dillon,
+   Saks, Bullimore, May — the six the stock carries), the
+   rest of the published accounts behind them in stock
+   order. One witness per press of its door, rotating,
+   never the same one twice in a row (ladder.benchIdx,
+   beside the room's roomIdx). Nothing here is scored,
+   nothing is a generic affirmation: every line is a named
+   person's published account, attributed on its face. */
+var HELP_BENCH_ORDER = ["longden", "coleman", "dillon", "saks", "bullimore", "may"];
+function helpBenchStock(){
+  var first = [], rest = [];
+  NOT_ALONE_STOCK.forEach(function(d){
+    if(HELP_BENCH_ORDER.indexOf(d.id) !== -1) first.push(d); else rest.push(d);
+  });
+  first.sort(function(a, b){ return HELP_BENCH_ORDER.indexOf(a.id) - HELP_BENCH_ORDER.indexOf(b.id); });
+  return first.concat(rest);
+}
+function benchLineDep(){
+  if(typeof ladder.benchIdx !== "number" || ladder.benchIdx < 0) return null;
+  var stock = helpBenchStock();
+  return stock[ladder.benchIdx % stock.length];
+}
+function nextBenchLine(){
+  var stock = helpBenchStock();
+  var cur = (typeof ladder.benchIdx === "number") ? ladder.benchIdx : -1;
+  ladder.benchIdx = (cur + 1) % stock.length; /* rotates; never the same witness twice in a row */
+  saveLadder();
+}
 function helpBarHTML(key, label){
   var open = (helpBar === key);
   return '<button type="button" class="helpbar'+(open ? " open" : "")+'" data-helpbar="'+key+'" aria-expanded="'+(open ? "true" : "false")+'">'
@@ -12903,6 +12944,19 @@ function viewHelp(){
     if(!ladder.noteForHardDay && !t.total){
       h += '<p>You are the one who keeps this record. What they\u2019ve said has a track record, and you can check it.</p>';
     }
+    /* v3.7: the bench floor — beneath everything of his own
+       in this bar (his note, the room, his receipts stand
+       above it), the published testimony Help opens stocked
+       with, so nobody starts at zero. His own record takes
+       the front as it grows; the bench stays underneath.
+       Every line carries its witness's name and source. */
+    h += '<p class="muted small" style="margin-top:14px">From the bench \u2014 people who hear voices, in their published accounts:</p>';
+    h += '<div class="btnrow"><button class="btn secondary small" id="helpBench" type="button">Hear from the bench</button></div>';
+    var bd = benchLineDep();
+    if(bd){
+      h += '<div class="room-line">'+esc(bd.line)+'</div>';
+      h += '<p class="muted small">\u2014 '+esc(bd.who)+', '+esc(bd.cite)+'</p>';
+    }
     h += '</div>';
   }
 
@@ -12963,6 +13017,7 @@ function bindHelp(){
     render();
   });
   var rm = el("helpRoom"); if(rm) rm.addEventListener("click", function(){ nextRoomLine(); render(); });
+  var bn = el("helpBench"); if(bn) bn.addEventListener("click", function(){ nextBenchLine(); render(); });
   var r = el("helpReceipts"); if(r) r.addEventListener("click", function(){ go("home"); postReceiptsCard(); render(); });
   el("helpArrange").addEventListener("click", function(){ ladderReturn = "help"; go("ladder"); });
 }
