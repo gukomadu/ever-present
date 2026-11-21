@@ -8124,6 +8124,10 @@ var NOT_ALONE_STOCK = [
    line:"Elyn Saks, a law professor, kept her schizophrenia secret for decades while building a demanding career through hospitalisations. Her account holds both at once — a full professional life, and the illness — and the combination that worked for her."},
   {id:"may", who:"Rufus May", cite:"clinical psychologist; his story is told in The Doctor Who Hears Voices (Channel 4, 2008), where he plays himself",
    line:"Rufus May was told at eighteen that he would be ill for life. He is now a clinical psychologist who works with voice-hearers — and one of his methods is testing a voice's predictions by writing them down and checking whether they come true."},
+  {id:"waddingham", who:"Rai Waddingham", cite:"“Don't Pity Me: Psychosis Gave Me Mad Skills” (Behind the Label, 2017)",
+   line:"Rai Waddingham still hears voices that tell her horrible things, and sometimes still needs to withdraw — and she refuses pity for it. She names what the experience built in her: focus, flexible thinking about reality, and using her own experience to connect with others in distress. Her line: she is neither a tragic victim nor a heroic ambassador — just someone finding a way to live a meaningful life."},
+  {id:"hall", who:"Will Hall", cite:"Alternatives 2012 keynote; “Outside Mental Health” interview (2023)",
+   line:"Will Hall still hears voices, feels presences and hears noises — and is recovered, working, and part of society. He says you don't have to get rid of all your symptoms to live a fully-recovered, happy, healthy life. What helped him was community and connection and friendship; what needs working on, he says, is fear, shame and isolation — not the voices alone."},
   {id:"dillon", who:"Jacqui Dillon", cite:"Therapy Today (2019)",
    line:"Jacqui Dillon has heard voices since she was five. Her recovery, in her own account, began when she stopped letting other people define her reality and found what she calls an empathic witness — someone committed to hearing her. Being believed, she says, may be the intervention."},
   {id:"lauveng", who:"Arnhild Lauveng", cite:"A Road Back from Schizophrenia (2005; English edition 2012)",
@@ -12846,14 +12850,15 @@ function nextRoomLine(){
    carried, never stripped — the same discipline that stocks
    the not-alone answer. For Help the order is fixed, the
    bench's named witnesses first (Longden, Coleman, Dillon,
-   Saks, Bullimore, May — the six the stock carries), the
-   rest of the published accounts behind them in stock
-   order. One witness per press of its door, rotating,
+   Saks, Bullimore, May — and, added 2026-11-21 by Georgio's
+   word from accounts already in his record, Waddingham and
+   Hall — the eight the stock carries), the rest of the
+   published accounts behind them in stock order. One witness per press of its door, rotating,
    never the same one twice in a row (ladder.benchIdx,
    beside the room's roomIdx). Nothing here is scored,
    nothing is a generic affirmation: every line is a named
    person's published account, attributed on its face. */
-var HELP_BENCH_ORDER = ["longden", "coleman", "dillon", "saks", "bullimore", "may"];
+var HELP_BENCH_ORDER = ["longden", "coleman", "dillon", "saks", "bullimore", "may", "waddingham", "hall"];
 function helpBenchStock(){
   var first = [], rest = [];
   NOT_ALONE_STOCK.forEach(function(d){
