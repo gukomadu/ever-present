@@ -1447,9 +1447,9 @@ if(!djournal.knowledgeDays) djournal.knowledgeDays = {};
 if(!djournal.dayContext) djournal.dayContext = {}; /* v2.7 (#9): context he stated, held on the day — stated, never sensed */
 var liveai    = storeLoad(K.liveai, liveaiBlank);
 if(!liveai || typeof liveai !== "object") liveai = liveaiBlank();
-if(liveai.provider !== "openai") liveai.provider = "anthropic";
+if(liveai.provider !== "openai" && liveai.provider !== "gemini") liveai.provider = "anthropic";
 if(typeof liveai.key !== "string") liveai.key = "";
-if(!liveai.model) liveai.model = liveai.provider === "openai" ? "gpt-4o" : "claude-sonnet-4-5";
+if(!liveai.model) liveai.model = liveai.provider === "openai" ? "gpt-4o" : liveai.provider === "gemini" ? "gemini-2.5-flash" : "claude-sonnet-4-5";
 liveai.on = !!liveai.on;
 var connections = storeLoad(K.connections, connectionsBlank);
 if(!connections || typeof connections !== "object") connections = connectionsBlank();
@@ -8647,14 +8647,16 @@ function notePourMessage(ev){
    closes, counts and erases nothing. The key lives only in
    localStorage on this device; it is never logged and never
    exported. Any failure falls back to the plain template ack. */
-var LIVEAI_DEFAULT_MODELS = {anthropic:"claude-sonnet-4-5", openai:"gpt-4o"};
+var LIVEAI_DEFAULT_MODELS = {anthropic:"claude-sonnet-4-5", openai:"gpt-4o", gemini:"gemini-2.5-flash"};
 var sessionLiveFailNote = false;
 var liveChain = Promise.resolve();
 function liveOn(){
   return !!(liveai && liveai.on && (liveai.key || "").trim() && (liveai.model || "").trim());
 }
 function liveProviderLabel(){
-  return liveai && liveai.provider === "openai" ? "OpenAI" : "Anthropic";
+  if(liveai && liveai.provider === "openai") return "OpenAI";
+  if(liveai && liveai.provider === "gemini") return "Google Gemini";
+  return "Anthropic";
 }
 function noteLiveKeyFailure(){
   if(sessionLiveFailNote) return;
@@ -9577,8 +9579,17 @@ function fetchLiveReply(){
   var packet = buildLivePacket();
   if(!packet.messages.length) return Promise.resolve(null);
   var req, parse;
-  if(liveai.provider === "openai"){
-    req = liveFetch("https://api.openai.com/v1/chat/completions", {
+  if(liveai.provider === "openai" || liveai.provider === "gemini"){
+    /* v3.10: Gemini rides this same chat-completions shape through
+       Google's OpenAI-compatible door. Probed 2026-11-23 the way a
+       browser would: the preflight AND an unauthenticated POST from
+       Origin https://gukomadu.github.io both came back with
+       Access-Control-Allow-Origin for that origin (the POST's 400
+       was only the dummy key), so the direct-from-browser
+       transport holds for it exactly as for OpenAI. */
+    req = liveFetch(liveai.provider === "gemini"
+      ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+      : "https://api.openai.com/v1/chat/completions", {
       method:"POST",
       headers:{"Content-Type":"application/json", "Authorization":"Bearer " + liveai.key.trim()},
       body:JSON.stringify({model:liveai.model.trim(), max_tokens:700,
@@ -10146,9 +10157,11 @@ function bindThread(){
       else if(act === "createyours"){ startCreate(false); }
       else if(act === "createnotnow" && m){ m.dismissed = true; saveThread(); render(); }
       else if(act === "liveprov"){
-        liveai.provider = parts[2] === "openai" ? "openai" : "anthropic";
-        var otherProv = liveai.provider === "openai" ? "anthropic" : "openai";
-        if(!liveai.model || liveai.model === LIVEAI_DEFAULT_MODELS[otherProv])
+        liveai.provider = (parts[2] === "openai" || parts[2] === "gemini") ? parts[2] : "anthropic";
+        var modelIsAnotherDefault = Object.keys(LIVEAI_DEFAULT_MODELS).some(function(p){
+          return p !== liveai.provider && liveai.model === LIVEAI_DEFAULT_MODELS[p];
+        });
+        if(!liveai.model || modelIsAnotherDefault)
           liveai.model = LIVEAI_DEFAULT_MODELS[liveai.provider];
         saveLiveai(); render();
       }
@@ -12179,13 +12192,19 @@ function liveSettingsHTML(m){
   var h = '<hr class="divider"><p style="margin:4px 0"><strong>Live companion</strong></p>';
   h += '<p class="small" style="margin:4px 0">Your key stays on this phone. Turning this on sends what you say here to '
     + esc(prov) + ' so your companion can answer like a person. Off = everything stays on this phone, and the companion answers in its simpler way.</p>';
+  if(L.provider === "gemini"){
+    /* v3.10: the honest free-tier note — shown for Gemini only,
+       never for the paid providers */
+    h += '<p class="small" style="margin:4px 0">One honest note: on Gemini’s free tier, Google can use what is sent here to improve its products — so this one is best for testing the live voice.</p>';
+  }
   h += '<p class="small muted" style="margin:4px 0">Live voice: <strong>' + (L.on ? "On" : "Off") + '</strong>'
     + ' · Provider: ' + esc(prov)
     + ' · Model: ' + esc(L.model || "—")
     + '<br>Key: ' + ((L.key || "").trim() ? "saved on this phone" : "not set yet") + '</p>';
   h += '<div class="chiprow">'
     + '<button type="button" class="chip'+(L.provider === "anthropic" ? " on" : "")+'" data-tchip="'+m.id+':liveprov:anthropic">Anthropic</button>'
-    + '<button type="button" class="chip'+(L.provider === "openai" ? " on" : "")+'" data-tchip="'+m.id+':liveprov:openai">OpenAI</button></div>';
+    + '<button type="button" class="chip'+(L.provider === "openai" ? " on" : "")+'" data-tchip="'+m.id+':liveprov:openai">OpenAI</button>'
+    + '<button type="button" class="chip'+(L.provider === "gemini" ? " on" : "")+'" data-tchip="'+m.id+':liveprov:gemini">Gemini</button></div>';
   h += '<p class="field-label">Your API key</p>';
   h += '<input type="password" class="txt" id="liveKey" value="'+esc(L.key || "")+'" placeholder="Paste your API key" autocomplete="off" aria-label="Your API key">';
   h += '<p class="field-label">Model</p>';
