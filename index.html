@@ -1934,7 +1934,7 @@ function isChecked(e){
 function heldUp(e){ return e.outcomeChip === "happened" || e.outcomeChip === "partly"; }
 var KIND_LABELS = {
   prediction:"Prediction",
-  now:"Claim about right now",
+  now:"About right now",
   commentary:"Running commentary",
   announcement:"Announcement",
   instruction:"Instruction"
@@ -4568,7 +4568,7 @@ function maybePostPrecedent(entry){
   var old = hit.entry;
   var text = (hit.shared <= 2 ? "This sounds like one from your record: " : "Announced before. ")
     + fmtDate(old.ts) + ": “" + old.claim + "”."
-    + (old.move && old.move.trim() ? " My move: " + old.move.trim() + "." : "")
+    + (old.move && old.move.trim() ? " Your move: " + old.move.trim() + "." : "")
     + " It ended: " + outcomeShort(old) + ".";
   pushMsg({type:"precedent", text:text, claimId:old.id});
   var pk = dayKeyOf(Date.now());
@@ -6359,7 +6359,7 @@ function threadMsgHTML(m){
       + '<div class="claim-text">&ldquo;'+esc(e.claim)+'&rdquo;</div>'
       + '<div class="muted small" style="margin-top:4px">'+esc(claimWhenLabel(e))+(e.who ? ' &mdash; '+esc(e.who) : '')+'</div>';
     if(isChecked(e)){
-      if(e.move) rh += '<p class="small" style="margin:8px 0 0"><strong>My move:</strong> '+esc(e.move)+'</p>';
+      if(e.move) rh += '<p class="small" style="margin:8px 0 0"><strong>Your move:</strong> '+esc(e.move)+'</p>';
       rh += '<div class="ledger-outcome"><strong>What actually happened:</strong> '+esc(outcomeLabel(e))+'</div>';
     } else {
       if(e.kind === "prediction") rh += '<p class="small" style="margin:8px 0 0">Did it happen?</p>';
@@ -7238,9 +7238,21 @@ function floorQuestionWord(text){
   words.forEach(function(w){ if(!FLOORQ_STOP[w] && w.length > best.length) best = w; });
   return best;
 }
+/* the playback reception (v3.9, audit V1): his own words,
+   played back, standing on today's page — the message was
+   filed before the reply in both talk lanes, so the line is
+   record-true. Contentless text gets no line at all. */
+function floorHeldLine(text){
+  var said = shortWords(text || "", 90);
+  if(!/[a-z0-9]/i.test(said)) return "";
+  return "“" + said + "” — on today’s page, in your words.";
+}
 function substanceFloor(text){
   /* (1) a word from THIS message that keeps coming up in his
-     own journal talk — counted by days, the record speaking */
+     own journal talk — counted by days, the record speaking.
+     v3.9 (audit V4): the day-count GATES this line; it is
+     never spoken — feedback law (3): journey numbers only,
+     never tallies of his own input. */
   var words = lifeWords(text || "");
   var now = Date.now(), bestW = null;
   words.forEach(function(w){
@@ -7249,7 +7261,7 @@ function substanceFloor(text){
   });
   if(bestW)
     return {kind:"floorrec", line:"“" + bestW.word.charAt(0).toUpperCase() + bestW.word.slice(1)
-      + "” has come up on " + bestW.days + " days now, in your own words."};
+      + "” keeps coming up, in your own words."};
   /* (2) a link to yesterday or the week, from the digest */
   var link = floorDigestLink();
   if(link) return {kind:"floordigest", line:link};
@@ -7287,6 +7299,11 @@ function substanceFloor(text){
       return {kind:"floorq", line:inv[thread.messages.length % inv.length]};
     }
   }
+  /* (4) v3.9 (audit V1): the playback reception — the floor's
+     last step, so some substantive line always carries the
+     reply and a bare acknowledgment never stands alone */
+  var held = floorHeldLine(text);
+  if(held) return {kind:"floorheld", line:held};
   return null;
 }
 /* is this message itself a question — by its punctuation or by
@@ -7608,10 +7625,12 @@ function lifeWordDays(word, sinceMs){
   });
   return Object.keys(days).length;
 }
-var LIFE_ORDINALS = {3:"Third", 4:"Fourth", 5:"Fifth", 6:"Sixth", 7:"Seventh"};
 function lifeFactLine(word, days){
-  var ord = LIFE_ORDINALS[days] || (days + "th");
-  return ord + " day this week " + word + "’s come up.";
+  /* v3.9 (audit V4): the day-count GATES this line upstream
+     (computeLifeFact, >= 3 days) but is never spoken — feedback
+     law (3): journey numbers only, never tallies of his own
+     input. The topic is named plainly, once, as founded. */
+  return word.charAt(0).toUpperCase() + word.slice(1) + "’s been in your talk this week.";
 }
 function computeLifeFact(text){
   if(noticedSuppressed() || knowledgeBlockedNow()) return null; /* the same discipline as every surface */
@@ -8514,16 +8533,19 @@ function noteLifeMessage(text){
        like this exchange. The app should do much more than
        [this]"): where a bare ack used to stand alone, the
        substance floor answers — a recurrence in his own words, a
-       digest link, or a genuine question about this content. A
-       bare ack remains only when the message carries no content
-       word at all and the record has nothing to link. */
+       digest link, or a genuine question about this content.
+       v3.9 (audit V1): the floor's last step is the playback
+       reception, so a bare ack never stands alone here at all. */
     var fl = substanceFloor(text);
     if(fl){
       pushMsg({type:"companion", noticed:true, fbKind:fl.kind,
         text: sessionAckStreak ? fl.line : (pickAck() + " " + fl.line)});
     } else if(!sessionAckStreak){
-      pushMsg({type:"companion", text:pickAck()});
-      bare = true;
+      /* v3.9 (audit V1): the standalone bare ack that stood
+         here is retired — the floor's held line is the last
+         resort; contentless text simply rests */
+      var heldL = floorHeldLine(text);
+      if(heldL) pushMsg({type:"companion", noticed:true, fbKind:"floorheld", text:heldL});
     }
   }
   sessionAckStreak = bare;
@@ -8573,9 +8595,10 @@ function notePourMessage(ev){
     pushMsg({type:"companion", noticed:true, fbKind:fb.kind,
       text: sessionAckStreak ? fb.line : (pickAck() + " " + fb.line)});
   } else if(proposalWouldFire(text)){
-    /* the proposal is this exchange's organizing — reception only,
-       as it has always been for matched talk */
-    if(!sessionAckStreak){ pushMsg({type:"companion", text:pickAck()}); bare = true; }
+    /* the proposal is this exchange's organizing — it IS the
+       response to matched talk. v3.9 (audit V1): the bare ack
+       that used to stand as its own bubble ahead of the
+       playback is retired; the playback carries the exchange. */
   } else if(ctxItem = matchContextForMessage(text, ev)){
     postContextLine(ctxItem);
   } else {
@@ -8599,8 +8622,11 @@ function notePourMessage(ev){
         pushMsg({type:"companion", noticed:true, fbKind:fl2.kind,
           text: sessionAckStreak ? fl2.line : (pickAck() + " " + fl2.line)});
       } else if(!sessionAckStreak){
-        pushMsg({type:"companion", text:pickAck()});
-        bare = true;
+        /* v3.9 (audit V1): the last-resort bare ack is retired
+           with the rest — the floor's held line answers;
+           contentless text simply rests */
+        var heldP = floorHeldLine(text);
+        if(heldP) pushMsg({type:"companion", noticed:true, fbKind:"floorheld", text:heldP});
       }
     }
   }
@@ -10099,7 +10125,7 @@ function bindThread(){
       }
       else if(act === "pourclaim" && m){
         var pce = m.claimId ? ledgerEntryById(m.claimId) : null;
-        if(pce) pushMsg({type:"companion", text:"The claim, from your record: “" + pce.claim + "”"});
+        if(pce) pushMsg({type:"companion", text:"What they said, from your record: “" + pce.claim + "”"});
         pushMsg({type:"companion", text:"Pour it out here — I’m listening. Nothing gets sorted while you talk."});
         render();
       }
@@ -10407,7 +10433,7 @@ function bindThread(){
         /* a passed door rests a season and closes once, later */
         m.doorDone = true;
         thread.doorsPassed["claim"] = Date.now();
-        registerPassedDoor("the still-open claim");
+        registerPassedDoor("the still-open thing they said");
         saveThread(); render();
       }
       else if(act === "nspiece" && m){
@@ -10418,7 +10444,7 @@ function bindThread(){
       else if(act === "nspour" && m){
         m.dismissed = true; saveThread();
         var nce = m.claimId ? ledgerEntryById(m.claimId) : null;
-        if(nce) pushMsg({type:"companion", text:"The claim, from your record: “" + nce.claim + "”"});
+        if(nce) pushMsg({type:"companion", text:"What they said, from your record: “" + nce.claim + "”"});
         pushMsg({type:"companion", text:"Pour it out here — I’m listening. Nothing gets sorted while you talk."});
         render();
       }
@@ -11014,7 +11040,7 @@ function receiptsLine(p){
    under it, and the correction flow that starts from its days. */
 function journalPrompts(){
   var prompts = [
-    "What did they claim this week that never happened?",
+    "What did they say this week that never happened?",
     "Which voice has been quiet lately \u2014 and what changed?",
     "Write the moment they defined for you, in your words instead.",
     /* v2.3 §3E (founder-directed 2026-10-26): the calm-time rotation
@@ -11424,7 +11450,7 @@ function journalCardDayHTML(m, key){
     var jparts = [];
     if(d.pours.length) jparts.push(d.pours.length + (d.pours.length === 1 ? " pour" : " pours"));
     if(d.writings.length) jparts.push(d.writings.length + (d.writings.length === 1 ? " thing written" : " things written"));
-    if(d.claimsLog.length) jparts.push(d.claimsLog.length + (d.claimsLog.length === 1 ? " claim said" : " claims said"));
+    if(d.claimsLog.length) jparts.push(d.claimsLog.length + (d.claimsLog.length === 1 ? " thing said" : " things said"));
     if((d.clips || []).length) jparts.push(d.clips.length + (d.clips.length === 1 ? " recording" : " recordings"));
     h += '<p class="fig-note">On today’s page so far: ' + jparts.join(", ") + "."
       + (atlas.pieces.length ? " The map holds " + atlas.pieces.length
@@ -11530,7 +11556,7 @@ function mapCardHTML(m){
     body += '<div class="cardblock"><p style="margin:2px 0"><strong>'+esc(p.name)+'</strong>'
       + '<span class="type-tag">'+esc(TYPE_LABELS[p.type] || "Voice")+'</span></p>'
       + '<p class="small muted" style="margin:2px 0">'+caps+(caps === 1 ? " capture" : " captures")
-      + ' · '+rc.total+(rc.total === 1 ? " claim" : " claims")+(rc.checked ? ', '+rc.checked+' checked' : '')+'</p>'
+      + ' · '+rc.total+(rc.total === 1 ? " thing said" : " things said")+(rc.checked ? ', '+rc.checked+' checked' : '')+'</p>'
       + (p.seeing
           ? '<p class="small" style="margin:2px 0"><strong>How I see them:</strong> '+esc(shortWords(p.seeing, 90))+'</p>'
           : '<p class="small muted" style="margin:2px 0">How you see them: not said yet — that’s the top layer.</p>')
@@ -11715,7 +11741,7 @@ function postReceiptsCard(openOffset){
 function receiptsCardHTML(m){
   var h = "";
   if(!ledger.entries.length){
-    h += '<p style="margin:4px 0">No claims yet. When they claim something, say it here — I’ll keep the count.</p>';
+    h += '<p style="margin:4px 0">Nothing yet. When they say something, say it here — I’ll keep the count.</p>';
   } else {
     var fig = figuredReceipts();
     h += fig.lines.map(function(l){ return '<p style="margin:4px 0">'+esc(l)+'</p>'; }).join("");
@@ -11736,13 +11762,13 @@ function receiptsCardHTML(m){
           + '<button type="button" class="chip" data-tout="'+e.id+':partly">Partly</button>'
           + '<button type="button" class="chip" data-tout="'+e.id+':notyet">Not yet</button></div>';
         if(e.outcomeChip === "notyet") h += '<p class="muted small">Marked &ldquo;not yet&rdquo; — still open.</p>';
-        if(e.move) h += '<p class="small" style="margin:6px 0 0"><strong>My move:</strong> '+esc(e.move)+'</p>';
+        if(e.move) h += '<p class="small" style="margin:6px 0 0"><strong>Your move:</strong> '+esc(e.move)+'</p>';
         if(!e.doorsPosted && !e.doorsDismissed && !(e.move && e.move.trim()))
           h += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':doors:'+e.id+'">Doors?</button></div>';
         h += '</div>';
       });
       if(off + 5 < open.length)
-        h += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':ropen">More open claims</button></div>';
+        h += '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':ropen">More still open</button></div>';
     }
     var closed = ledger.entries.filter(isChecked).sort(function(a,b){ return (b.tsOutcome || 0) - (a.tsOutcome || 0); });
     if(closed.length){
@@ -11751,13 +11777,13 @@ function receiptsCardHTML(m){
         h += '<div class="cardblock"><div class="claim-text">&ldquo;'+esc(shortWords(e.claim, 100))+'&rdquo;'
           + (e.kind ? '<span class="kind-tag">'+esc(KIND_LABELS[e.kind] || e.kind)+'</span>' : '') + '</div>'
           + '<div class="muted small" style="margin-top:4px">'+esc(claimWhenLabel(e))+(e.who ? ' &mdash; '+esc(e.who) : '')+'</div>'
-          + (e.move ? '<p class="small" style="margin:6px 0 0"><strong>My move:</strong> '+esc(e.move)+'</p>' : '')
+          + (e.move ? '<p class="small" style="margin:6px 0 0"><strong>Your move:</strong> '+esc(e.move)+'</p>' : '')
           + '<div class="ledger-outcome"><strong>What actually happened:</strong> '+esc(outcomeLabel(e))+'</div></div>';
       });
       if(closed.length > 3) h += '<p class="small muted" style="margin:6px 0">…and '+(closed.length - 3)+' more checked.</p>';
     }
   }
-  h += '<div class="chiprow" style="margin-top:10px"><button type="button" class="chip" data-tchip="'+m.id+':logclaim">Say a claim</button></div>';
+  h += '<div class="chiprow" style="margin-top:10px"><button type="button" class="chip" data-tchip="'+m.id+':logclaim">Say what they said</button></div>';
   return cardBubble("Check the receipts", h);
 }
 
@@ -12409,7 +12435,7 @@ function confirmActHTML(m){
   }
   if(m.kind === "erase1"){
     return '<div class="msg them"><div class="bubble"><p class="hub-label">Erase everything</p>'
-      + '<p style="margin:4px 0">Your companion, all map pieces, glossary terms, every claim you’ve told me, your journal writings, your playlist, your recordings, and your help ladder — erased from this phone. This can’t be undone.</p>'
+      + '<p style="margin:4px 0">Your companion, all map pieces, glossary terms, everything they’ve said that you’ve told me, your journal writings, your playlist, your recordings, and your help ladder — erased from this phone. This can’t be undone.</p>'
       + '<div class="chiprow"><button type="button" class="chip" data-tchip="'+m.id+':cfyes">Erase everything</button>'
       + '<button type="button" class="chip" data-tchip="'+m.id+':cfno">Keep my record</button></div></div></div>';
   }
@@ -12644,10 +12670,10 @@ function startDetailSession(editEv){
 }
 var DETAIL_STEPS = ["who","newpiece","channels","manner","among","claim","register","seeing","gloss","ownevent"];
 var DETAIL_LABELS = {who:"Who is present", newpiece:"The new one", channels:"What came through", time:"When was it",
-  manner:"Manner and position", among:"Among themselves", claim:"What they’re doing — claims",
+  manner:"Manner and position", among:"Among themselves", claim:"What they’re doing — things they said",
   register:"How they presented", seeing:"How you see them", gloss:"A word they use", ownevent:"Anything else"};
-var CLAIM_KIND_CHIPOPTS = [["prediction","A prediction — something would happen"],["now","A claim about right now"],
-  ["commentary","Running commentary"],["announcement","An announcement"],["instruction","Not a claim — an instruction"]];
+var CLAIM_KIND_CHIPOPTS = [["prediction","A prediction — something would happen"],["now","Something about right now"],
+  ["commentary","Running commentary"],["announcement","An announcement"],["instruction","Not something they said — an instruction"]];
 var RESPONSE_OPTS = ["I answered back","It argued with what I decided"];
 function detailStepApplies(step){
   if(step === "newpiece") return newPieceWanted();
@@ -12883,7 +12909,7 @@ function detailSummaryHTML(d){
   if(d.among.length) h += '<h3>Among themselves</h3>' + summaryList(d.among.map(esc));
   if(d.claimKind){
     var cw = claimWhoOf(d);
-    h += '<h3>A claim</h3>' + summaryList([
+    h += '<h3>Something they said</h3>' + summaryList([
       esc(KIND_LABELS[d.claimKind] || d.claimKind),
       "&ldquo;" + esc(claimTextOf(d) || "(from the options above)") + "&rdquo;",
       cw.name ? "Said by: " + esc(cw.name) : "No one specific named"
@@ -12942,7 +12968,7 @@ function handleDetailChip(spec){
       whoOwn:"Say who, in your own words — it fills this step.",
       npName:"Say the name — the name as you know it, or a name you’re giving it.",
       bodySpotOwn:"Say the body spot, in your own words.",
-      claimOwn:"Say the claim, in your own words.",
+      claimOwn:"Say what they said, in your own words.",
       seeingOwn:"Say how you see them — your words lead.",
       glossTerm:"Say the word — just the word.",
       glossDoesOwn:"Say what the word does, in your own words.",
@@ -13136,13 +13162,16 @@ function viewHelp(){
     if(ladder.noteForHardDay){
       h += '<div class="hardday-note">'+esc(ladder.noteForHardDay)+'</div>';
     }
-    /* the room: a recognition that you are not alone, in
-       people's own words — one line per press, rotating,
-       never repeated back-to-back (the shared roomIdx) */
+    /* the room: a recognition that you are not alone — one
+       line per press, rotating, never repeated back-to-back
+       (the shared roomIdx). v3.9 (audit N1): the label says
+       what the lines are — plain-word summaries from research
+       and published accounts, not verbatim quotes; the bench
+       below carries the verbatim testimony, named and sourced. */
     h += '<div class="btnrow"><button class="btn secondary small" id="helpRoom" type="button">Hear from the room</button></div>';
     var rl = roomLineText();
     if(rl){
-      h += '<p class="muted small">From the room \u2014 people who hear voices, in their own words:</p>';
+      h += '<p class="muted small">From the room \u2014 research and published accounts on hearing voices, in plain words:</p>';
       h += '<div class="room-line">'+esc(rl)+'</div>';
     }
     if(t.total){
